@@ -4,9 +4,11 @@
 declare(strict_types=1);
 
 return [
-    'app_name' => 'My MVC App',
-    // Adjust to your environment; include subdirectory if not at web root (e.g. http://localhost/swe/public)
-    'base_url' => 'http://localhost/swe/public',
+    'app_name' => 'Student Information System',
+    // Adjust to your environment; include subdirectory if not at web root
+    // For XAMPP: http://localhost/Student-Information-System/public
+    // For direct public folder: http://localhost/public
+    'base_url' => 'http://localhost/Student-Information-System/public',
     'default_controller' => 'Home',
     'default_method' => 'index',
 ];

@@ -569,19 +569,71 @@ function initializeModals() {
             }
         });
     });
+    
+    // Support for modal with 'active' class (from provided code)
+    const activeModals = document.querySelectorAll('.modal');
+    activeModals.forEach(modal => {
+        if (modal.classList.contains('active')) {
+            showModal(modal);
+        }
+    });
 }
 
 function showModal(modal) {
-    modal.style.display = 'flex';
-    modal.classList.add('fade-in');
-    document.body.style.overflow = 'hidden';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active', 'fade-in');
+        document.body.style.overflow = 'hidden';
+    }
 }
 
 function hideModal(modal) {
-    modal.style.display = 'none';
-    modal.classList.remove('fade-in');
-    document.body.style.overflow = '';
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active', 'fade-in');
+        document.body.style.overflow = '';
+    }
 }
+
+// Toastify Notification Wrapper
+function showToastifyNotification(message, type = 'info') {
+    let backgroundColor = '#2563eb'; // default blue
+    
+    if (type === 'success') {
+        backgroundColor = '#10b981'; // green
+    } else if (type === 'error') {
+        backgroundColor = '#ef4444'; // red
+    } else if (type === 'warning') {
+        backgroundColor = '#f59e0b'; // orange
+    }
+    
+    if (typeof Toastify !== 'undefined') {
+        Toastify({
+            text: message,
+            duration: 5000,
+            gravity: "top",
+            position: "right",
+            style: {
+                background: backgroundColor,
+            },
+            close: true,
+        }).showToast();
+    } else {
+        // Fallback to regular notification if Toastify is not loaded
+        showNotification(message, type);
+    }
+}
+
+// Enhanced showNotification to work with Toastify
+const originalShowNotification = showNotification;
+showNotification = function(message, type = 'info') {
+    // Try Toastify first, fallback to original
+    if (typeof Toastify !== 'undefined') {
+        showToastifyNotification(message, type);
+    } else {
+        originalShowNotification(message, type);
+    }
+};
 
 // Progress Bar Management
 function updateProgressBar(progressBar, percentage) {
@@ -809,14 +861,94 @@ function addQuickContactSuggestions() {
     }
 }
 
+// Initialize modals on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeModals();
+    
+    // Check for URL message parameters and show Toastify notification
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    const messageType = urlParams.get('type') || 'info';
+    
+    if (message) {
+        showToastifyNotification(decodeURIComponent(message), messageType);
+        
+        // Clean URL by removing message parameters
+        const url = new URL(window.location);
+        url.searchParams.delete('message');
+        url.searchParams.delete('type');
+        window.history.replaceState({}, '', url);
+    }
+});
+
 // Export functions for global use
 window.UniversityPortal = {
     toggleTheme,
     toggleSidebar,
     toggleChat,
     showNotification,
+    showToastifyNotification,
     validateForm,
     showModal,
     hideModal,
     updateProgressBar
+};
+
+// Global modal functions for inline use
+window.showAssignDoctorModal = function(courseId) {
+    const modal = document.getElementById('assignDoctorModal');
+    const courseIdInput = document.getElementById('assignDoctorCourseId');
+    if (modal && courseIdInput) {
+        courseIdInput.value = courseId;
+        showModal(modal);
+    }
+};
+
+window.closeAssignDoctorModal = function() {
+    const modal = document.getElementById('assignDoctorModal');
+    const form = document.getElementById('assignDoctorForm');
+    if (modal) {
+        hideModal(modal);
+        if (form) form.reset();
+    }
+};
+
+window.showEnrollStudentModal = function(courseId) {
+    const modal = document.getElementById('enrollStudentModal');
+    const courseIdInput = document.getElementById('enrollStudentCourseId');
+    if (modal && courseIdInput) {
+        courseIdInput.value = courseId;
+        showModal(modal);
+    }
+};
+
+window.closeEnrollStudentModal = function() {
+    const modal = document.getElementById('enrollStudentModal');
+    const form = document.getElementById('enrollStudentForm');
+    if (modal) {
+        hideModal(modal);
+        if (form) {
+            form.reset();
+            const countElement = document.getElementById('selectedCount');
+            if (countElement) countElement.textContent = '0';
+        }
+    }
+};
+
+window.showRejectModal = function(requestId) {
+    const modal = document.getElementById('rejectModal');
+    const requestIdInput = document.getElementById('reject_request_id');
+    if (modal && requestIdInput) {
+        requestIdInput.value = requestId;
+        showModal(modal);
+    }
+};
+
+window.closeRejectModal = function() {
+    const modal = document.getElementById('rejectModal');
+    if (modal) {
+        hideModal(modal);
+        const reasonInput = document.getElementById('rejection_reason');
+        if (reasonInput) reasonInput.value = '';
+    }
 };

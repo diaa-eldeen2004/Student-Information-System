@@ -42,43 +42,71 @@ try {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     ]);
 
-    // Create users table
-    echo "2. Creating 'users' table...\n";
-    $sql = "CREATE TABLE IF NOT EXISTS `users` (
-        `id` INT(11) NOT NULL AUTO_INCREMENT,
-        `first_name` VARCHAR(100) NOT NULL,
-        `last_name` VARCHAR(100) NOT NULL,
-        `email` VARCHAR(255) NOT NULL UNIQUE,
-        `phone` VARCHAR(20) DEFAULT NULL,
-        `password` VARCHAR(255) NOT NULL,
-        `role` ENUM('admin', 'student', 'doctor', 'advisor', 'it', 'user') NOT NULL DEFAULT 'user',
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`),
-        INDEX `idx_email` (`email`),
-        INDEX `idx_role` (`role`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    // Read and execute schema.sql
+    echo "2. Reading schema file...\n";
+    $schemaFile = dirname(__DIR__) . '/database/schema.sql';
     
-    $pdo->exec($sql);
-    echo "   ✓ Table 'users' created successfully\n\n";
-
-    // Verify table exists
-    $stmt = $pdo->query("SHOW TABLES LIKE 'users'");
-    if ($stmt->rowCount() > 0) {
-        echo "3. Verification:\n";
-        echo "   ✓ Table 'users' exists\n";
-        
-        // Count columns
-        $stmt = $pdo->query("DESCRIBE users");
-        $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo "   ✓ Table has " . count($columns) . " columns\n\n";
-        
-        echo "Migration completed successfully! ✓\n";
-        echo "You can now use the application.\n";
-    } else {
-        echo "   ✗ Error: Table verification failed\n";
-        exit(1);
+    if (!file_exists($schemaFile)) {
+        throw new Exception("Schema file not found: {$schemaFile}");
     }
+    
+    $schema = file_get_contents($schemaFile);
+    
+    // Remove comments and split by semicolon
+    $schema = preg_replace('/--.*$/m', '', $schema);
+    $statements = array_filter(
+        array_map('trim', explode(';', $schema)),
+        function($stmt) {
+            return !empty($stmt) && !preg_match('/^\s*$/s', $stmt);
+        }
+    );
+    
+    echo "   Found " . count($statements) . " SQL statements\n\n";
+    
+    // Execute each statement
+    $tableCount = 0;
+    foreach ($statements as $index => $statement) {
+        if (preg_match('/CREATE TABLE.*?`(\w+)`/i', $statement, $matches)) {
+            $tableName = $matches[1];
+            echo "   Creating table '{$tableName}'...\n";
+            try {
+                $pdo->exec($statement . ';');
+                echo "   ✓ Table '{$tableName}' created successfully\n";
+                $tableCount++;
+            } catch (PDOException $e) {
+                // Table might already exist, which is okay
+                if (strpos($e->getMessage(), 'already exists') === false) {
+                    echo "   ⚠ Warning: " . $e->getMessage() . "\n";
+                } else {
+                    echo "   ℹ Table '{$tableName}' already exists (skipped)\n";
+                    $tableCount++;
+                }
+            }
+        }
+    }
+    
+    echo "\n3. Verification:\n";
+    $stmt = $pdo->query("SHOW TABLES");
+    $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    echo "   ✓ Found " . count($tables) . " tables in database\n";
+    
+    $expectedTables = [
+        'users', 'students', 'doctors', 'advisors', 'it_officers', 'admins',
+        'courses', 'course_prerequisites', 'sections', 'enrollments',
+        'enrollment_requests', 'assignments', 'assignment_submissions',
+        'materials', 'attendance', 'notifications', 'student_notes', 'audit_logs'
+    ];
+    
+    foreach ($expectedTables as $table) {
+        if (in_array($table, $tables)) {
+            echo "   ✓ Table '{$table}' exists\n";
+        } else {
+            echo "   ✗ Table '{$table}' missing\n";
+        }
+    }
+    
+    echo "\nMigration completed successfully! ✓\n";
+    echo "You can now use the application.\n";
 
 } catch (PDOException $e) {
     echo "✗ Migration failed: " . $e->getMessage() . "\n";

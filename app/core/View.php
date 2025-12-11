@@ -25,8 +25,21 @@ class View
         };
 
         $assetHelper = function($path) use ($baseUrl) {
-            $base = $baseUrl === '' ? '' : $baseUrl;
-            return $base . '/' . ltrim($path, '/');
+            // Extract path from base_url if it's a full URL
+            $basePath = '';
+            if (!empty($baseUrl)) {
+                $parsed = parse_url($baseUrl);
+                $basePath = $parsed['path'] ?? '';
+            }
+            $basePath = rtrim($basePath, '/');
+            $assetPath = $basePath . '/' . ltrim($path, '/');
+            // Ensure path starts with / for absolute path
+            if (!empty($assetPath) && $assetPath[0] !== '/') {
+                $assetPath = '/' . $assetPath;
+            }
+            // Remove double slashes
+            $assetPath = preg_replace('#/+#', '/', $assetPath);
+            return $assetPath;
         };
 
         $shared = [
@@ -63,6 +76,32 @@ class View
 
     private function buffer(string $path, array $data, bool $return = true): ?string
     {
+        // Ensure url and asset helpers are always available
+        if (!isset($data['url']) || !is_callable($data['url'])) {
+            $baseUrl = rtrim($this->config['base_url'] ?? '', '/');
+            $data['url'] = function($path) use ($baseUrl) {
+                $base = $baseUrl === '' ? '' : $baseUrl;
+                return $base . '/' . ltrim($path, '/');
+            };
+        }
+        if (!isset($data['asset']) || !is_callable($data['asset'])) {
+            $baseUrl = rtrim($this->config['base_url'] ?? '', '/');
+            $data['asset'] = function($path) use ($baseUrl) {
+                $basePath = '';
+                if (!empty($baseUrl)) {
+                    $parsed = parse_url($baseUrl);
+                    $basePath = $parsed['path'] ?? '';
+                }
+                $basePath = rtrim($basePath, '/');
+                $assetPath = $basePath . '/' . ltrim($path, '/');
+                if (!empty($assetPath) && $assetPath[0] !== '/') {
+                    $assetPath = '/' . $assetPath;
+                }
+                $assetPath = preg_replace('#/+#', '/', $assetPath);
+                return $assetPath;
+            };
+        }
+        
         extract($data, EXTR_SKIP);
         ob_start();
         include $path;

@@ -1,0 +1,2 @@
+This is a test file. If you can see this, Apache is serving files from the public directory correctly.
+

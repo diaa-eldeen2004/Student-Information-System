@@ -59,6 +59,7 @@ return [
     ['POST', '/it/enrollments/approve', 'ItOfficer@approveEnrollment'],
     ['POST', '/it/enrollments/reject', 'ItOfficer@rejectEnrollment'],
     ['GET', '/it/course', 'ItOfficer@course'],
+    ['POST', '/it/course', 'ItOfficer@course'],
     ['GET', '/it/logs', 'ItOfficer@logs'],
 
     // Migration (development only - remove in production)

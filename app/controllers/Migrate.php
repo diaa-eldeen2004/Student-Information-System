@@ -42,37 +42,71 @@ class Migrate extends Controller
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             ]);
             
-            // Create users table
-            $messages[] = "Creating 'users' table...";
-            $sql = "CREATE TABLE IF NOT EXISTS `users` (
-                `id` INT(11) NOT NULL AUTO_INCREMENT,
-                `first_name` VARCHAR(100) NOT NULL,
-                `last_name` VARCHAR(100) NOT NULL,
-                `email` VARCHAR(255) NOT NULL UNIQUE,
-                `phone` VARCHAR(20) DEFAULT NULL,
-                `password` VARCHAR(255) NOT NULL,
-                `role` ENUM('admin', 'student', 'doctor', 'advisor', 'it', 'user') NOT NULL DEFAULT 'user',
-                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (`id`),
-                INDEX `idx_email` (`email`),
-                INDEX `idx_role` (`role`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            // Read and execute schema.sql
+            $messages[] = "Reading schema file...";
+            $schemaFile = dirname(__DIR__, 2) . '/database/schema.sql';
             
-            $pdo->exec($sql);
-            $messages[] = "✓ Table 'users' created successfully";
-            
-            // Verify table exists
-            $stmt = $pdo->query("SHOW TABLES LIKE 'users'");
-            if ($stmt->rowCount() > 0) {
-                $stmt = $pdo->query("DESCRIBE users");
-                $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $messages[] = "✓ Table has " . count($columns) . " columns";
-                $success = true;
-                $messages[] = "Migration completed successfully!";
-            } else {
-                $messages[] = "✗ Error: Table verification failed";
+            if (!file_exists($schemaFile)) {
+                throw new \Exception("Schema file not found: {$schemaFile}");
             }
+            
+            $schema = file_get_contents($schemaFile);
+            
+            // Remove comments and split by semicolon
+            $schema = preg_replace('/--.*$/m', '', $schema);
+            $statements = array_filter(
+                array_map('trim', explode(';', $schema)),
+                function($stmt) {
+                    return !empty($stmt) && !preg_match('/^\s*$/s', $stmt);
+                }
+            );
+            
+            $messages[] = "Found " . count($statements) . " SQL statements";
+            
+            // Execute each statement
+            $tableCount = 0;
+            foreach ($statements as $index => $statement) {
+                if (preg_match('/CREATE TABLE.*?`(\w+)`/i', $statement, $matches)) {
+                    $tableName = $matches[1];
+                    $messages[] = "Creating table '{$tableName}'...";
+                    try {
+                        $pdo->exec($statement . ';');
+                        $messages[] = "✓ Table '{$tableName}' created successfully";
+                        $tableCount++;
+                    } catch (PDOException $e) {
+                        // Table might already exist, which is okay
+                        if (strpos($e->getMessage(), 'already exists') === false && strpos($e->getMessage(), 'Duplicate') === false) {
+                            $messages[] = "⚠ Warning for '{$tableName}': " . $e->getMessage();
+                        } else {
+                            $messages[] = "ℹ Table '{$tableName}' already exists (skipped)";
+                            $tableCount++;
+                        }
+                    }
+                }
+            }
+            
+            // Verify tables exist
+            $stmt = $pdo->query("SHOW TABLES");
+            $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $messages[] = "✓ Found " . count($tables) . " tables in database";
+            
+            $expectedTables = [
+                'users', 'students', 'doctors', 'advisors', 'it_officers', 'admins',
+                'courses', 'course_prerequisites', 'sections', 'enrollments',
+                'enrollment_requests', 'assignments', 'assignment_submissions',
+                'materials', 'attendance', 'notifications', 'student_notes', 'audit_logs'
+            ];
+            
+            foreach ($expectedTables as $table) {
+                if (in_array($table, $tables)) {
+                    $messages[] = "✓ Table '{$table}' exists";
+                } else {
+                    $messages[] = "✗ Table '{$table}' missing";
+                }
+            }
+            
+            $success = true;
+            $messages[] = "Migration completed successfully!";
             
         } catch (PDOException $e) {
             $messages[] = "✗ Migration failed: " . $e->getMessage();

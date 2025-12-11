@@ -1,0 +1,8 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Redirect all requests to the public folder
+    RewriteCond %{REQUEST_URI} !^/Student-Information-System/public/
+    RewriteRule ^(.*)$ /Student-Information-System/public/$1 [L,R=301]
+</IfModule>
+

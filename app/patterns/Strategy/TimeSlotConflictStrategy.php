@@ -1,0 +1,79 @@
+<?php
+namespace patterns\Strategy;
+
+use PDO;
+
+/**
+ * Strategy Pattern - Behavioral
+ * Concrete strategy for time slot conflict detection
+ */
+class TimeSlotConflictStrategy implements ConflictDetectionStrategy
+{
+    private PDO $db;
+    private bool $hasConflict = false;
+    private string $errorMessage = '';
+
+    public function __construct(PDO $db)
+    {
+        $this->db = $db;
+    }
+
+    public function checkConflict(array $data): bool
+    {
+        $doctorId = $data['doctor_id'] ?? 0;
+        $dayOfWeek = $data['day_of_week'] ?? '';
+        $startTime = $data['start_time'] ?? '';
+        $endTime = $data['end_time'] ?? '';
+        $semester = $data['semester'] ?? '';
+        $academicYear = $data['academic_year'] ?? '';
+        $excludeSectionId = $data['exclude_section_id'] ?? null;
+
+        if (!$doctorId || !$dayOfWeek || !$startTime || !$endTime || !$semester || !$academicYear) {
+            $this->errorMessage = 'Missing required time slot data';
+            return false;
+        }
+
+        $sql = "SELECT COUNT(*) as count FROM sections
+                WHERE doctor_id = :doctor_id
+                AND semester = :semester
+                AND academic_year = :academic_year
+                AND day_of_week = :day_of_week
+                AND (
+                    (start_time <= :start_time AND end_time > :start_time)
+                    OR (start_time < :end_time AND end_time >= :end_time)
+                    OR (start_time >= :start_time AND end_time <= :end_time)
+                )";
+        
+        if ($excludeSectionId) {
+            $sql .= " AND section_id != :exclude_section_id";
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        $params = [
+            'doctor_id' => $doctorId,
+            'semester' => $semester,
+            'academic_year' => $academicYear,
+            'day_of_week' => $dayOfWeek,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ];
+        
+        if ($excludeSectionId) {
+            $params['exclude_section_id'] = $excludeSectionId;
+        }
+        
+        $stmt->execute($params);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $this->hasConflict = (int)$result['count'] > 0;
+        $this->errorMessage = $this->hasConflict ? 'Doctor has a time slot conflict' : '';
+        
+        return $this->hasConflict;
+    }
+
+    public function getErrorMessage(): string
+    {
+        return $this->errorMessage;
+    }
+}
+
