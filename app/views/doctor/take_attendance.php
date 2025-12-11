@@ -1,0 +1,4 @@
+<?php
+// Take Attendance View
+?>
+

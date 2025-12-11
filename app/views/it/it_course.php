@@ -1,0 +1,4 @@
+<?php
+// IT Course View
+?>
+

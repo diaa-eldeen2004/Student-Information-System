@@ -1,0 +1,4 @@
+<?php
+// Student Profile View
+?>
+

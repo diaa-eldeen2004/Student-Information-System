@@ -1,0 +1,4 @@
+<?php
+// Student Notification View
+?>
+

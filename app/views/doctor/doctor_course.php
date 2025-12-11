@@ -1,0 +1,4 @@
+<?php
+// Doctor Course View
+?>
+

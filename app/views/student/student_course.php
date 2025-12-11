@@ -1,0 +1,4 @@
+<?php
+// Student Course View
+?>
+

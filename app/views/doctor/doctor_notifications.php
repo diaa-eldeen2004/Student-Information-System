@@ -1,0 +1,4 @@
+<?php
+// Doctor Notifications View
+?>
+

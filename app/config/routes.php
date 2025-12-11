@@ -1,0 +1,84 @@
+<?php
+// HTTP method, path, controller@method
+return [
+    // Public pages
+    ['GET', '/', 'Home@index'],
+    ['GET', '/about', 'PublicPages@about'],
+    ['GET', '/majors', 'PublicPages@majors'],
+    ['GET', '/doctors', 'PublicPages@doctors'],
+    ['GET', '/projects', 'PublicPages@projects'],
+    ['GET', '/contact', 'PublicPages@contact'],
+
+    // Authentication
+    ['GET', '/auth/login', 'Auth@login'],
+    ['POST', '/auth/login', 'Auth@login'],
+    ['GET', '/auth/sign', 'Auth@sign'],
+    ['POST', '/auth/sign', 'Auth@sign'],
+    ['GET', '/auth/forgot-password', 'Auth@forgotPassword'],
+    ['POST', '/auth/forgot-password', 'Auth@forgotPassword'],
+    ['GET', '/logout', 'Auth@logout'],
+    ['POST', '/logout', 'Auth@logout'],
+
+    // Student routes
+    ['GET', '/student/dashboard', 'Student@dashboard'],
+    ['GET', '/student/schedule', 'Student@schedule'],
+    ['GET', '/student/assignments', 'Student@assignments'],
+    ['POST', '/student/assignments/upload', 'Student@uploadAssignment'],
+    ['GET', '/student/attendance', 'Student@attendance'],
+    ['GET', '/student/calendar', 'Student@calendar'],
+    ['GET', '/student/course', 'Student@course'],
+    ['GET', '/student/notifications', 'Student@notifications'],
+    ['GET', '/student/profile', 'Student@profile'],
+    ['POST', '/student/enroll', 'Student@enroll'],
+
+    // Doctor routes
+    ['GET', '/doctor/dashboard', 'Doctor@dashboard'],
+    ['GET', '/doctor/course', 'Doctor@course'],
+    ['GET', '/doctor/assignments', 'Doctor@assignments'],
+    ['GET', '/doctor/create-assignment', 'Doctor@createAssignment'],
+    ['POST', '/doctor/create-assignment', 'Doctor@createAssignment'],
+    ['GET', '/doctor/attendance', 'Doctor@attendance'],
+    ['GET', '/doctor/take-attendance', 'Doctor@takeAttendance'],
+    ['POST', '/doctor/take-attendance', 'Doctor@takeAttendance'],
+    ['GET', '/doctor/calendar', 'Doctor@calendar'],
+    ['GET', '/doctor/notifications', 'Doctor@notifications'],
+    ['GET', '/doctor/send-notification', 'Doctor@sendNotification'],
+    ['POST', '/doctor/send-notification', 'Doctor@sendNotification'],
+    ['GET', '/doctor/profile', 'Doctor@profile'],
+    ['GET', '/doctor/create-course', 'Doctor@createCourse'],
+    ['POST', '/doctor/create-course', 'Doctor@createCourse'],
+
+    // Advisor routes
+    ['GET', '/advisor/dashboard', 'Advisor@dashboard'],
+
+    // IT Officer routes
+    ['GET', '/it/dashboard', 'ItOfficer@dashboard'],
+    ['GET', '/it/schedule', 'ItOfficer@schedule'],
+    ['POST', '/it/schedule', 'ItOfficer@schedule'],
+    ['GET', '/it/enrollments', 'ItOfficer@enrollments'],
+    ['POST', '/it/enrollments/approve', 'ItOfficer@approveEnrollment'],
+    ['POST', '/it/enrollments/reject', 'ItOfficer@rejectEnrollment'],
+    ['GET', '/it/course', 'ItOfficer@course'],
+    ['GET', '/it/logs', 'ItOfficer@logs'],
+
+    // Migration (development only - remove in production)
+    ['GET', '/migrate', 'Migrate@run'],
+
+    // Admin routes
+    ['GET', '/admin/dashboard', 'Admin@dashboard'],
+    ['GET', '/admin/calendar', 'Admin@calendar'],
+    ['GET', '/admin/profile', 'Admin@profile'],
+    ['GET', '/admin/reports', 'Admin@reports'],
+    ['GET', '/admin/manage-student', 'Admin@manageStudent'],
+    ['POST', '/admin/manage-student', 'Admin@manageStudent'],
+    ['GET', '/admin/manage-doctor', 'Admin@manageDoctor'],
+    ['POST', '/admin/manage-doctor', 'Admin@manageDoctor'],
+    ['GET', '/admin/manage-advisor', 'Admin@manageAdvisor'],
+    ['POST', '/admin/manage-advisor', 'Admin@manageAdvisor'],
+    ['GET', '/admin/manage-it', 'Admin@manageIt'],
+    ['POST', '/admin/manage-it', 'Admin@manageIt'],
+    ['GET', '/admin/manage-admin', 'Admin@manageAdmin'],
+    ['POST', '/admin/manage-admin', 'Admin@manageAdmin'],
+    ['GET', '/admin/manage-user', 'Admin@manageUser'],
+    ['POST', '/admin/manage-user', 'Admin@manageUser'],
+];

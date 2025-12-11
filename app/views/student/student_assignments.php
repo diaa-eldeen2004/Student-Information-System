@@ -1,0 +1,4 @@
+<?php
+// Student Assignments View
+?>
+

@@ -1,0 +1,4 @@
+<?php
+// Student Dashboard View
+?>
+

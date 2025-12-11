@@ -1,0 +1,4 @@
+<?php
+// Doctor Attendance View
+?>
+
