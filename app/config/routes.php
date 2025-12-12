@@ -66,6 +66,8 @@ return [
 
     // Migration (development only - remove in production)
     ['GET', '/migrate', 'Migrate@run'],
+    ['GET', '/migrate/run', 'Migrate@runMigration'],
+    ['POST', '/migrate/run', 'Migrate@runMigration'],
 
     // Admin routes
     ['GET', '/admin/dashboard', 'Admin@dashboard'],
@@ -88,4 +90,13 @@ return [
     ['POST', '/admin/manage-admin', 'Admin@manageAdmin'],
     ['GET', '/admin/manage-user', 'Admin@manageUser'],
     ['POST', '/admin/manage-user', 'Admin@manageUser'],
+    
+    // Admin API endpoints for AJAX
+    ['GET', '/admin/api/student', 'Admin@getStudentDetails'],
+    ['GET', '/admin/api/doctor', 'Admin@getDoctorDetails'],
+    ['GET', '/admin/api/advisor', 'Admin@getAdvisorDetails'],
+    ['GET', '/admin/api/it', 'Admin@getItOfficerDetails'],
+    ['GET', '/admin/api/admin', 'Admin@getAdminDetails'],
+    ['GET', '/admin/api/user', 'Admin@getUserDetails'],
+    ['GET', '/admin/api/course', 'Admin@getCourseDetails'],
 ];

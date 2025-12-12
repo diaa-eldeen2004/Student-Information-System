@@ -190,8 +190,35 @@ $editAdmin = $editAdmin ?? null;
     </div>
 </div>
 
+<!-- Modal Overlay -->
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" style="display: none;"></div>
+
+<!-- View Admin Details Modal -->
+<div id="adminViewModal" class="modal" data-header-style="primary" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-shield"></i> Admin Details</h2>
+            <button class="modal-close" onclick="closeAdminViewModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="adminViewContent" style="padding: 1.5rem;">
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Loading admin details...</p>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeAdminViewModal()">Close</button>
+            <button class="btn btn-primary" onclick="editAdminFromView()">
+                <i class="fas fa-edit"></i> Edit Admin
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit Admin Modal -->
-<div id="adminFormModal" class="modal" data-header-style="primary">
+<div id="adminFormModal" class="modal" data-header-style="primary" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2 id="adminModalTitle">Add Admin</h2>
@@ -265,17 +292,137 @@ function toggleSelectAll() {
     });
 }
 
-// Admin actions
-function viewAdmin(adminId) {
-    if (typeof showNotification !== 'undefined') {
-        showNotification(`Viewing admin ${adminId}...`, 'info');
+// Store current viewing admin ID
+let currentViewingAdminId = null;
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+async function viewAdmin(adminId) {
+    currentViewingAdminId = adminId;
+    const modal = document.getElementById('adminViewModal');
+    const content = document.getElementById('adminViewContent');
+    
+    content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i><p style="margin-top: 1rem; color: var(--text-secondary);">Loading admin details...</p></div>`;
+    
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/admin')) ?>?id=' + adminId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const a = result.data;
+            content.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: var(--surface-color); border-radius: 8px;">
+                        <div style="width: 80px; height: 80px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-primary);">${escapeHtml(a.first_name || '')} ${escapeHtml(a.last_name || '')}</h3>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary);">${escapeHtml(a.email || '')}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Admin ID</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.admin_id || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Phone</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Admin Level</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.admin_level || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">${escapeHtml(result.message || 'Failed to load admin details')}</p></div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">An error occurred while loading admin details.</p></div>`;
+        console.error('Error loading admin:', error);
     }
 }
 
-function editAdmin(adminId) {
-    // Redirect to edit page with admin ID
-    const editUrl = '<?= htmlspecialchars($url('admin/manage-admin')) ?>?edit=' + adminId;
-    window.location.href = editUrl;
+function closeAdminViewModal() {
+    const modal = document.getElementById('adminViewModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
+    currentViewingAdminId = null;
+}
+
+function editAdminFromView() {
+    if (currentViewingAdminId) {
+        closeAdminViewModal();
+        editAdmin(currentViewingAdminId);
+    }
+}
+
+function closeAllModals() {
+    closeAdminViewModal();
+    closeAdminFormModal();
+}
+
+async function editAdmin(adminId) {
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/admin')) ?>?id=' + adminId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const admin = result.data;
+            document.getElementById('adminForm').elements['first_name'].value = admin.first_name || '';
+            document.getElementById('adminForm').elements['last_name'].value = admin.last_name || '';
+            document.getElementById('adminForm').elements['email'].value = admin.email || '';
+            document.getElementById('adminForm').elements['phone'].value = admin.phone || '';
+            document.getElementById('adminForm').elements['admin_level'].value = admin.admin_level || 'standard';
+            document.getElementById('adminId').value = admin.admin_id;
+            document.getElementById('formAction').value = 'update';
+            document.getElementById('adminModalTitle').textContent = 'Edit Admin';
+            
+            const formModal = document.getElementById('adminFormModal');
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+            formModal.style.display = 'flex';
+            formModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        } else {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification(result.message || 'Failed to load admin data', 'error');
+            } else {
+                alert(result.message || 'Failed to load admin data');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading admin:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while loading admin data', 'error');
+        } else {
+            alert('An error occurred while loading admin data');
+        }
+    }
 }
 
 function deleteAdmin(adminId) {
@@ -306,22 +453,21 @@ function addAdmin() {
     document.getElementById('adminId').value = '';
     document.getElementById('formAction').value = 'create';
     document.getElementById('adminModalTitle').textContent = 'Add Admin';
-    if (typeof showModal !== 'undefined') {
-        showModal(document.getElementById('adminFormModal'));
-    } else {
-        document.getElementById('adminFormModal').classList.add('active');
-        document.getElementById('adminFormModal').style.display = 'flex';
-    }
+    
+    const formModal = document.getElementById('adminFormModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    formModal.style.display = 'flex';
+    formModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeAdminFormModal() {
     const modal = document.getElementById('adminFormModal');
-    if (typeof hideModal !== 'undefined') {
-        hideModal(modal);
-    } else {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-    }
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
 }
 
 function handleAdminFormSubmit(e) {

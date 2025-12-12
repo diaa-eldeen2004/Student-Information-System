@@ -113,8 +113,208 @@ class Migrate extends Controller
             $messages[] = "Error Code: " . $e->getCode();
         }
         
-        $this->view->render('migrate/result', [
+            $this->view->render('migrate/result', [
             'title' => 'Database Migration',
+            'messages' => $messages,
+            'success' => $success,
+        ]);
+    }
+
+    public function runMigration(): void
+    {
+        // Security: Only allow in development (add auth check in production)
+        
+        $migrationFile = $_GET['file'] ?? '';
+        if (empty($migrationFile)) {
+            $this->view->render('migrate/result', [
+                'title' => 'Migration Error',
+                'messages' => ['✗ No migration file specified'],
+                'success' => false,
+            ]);
+            return;
+        }
+
+        $dbConfig = require dirname(__DIR__) . '/config/database.php';
+        
+        $host = $dbConfig['host'];
+        $port = $dbConfig['port'];
+        $database = $dbConfig['database'];
+        $username = $dbConfig['username'];
+        $password = $dbConfig['password'];
+        $charset = $dbConfig['charset'];
+        
+        $messages = [];
+        $success = false;
+        
+        try {
+            // Connect to the database
+            $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', $host, $port, $database, $charset);
+            $pdo = new PDO($dsn, $username, $password, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ]);
+            
+            // Read migration file
+            $migrationPath = dirname(__DIR__, 2) . '/database/migrations/' . basename($migrationFile);
+            
+            if (!file_exists($migrationPath)) {
+                throw new \Exception("Migration file not found: {$migrationFile}");
+            }
+            
+            $messages[] = "Reading migration file: {$migrationFile}";
+            $sql = file_get_contents($migrationPath);
+            
+            // Remove comments
+            $sql = preg_replace('/--.*$/m', '', $sql);
+            
+            // Split SQL into individual statements by semicolon
+            // Handle multi-line statements properly
+            $statements = [];
+            $currentStatement = '';
+            $lines = explode("\n", $sql);
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (empty($line) || strpos($line, '--') === 0) {
+                    continue;
+                }
+                
+                $currentStatement .= $line . " ";
+                
+                // Check if line ends with semicolon
+                if (substr(rtrim($line), -1) === ';') {
+                    $stmt = trim($currentStatement);
+                    if (!empty($stmt)) {
+                        $statements[] = rtrim($stmt, ';');
+                    }
+                    $currentStatement = '';
+                }
+            }
+            
+            // Add last statement if no semicolon
+            if (!empty(trim($currentStatement))) {
+                $statements[] = trim($currentStatement);
+            }
+            
+            // Filter out empty statements
+            $statements = array_filter($statements, function($stmt) {
+                return !empty(trim($stmt));
+            });
+            
+            $messages[] = "Found " . count($statements) . " SQL statement(s)";
+            
+            // Track which columns we've successfully added
+            $addedColumns = [];
+            
+            // Execute each statement
+            foreach ($statements as $index => $statement) {
+                $statement = trim($statement);
+                if (empty($statement) || strpos($statement, '--') === 0) {
+                    continue;
+                }
+                
+                // Remove trailing semicolon if present
+                $statement = rtrim($statement, ';');
+                
+                // Check if we're trying to CREATE INDEX but the column doesn't exist yet
+                if (stripos($statement, 'CREATE INDEX') !== false) {
+                    // Extract column name from CREATE INDEX statement
+                    if (preg_match('/ON\s+`?(\w+)`?\s*\(`?(\w+)`?/i', $statement, $matches)) {
+                        $tableName = $matches[1] ?? '';
+                        $columnName = $matches[2] ?? '';
+                        
+                        // Check if column exists
+                        try {
+                            $checkStmt = $pdo->query("SHOW COLUMNS FROM `{$tableName}` LIKE '{$columnName}'");
+                            if ($checkStmt->rowCount() === 0) {
+                                $messages[] = "ℹ Column '{$columnName}' doesn't exist yet, skipping CREATE INDEX";
+                                continue; // Skip this statement
+                            }
+                        } catch (\Exception $e) {
+                            // If we can't check, try to execute anyway
+                        }
+                    }
+                }
+                
+                try {
+                    $pdo->exec($statement);
+                    
+                    // Extract operation type for better messaging
+                    if (stripos($statement, 'ADD COLUMN') !== false) {
+                        preg_match('/ADD COLUMN\s+`?(\w+)`?/i', $statement, $matches);
+                        $colName = $matches[1] ?? 'column';
+                        $addedColumns[] = $colName;
+                        $messages[] = "✓ Added column '{$colName}'";
+                    } elseif (stripos($statement, 'MODIFY COLUMN') !== false) {
+                        preg_match('/MODIFY COLUMN\s+`?(\w+)`?/i', $statement, $matches);
+                        $colName = $matches[1] ?? 'column';
+                        $messages[] = "✓ Modified column '{$colName}'";
+                    } elseif (stripos($statement, 'CREATE INDEX') !== false) {
+                        preg_match('/CREATE INDEX\s+`?(\w+)`?/i', $statement, $matches);
+                        $indexName = $matches[1] ?? 'index';
+                        $messages[] = "✓ Created index '{$indexName}'";
+                    } else {
+                        $messages[] = "✓ Executed statement " . ($index + 1);
+                    }
+                } catch (PDOException $e) {
+                    $errorMsg = $e->getMessage();
+                    $errorCode = $e->getCode();
+                    
+                    // Check if it's a "duplicate" or "already exists" error (which is okay)
+                    if (stripos($errorMsg, 'Duplicate column name') !== false ||
+                        stripos($errorMsg, 'Duplicate key name') !== false ||
+                        stripos($errorMsg, 'already exists') !== false ||
+                        $errorCode == '42S21') { // Duplicate column/key error code
+                        $messages[] = "ℹ " . $errorMsg . " (skipped - already exists)";
+                    } 
+                    // Check if it's a "column doesn't exist" error for MODIFY (which is okay, we'll skip it)
+                    elseif (stripos($statement, 'MODIFY COLUMN') !== false && 
+                            (stripos($errorMsg, "doesn't exist") !== false || 
+                             stripos($errorMsg, 'Unknown column') !== false ||
+                             $errorCode == '42S22')) {
+                        preg_match('/MODIFY COLUMN\s+`?(\w+)`?/i', $statement, $matches);
+                        $colName = $matches[1] ?? 'column';
+                        $messages[] = "ℹ Column '{$colName}' doesn't exist yet, skipping MODIFY";
+                    }
+                    // Check if it's a "column doesn't exist" error for CREATE INDEX (which is okay, we'll skip it)
+                    elseif (stripos($statement, 'CREATE INDEX') !== false && 
+                            (stripos($errorMsg, "doesn't exist") !== false || 
+                             stripos($errorMsg, 'Unknown column') !== false ||
+                             $errorCode == '42S22')) {
+                        preg_match('/ON\s+`?(\w+)`?\s*\(`?(\w+)`?/i', $statement, $matches);
+                        $colName = $matches[2] ?? 'column';
+                        $messages[] = "ℹ Column '{$colName}' doesn't exist yet, skipping CREATE INDEX";
+                    }
+                    // Otherwise it's a real error
+                    else {
+                        $messages[] = "✗ Error executing statement: " . $errorMsg;
+                        $messages[] = "   Statement: " . substr($statement, 0, 100) . "...";
+                        throw $e; // Re-throw if it's a real error
+                    }
+                }
+            }
+            
+            $success = true;
+            $messages[] = "Migration '{$migrationFile}' completed successfully!";
+            
+        } catch (PDOException $e) {
+            $messages[] = "✗ Migration failed: " . $e->getMessage();
+            $messages[] = "Error Code: " . $e->getCode();
+        } catch (\Exception $e) {
+            $messages[] = "✗ Error: " . $e->getMessage();
+        }
+        
+        // If this is an AJAX request, return JSON
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => $success,
+                'messages' => $messages
+            ]);
+            return;
+        }
+        
+        $this->view->render('migrate/result', [
+            'title' => 'Migration: ' . basename($migrationFile),
             'messages' => $messages,
             'success' => $success,
         ]);

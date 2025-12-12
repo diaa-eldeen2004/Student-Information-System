@@ -13,6 +13,8 @@ $programFilter = $programFilter ?? '';
 $message = $message ?? null;
 $messageType = $messageType ?? 'info';
 $editStudent = $editStudent ?? null;
+$missingColumns = $missingColumns ?? [];
+$needsMigration = !empty($missingColumns);
 ?>
 
 <div class="admin-container">
@@ -34,6 +36,32 @@ $editStudent = $editStudent ?? null;
     </div>
 
     <div class="admin-content">
+        <!-- Migration Alert -->
+        <?php if ($needsMigration): ?>
+            <div class="alert alert-warning" style="margin-bottom: 1.5rem; padding: 1.5rem; border-radius: 8px; background-color: #fff3cd; border-left: 4px solid #ffc107; display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: #ffc107;"></i>
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 0.5rem 0; color: #856404;">Database Migration Required</h3>
+                        <p style="margin: 0; color: #856404;">
+                            The following columns are missing from the students table: <strong><?= htmlspecialchars(implode(', ', $missingColumns)) ?></strong>
+                        </p>
+                        <p style="margin: 0.5rem 0 0 0; color: #856404; font-size: 0.9rem;">
+                            Please run the migration to add these columns before creating students.
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <button class="btn btn-warning" onclick="runMigration('add_student_fields.sql')" style="font-weight: 600;">
+                        <i class="fas fa-database"></i> Run Migration Now
+                    </button>
+                    <a href="<?= htmlspecialchars($url('admin/manage-student')) ?>" class="btn btn-outline" style="margin-left: 0.5rem;">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </a>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Success/Error Messages -->
         <?php if (!empty($message)): ?>
             <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'error' ? 'error' : ($messageType === 'warning' ? 'warning' : 'info')) ?>" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 6px; display: flex; align-items: center; gap: 0.5rem;">
@@ -234,7 +262,7 @@ $editStudent = $editStudent ?? null;
 </div>
 
 <!-- Add/Edit Student Modal -->
-<div id="studentFormModal" class="modal" data-header-style="primary">
+<div id="studentFormModal" class="modal" data-header-style="primary" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2 id="studentModalTitle">Add Student</h2>
@@ -291,6 +319,18 @@ $editStudent = $editStudent ?? null;
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
+                    <label class="form-label">Midterm Quiz Password</label>
+                    <input type="password" name="midterm_cardinality" class="form-input" placeholder="Password for midterm quiz access">
+                    <small style="color: var(--text-secondary);">Password required to access midterm quiz page</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Final Quiz Password</label>
+                    <input type="password" name="final_cardinality" class="form-input" placeholder="Password for final quiz access">
+                    <small style="color: var(--text-secondary);">Password required to access final quiz page</small>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
                     <label class="form-label">GPA</label>
                     <input type="number" name="gpa" class="form-input" step="0.01" min="0" max="4" placeholder="e.g., 3.5">
                 </div>
@@ -313,6 +353,33 @@ $editStudent = $editStudent ?? null;
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal Overlay -->
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" style="display: none;"></div>
+
+<!-- View Student Details Modal -->
+<div id="studentViewModal" class="modal" data-header-style="primary" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-graduate"></i> Student Details</h2>
+            <button class="modal-close" onclick="closeStudentViewModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="studentViewContent" style="padding: 1.5rem;">
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Loading student details...</p>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeStudentViewModal()">Close</button>
+            <button class="btn btn-primary" id="editFromViewBtn" onclick="editStudentFromView()">
+                <i class="fas fa-edit"></i> Edit Student
+            </button>
+        </div>
     </div>
 </div>
 
@@ -341,16 +408,229 @@ function toggleSelectAll() {
 }
 
 // Student actions
-function viewStudent(studentId) {
-    if (typeof showNotification !== 'undefined') {
-        showNotification(`Viewing student ${studentId}...`, 'info');
+// Store current viewing student ID for edit from view
+let currentViewingStudentId = null;
+
+async function viewStudent(studentId) {
+    currentViewingStudentId = studentId;
+    const modal = document.getElementById('studentViewModal');
+    const content = document.getElementById('studentViewContent');
+    
+    // Show loading state
+    content.innerHTML = `
+        <div style="text-align: center; padding: 2rem;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+            <p style="margin-top: 1rem; color: var(--text-secondary);">Loading student details...</p>
+        </div>
+    `;
+    
+    // Open modal - ensure overlay is also shown
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        overlay.classList.add('active');
+    }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    
+    // Fetch student details
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/student')) ?>?id=' + studentId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const s = result.data;
+            const admissionYear = s.admission_date ? new Date(s.admission_date).getFullYear() : 'N/A';
+            
+            content.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: var(--surface-color); border-radius: 8px;">
+                        <div style="width: 80px; height: 80px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-primary);">${escapeHtml(s.first_name || '')} ${escapeHtml(s.last_name || '')}</h3>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary);">${escapeHtml(s.email || '')}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Student Number</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.student_number || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Phone</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Major</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.major || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Minor</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.minor || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Year Enrolled</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${admissionYear}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">GPA</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.gpa || '0.00')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Status</label>
+                            <span style="background-color: ${(s.status || 'active') === 'active' ? 'var(--success-color)' : ((s.status || '') === 'suspended' ? 'var(--error-color)' : 'var(--warning-color)')}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                                ${escapeHtml((s.status || 'active').charAt(0).toUpperCase() + (s.status || 'active').slice(1))}
+                            </span>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.created_at ? new Date(s.created_at).toLocaleDateString() : 'N/A')}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary);">Quiz Access</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="info-group">
+                                <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Midterm Quiz Password</label>
+                                <div style="color: var(--text-primary); font-weight: 500; font-family: monospace;">${escapeHtml(s.midterm_cardinality ? '••••••••' : 'Not set')}</div>
+                            </div>
+                            <div class="info-group">
+                                <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Final Quiz Password</label>
+                                <div style="color: var(--text-primary); font-weight: 500; font-family: monospace;">${escapeHtml(s.final_cardinality ? '••••••••' : 'Not set')}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-secondary);">${escapeHtml(result.message || 'Failed to load student details')}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        content.innerHTML = `
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i>
+                <p style="color: var(--text-secondary);">An error occurred while loading student details.</p>
+            </div>
+        `;
+        console.error('Error loading student:', error);
     }
 }
 
-function editStudent(studentId) {
-    // Redirect to edit page with student ID
-    const editUrl = '<?= htmlspecialchars($url('admin/manage-student')) ?>?edit=' + studentId;
-    window.location.href = editUrl;
+function closeAllModals() {
+    closeStudentViewModal();
+    closeStudentFormModal();
+}
+
+function closeStudentViewModal() {
+    const modal = document.getElementById('studentViewModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+    if (overlay) {
+        overlay.style.display = 'none';
+        overlay.classList.remove('active');
+    }
+    document.body.style.overflow = ''; // Restore scrolling
+    currentViewingStudentId = null;
+}
+
+function editStudentFromView() {
+    if (currentViewingStudentId) {
+        closeStudentViewModal();
+        editStudent(currentViewingStudentId);
+    }
+}
+
+async function editStudent(studentId) {
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/student')) ?>?id=' + studentId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const student = result.data;
+            
+            // Populate form fields
+            document.getElementById('studentForm').elements['first_name'].value = student.first_name || '';
+            document.getElementById('studentForm').elements['last_name'].value = student.last_name || '';
+            document.getElementById('studentForm').elements['email'].value = student.email || '';
+            document.getElementById('studentForm').elements['phone'].value = student.phone || '';
+            document.getElementById('studentForm').elements['student_number'].value = student.student_number || '';
+            
+            // Extract year from admission_date
+            if (student.admission_date) {
+                const year = new Date(student.admission_date).getFullYear();
+                document.getElementById('studentForm').elements['year_enrolled'].value = year || '';
+            } else {
+                document.getElementById('studentForm').elements['year_enrolled'].value = '';
+            }
+            
+            document.getElementById('studentForm').elements['major'].value = student.major || '';
+            document.getElementById('studentForm').elements['minor'].value = student.minor || '';
+            document.getElementById('studentForm').elements['gpa'].value = student.gpa || '';
+            document.getElementById('studentForm').elements['status'].value = student.status || 'active';
+            
+            // Password fields - leave blank (user must re-enter if changing)
+            const midtermField = document.getElementById('studentForm').elements['midterm_cardinality'];
+            const finalField = document.getElementById('studentForm').elements['final_cardinality'];
+            midtermField.value = '';
+            finalField.value = '';
+            midtermField.placeholder = 'Leave blank to keep current password';
+            finalField.placeholder = 'Leave blank to keep current password';
+            
+            document.getElementById('studentId').value = student.student_id;
+            document.getElementById('formAction').value = 'update';
+            document.getElementById('studentModalTitle').textContent = 'Edit Student';
+            
+            // Open modal
+            const formModal = document.getElementById('studentFormModal');
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.classList.add('active');
+            }
+            formModal.style.display = 'flex';
+            formModal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        } else {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification(result.message || 'Failed to load student data', 'error');
+            } else {
+                alert(result.message || 'Failed to load student data');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading student:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while loading student data', 'error');
+        } else {
+            alert('An error occurred while loading student data');
+        }
+    }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
 function deleteStudent(studentId) {
@@ -381,22 +661,36 @@ function addStudent() {
     document.getElementById('studentId').value = '';
     document.getElementById('formAction').value = 'create';
     document.getElementById('studentModalTitle').textContent = 'Add Student';
-    if (typeof showModal !== 'undefined') {
-        showModal(document.getElementById('studentFormModal'));
-    } else {
-        document.getElementById('studentFormModal').classList.add('active');
-        document.getElementById('studentFormModal').style.display = 'flex';
+    
+    // Reset password field placeholders
+    const midtermField = document.getElementById('studentForm').elements['midterm_cardinality'];
+    const finalField = document.getElementById('studentForm').elements['final_cardinality'];
+    if (midtermField) midtermField.placeholder = 'Password for midterm quiz access';
+    if (finalField) finalField.placeholder = 'Password for final quiz access';
+    
+    const formModal = document.getElementById('studentFormModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        overlay.classList.add('active');
     }
+    formModal.style.display = 'flex';
+    formModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeStudentFormModal() {
     const modal = document.getElementById('studentFormModal');
-    if (typeof hideModal !== 'undefined') {
-        hideModal(modal);
-    } else {
-        modal.classList.remove('active');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) {
         modal.style.display = 'none';
+        modal.classList.remove('active');
     }
+    if (overlay) {
+        overlay.style.display = 'none';
+        overlay.classList.remove('active');
+    }
+    document.body.style.overflow = ''; // Restore scrolling
 }
 
 function handleStudentFormSubmit(e) {
@@ -415,9 +709,23 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('studentForm').elements['email'].value = student.email || '';
         document.getElementById('studentForm').elements['phone'].value = student.phone || '';
         document.getElementById('studentForm').elements['student_number'].value = student.student_number || '';
-        document.getElementById('studentForm').elements['year_enrolled'].value = student.year_enrolled || '';
+        // Extract year from admission_date if it exists
+        if (student.admission_date) {
+            const year = new Date(student.admission_date).getFullYear();
+            document.getElementById('studentForm').elements['year_enrolled'].value = year || '';
+        } else {
+            document.getElementById('studentForm').elements['year_enrolled'].value = '';
+        }
         document.getElementById('studentForm').elements['major'].value = student.major || '';
         document.getElementById('studentForm').elements['minor'].value = student.minor || '';
+        // For password fields, we'll leave them empty on edit (user must re-enter if changing)
+        // Or show placeholder that leaving blank won't change the password
+        const midtermField = document.getElementById('studentForm').elements['midterm_cardinality'];
+        const finalField = document.getElementById('studentForm').elements['final_cardinality'];
+        midtermField.value = ''; // Don't populate passwords for security
+        finalField.value = ''; // Don't populate passwords for security
+        midtermField.placeholder = 'Leave blank to keep current password';
+        finalField.placeholder = 'Leave blank to keep current password';
         document.getElementById('studentForm').elements['gpa'].value = student.gpa || '';
         document.getElementById('studentForm').elements['status'].value = student.status || 'active';
         document.getElementById('studentId').value = student.student_id;
@@ -429,4 +737,58 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 <?php endif; ?>
+
+// Migration function
+function runMigration(migrationFile) {
+    if (!confirm('This will run the database migration: ' + migrationFile + '\n\nDo you want to continue?')) {
+        return;
+    }
+
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Migration...';
+
+    fetch('<?= htmlspecialchars($url('migrate/run')) ?>?file=' + encodeURIComponent(migrationFile), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Migration completed successfully! Refreshing page...', 'success');
+            } else {
+                alert('Migration completed successfully!\n\n' + data.messages.join('\n'));
+            }
+            // Reload page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Show error message
+            const errorMsg = data.messages.join('\n');
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Migration failed: ' + errorMsg, 'error');
+            } else {
+                alert('Migration failed:\n\n' + errorMsg);
+            }
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Migration error:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while running migration', 'error');
+        } else {
+            alert('An error occurred while running migration: ' + error.message);
+        }
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
 </script>

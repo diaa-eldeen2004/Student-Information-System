@@ -105,14 +105,26 @@ class Doctor extends Model
 
     public function createDoctorWithUser(array $userData, array $doctorData): bool
     {
+        $userStmt = null;
+        $doctorStmt = null;
+        
         try {
             $this->db->beginTransaction();
+
+            // Validate required fields
+            if (empty($userData['first_name']) || empty($userData['last_name']) || empty($userData['email'])) {
+                throw new \InvalidArgumentException('First name, last name, and email are required');
+            }
+
+            if (empty($userData['password'])) {
+                throw new \InvalidArgumentException('Password is required');
+            }
 
             // First create the user
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
                         VALUES (:first_name, :last_name, :email, :phone, :password, 'doctor')";
             $userStmt = $this->db->prepare($userSql);
-            $userStmt->execute([
+            $result = $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
                 'email' => $userData['email'],
@@ -120,24 +132,52 @@ class Doctor extends Model
                 'password' => $userData['password'],
             ]);
 
+            if (!$result) {
+                $errorInfo = $userStmt->errorInfo();
+                throw new \PDOException('Failed to create user record: ' . ($errorInfo[2] ?? 'Unknown error'));
+            }
+
             $userId = $this->db->lastInsertId();
+
+            if (!$userId) {
+                throw new \PDOException('Failed to get user ID after creation');
+            }
 
             // Then create the doctor record
             $doctorSql = "INSERT INTO {$this->table} (user_id, department, bio)
                           VALUES (:user_id, :department, :bio)";
             $doctorStmt = $this->db->prepare($doctorSql);
-            $doctorStmt->execute([
+            $result = $doctorStmt->execute([
                 'user_id' => $userId,
                 'department' => $doctorData['department'] ?? null,
                 'bio' => $doctorData['bio'] ?? null,
             ]);
 
+            if (!$result) {
+                $errorInfo = $doctorStmt->errorInfo();
+                throw new \PDOException('Failed to create doctor record: ' . ($errorInfo[2] ?? 'Unknown error'));
+            }
+
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log("Doctor creation failed: " . $e->getMessage());
-            return false;
+            if ($userStmt) {
+                error_log("User SQL Error Info: " . print_r($userStmt->errorInfo(), true));
+            }
+            if ($doctorStmt) {
+                error_log("Doctor SQL Error Info: " . print_r($doctorStmt->errorInfo(), true));
+            }
+            throw $e; // Re-throw to allow controller to catch and display error
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("Doctor creation failed: " . $e->getMessage());
+            throw $e; // Re-throw to allow controller to catch and display error
         }
     }
 

@@ -201,8 +201,35 @@ $editDoctor = $editDoctor ?? null;
     </div>
 </div>
 
+<!-- Modal Overlay -->
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" style="display: none;"></div>
+
+<!-- View Doctor Details Modal -->
+<div id="doctorViewModal" class="modal" data-header-style="primary" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-md"></i> Doctor Details</h2>
+            <button class="modal-close" onclick="closeDoctorViewModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="doctorViewContent" style="padding: 1.5rem;">
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Loading doctor details...</p>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeDoctorViewModal()">Close</button>
+            <button class="btn btn-primary" onclick="editDoctorFromView()">
+                <i class="fas fa-edit"></i> Edit Doctor
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit Doctor Modal -->
-<div id="doctorFormModal" class="modal" data-header-style="primary">
+<div id="doctorFormModal" class="modal" data-header-style="primary" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2 id="doctorModalTitle">Add Doctor</h2>
@@ -289,17 +316,142 @@ function toggleSelectAll() {
     });
 }
 
-// Doctor actions
-function viewDoctor(doctorId) {
-    if (typeof showNotification !== 'undefined') {
-        showNotification(`Viewing doctor ${doctorId}...`, 'info');
+// Store current viewing doctor ID
+let currentViewingDoctorId = null;
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+async function viewDoctor(doctorId) {
+    currentViewingDoctorId = doctorId;
+    const modal = document.getElementById('doctorViewModal');
+    const content = document.getElementById('doctorViewContent');
+    
+    content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i><p style="margin-top: 1rem; color: var(--text-secondary);">Loading doctor details...</p></div>`;
+    
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/doctor')) ?>?id=' + doctorId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const d = result.data;
+            content.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: var(--surface-color); border-radius: 8px;">
+                        <div style="width: 80px; height: 80px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-user-md"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-primary);">${escapeHtml(d.first_name || '')} ${escapeHtml(d.last_name || '')}</h3>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary);">${escapeHtml(d.email || '')}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Doctor ID</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.doctor_id || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Phone</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Department</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.department || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.email || 'N/A')}</div>
+                        </div>
+                        ${d.bio ? `<div class="info-group" style="grid-column: 1 / -1;">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Bio</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.bio)}</div>
+                        </div>` : ''}
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">${escapeHtml(result.message || 'Failed to load doctor details')}</p></div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">An error occurred while loading doctor details.</p></div>`;
+        console.error('Error loading doctor:', error);
     }
 }
 
-function editDoctor(doctorId) {
-    // Redirect to edit page with doctor ID
-    const editUrl = '<?= htmlspecialchars($url('admin/manage-doctor')) ?>?edit=' + doctorId;
-    window.location.href = editUrl;
+function closeDoctorViewModal() {
+    const modal = document.getElementById('doctorViewModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
+    currentViewingDoctorId = null;
+}
+
+function editDoctorFromView() {
+    if (currentViewingDoctorId) {
+        closeDoctorViewModal();
+        editDoctor(currentViewingDoctorId);
+    }
+}
+
+function closeAllModals() {
+    closeDoctorViewModal();
+    closeDoctorFormModal();
+}
+
+async function editDoctor(doctorId) {
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/doctor')) ?>?id=' + doctorId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const doctor = result.data;
+            document.getElementById('doctorForm').elements['first_name'].value = doctor.first_name || '';
+            document.getElementById('doctorForm').elements['last_name'].value = doctor.last_name || '';
+            document.getElementById('doctorForm').elements['email'].value = doctor.email || '';
+            document.getElementById('doctorForm').elements['phone'].value = doctor.phone || '';
+            document.getElementById('doctorForm').elements['department'].value = doctor.department || '';
+            document.getElementById('doctorForm').elements['bio'].value = doctor.bio || '';
+            document.getElementById('doctorId').value = doctor.doctor_id;
+            document.getElementById('formAction').value = 'update';
+            document.getElementById('doctorModalTitle').textContent = 'Edit Doctor';
+            
+            const formModal = document.getElementById('doctorFormModal');
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+            formModal.style.display = 'flex';
+            formModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        } else {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification(result.message || 'Failed to load doctor data', 'error');
+            } else {
+                alert(result.message || 'Failed to load doctor data');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading doctor:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while loading doctor data', 'error');
+        } else {
+            alert('An error occurred while loading doctor data');
+        }
+    }
 }
 
 function deleteDoctor(doctorId) {
@@ -330,22 +482,21 @@ function addDoctor() {
     document.getElementById('doctorId').value = '';
     document.getElementById('formAction').value = 'create';
     document.getElementById('doctorModalTitle').textContent = 'Add Doctor';
-    if (typeof showModal !== 'undefined') {
-        showModal(document.getElementById('doctorFormModal'));
-    } else {
-        document.getElementById('doctorFormModal').classList.add('active');
-        document.getElementById('doctorFormModal').style.display = 'flex';
-    }
+    
+    const formModal = document.getElementById('doctorFormModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    formModal.style.display = 'flex';
+    formModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeDoctorFormModal() {
     const modal = document.getElementById('doctorFormModal');
-    if (typeof hideModal !== 'undefined') {
-        hideModal(modal);
-    } else {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-    }
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
 }
 
 function handleDoctorFormSubmit(e) {

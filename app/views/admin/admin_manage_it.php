@@ -184,8 +184,35 @@ $editIT = $editIT ?? null;
     </div>
 </div>
 
+<!-- Modal Overlay -->
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" style="display: none;"></div>
+
+<!-- View IT Officer Details Modal -->
+<div id="itViewModal" class="modal" data-header-style="primary" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-laptop-code"></i> IT Officer Details</h2>
+            <button class="modal-close" onclick="closeITViewModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="itViewContent" style="padding: 1.5rem;">
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Loading IT officer details...</p>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeITViewModal()">Close</button>
+            <button class="btn btn-primary" onclick="editITFromView()">
+                <i class="fas fa-edit"></i> Edit IT Officer
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit IT Officer Modal -->
-<div id="itFormModal" class="modal" data-header-style="primary">
+<div id="itFormModal" class="modal" data-header-style="primary" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2 id="itModalTitle">Add IT Officer</h2>
@@ -255,17 +282,132 @@ function toggleSelectAll() {
     });
 }
 
-// IT actions
-function viewIT(itId) {
-    if (typeof showNotification !== 'undefined') {
-        showNotification(`Viewing IT officer ${itId}...`, 'info');
+// Store current viewing IT ID
+let currentViewingITId = null;
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+async function viewIT(itId) {
+    currentViewingITId = itId;
+    const modal = document.getElementById('itViewModal');
+    const content = document.getElementById('itViewContent');
+    
+    content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i><p style="margin-top: 1rem; color: var(--text-secondary);">Loading IT officer details...</p></div>`;
+    
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/it')) ?>?id=' + itId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const it = result.data;
+            content.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: var(--surface-color); border-radius: 8px;">
+                        <div style="width: 80px; height: 80px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-laptop-code"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-primary);">${escapeHtml(it.first_name || '')} ${escapeHtml(it.last_name || '')}</h3>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary);">${escapeHtml(it.email || '')}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">IT Officer ID</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(it.it_id || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Phone</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(it.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(it.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(it.created_at ? new Date(it.created_at).toLocaleDateString() : 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">${escapeHtml(result.message || 'Failed to load IT officer details')}</p></div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">An error occurred while loading IT officer details.</p></div>`;
+        console.error('Error loading IT officer:', error);
     }
 }
 
-function editIT(itId) {
-    // Redirect to edit page with IT officer ID
-    const editUrl = '<?= htmlspecialchars($url('admin/manage-it')) ?>?edit=' + itId;
-    window.location.href = editUrl;
+function closeITViewModal() {
+    const modal = document.getElementById('itViewModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
+    currentViewingITId = null;
+}
+
+function editITFromView() {
+    if (currentViewingITId) {
+        closeITViewModal();
+        editIT(currentViewingITId);
+    }
+}
+
+function closeAllModals() {
+    closeITViewModal();
+    closeITFormModal();
+}
+
+async function editIT(itId) {
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/it')) ?>?id=' + itId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const it = result.data;
+            document.getElementById('itForm').elements['first_name'].value = it.first_name || '';
+            document.getElementById('itForm').elements['last_name'].value = it.last_name || '';
+            document.getElementById('itForm').elements['email'].value = it.email || '';
+            document.getElementById('itForm').elements['phone'].value = it.phone || '';
+            document.getElementById('itId').value = it.it_id;
+            document.getElementById('formAction').value = 'update';
+            document.getElementById('itModalTitle').textContent = 'Edit IT Officer';
+            
+            const formModal = document.getElementById('itFormModal');
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+            formModal.style.display = 'flex';
+            formModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        } else {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification(result.message || 'Failed to load IT officer data', 'error');
+            } else {
+                alert(result.message || 'Failed to load IT officer data');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading IT officer:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while loading IT officer data', 'error');
+        } else {
+            alert('An error occurred while loading IT officer data');
+        }
+    }
 }
 
 function deleteIT(itId) {
@@ -296,22 +438,21 @@ function addIT() {
     document.getElementById('itId').value = '';
     document.getElementById('formAction').value = 'create';
     document.getElementById('itModalTitle').textContent = 'Add IT Officer';
-    if (typeof showModal !== 'undefined') {
-        showModal(document.getElementById('itFormModal'));
-    } else {
-        document.getElementById('itFormModal').classList.add('active');
-        document.getElementById('itFormModal').style.display = 'flex';
-    }
+    
+    const formModal = document.getElementById('itFormModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    formModal.style.display = 'flex';
+    formModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeITFormModal() {
     const modal = document.getElementById('itFormModal');
-    if (typeof hideModal !== 'undefined') {
-        hideModal(modal);
-    } else {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-    }
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
 }
 
 function handleITFormSubmit(e) {

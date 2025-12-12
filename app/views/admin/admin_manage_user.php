@@ -184,8 +184,35 @@ $editUser = $editUser ?? null;
     </div>
 </div>
 
+<!-- Modal Overlay -->
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" style="display: none;"></div>
+
+<!-- View User Details Modal -->
+<div id="userViewModal" class="modal" data-header-style="primary" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-user"></i> User Details</h2>
+            <button class="modal-close" onclick="closeUserViewModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="userViewContent" style="padding: 1.5rem;">
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Loading user details...</p>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeUserViewModal()">Close</button>
+            <button class="btn btn-primary" onclick="editUserFromView()">
+                <i class="fas fa-edit"></i> Edit User
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit User Modal -->
-<div id="userFormModal" class="modal" data-header-style="primary">
+<div id="userFormModal" class="modal" data-header-style="primary" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2 id="userModalTitle">Add User</h2>
@@ -255,17 +282,138 @@ function toggleSelectAll() {
     });
 }
 
-// User actions
-function viewUser(userId) {
-    if (typeof showNotification !== 'undefined') {
-        showNotification(`Viewing user ${userId}...`, 'info');
+// Store current viewing user ID
+let currentViewingUserId = null;
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+async function viewUser(userId) {
+    currentViewingUserId = userId;
+    const modal = document.getElementById('userViewModal');
+    const content = document.getElementById('userViewContent');
+    
+    content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i><p style="margin-top: 1rem; color: var(--text-secondary);">Loading user details...</p></div>`;
+    
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/user')) ?>?id=' + userId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const u = result.data;
+            content.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: var(--surface-color); border-radius: 8px;">
+                        <div style="width: 80px; height: 80px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-primary);">${escapeHtml(u.first_name || '')} ${escapeHtml(u.last_name || '')}</h3>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary);">${escapeHtml(u.email || '')}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">User ID</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(u.id || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Phone</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(u.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Role</label>
+                            <span style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                                ${escapeHtml((u.role || 'user').charAt(0).toUpperCase() + (u.role || 'user').slice(1))}
+                            </span>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(u.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">${escapeHtml(result.message || 'Failed to load user details')}</p></div>`;
+        }
+    } catch (error) {
+        content.innerHTML = `<div style="text-align: center; padding: 2rem;"><i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i><p style="color: var(--text-secondary);">An error occurred while loading user details.</p></div>`;
+        console.error('Error loading user:', error);
     }
 }
 
-function editUser(userId) {
-    // Redirect to edit page with user ID
-    const editUrl = '<?= htmlspecialchars($url('admin/manage-user')) ?>?edit=' + userId;
-    window.location.href = editUrl;
+function closeUserViewModal() {
+    const modal = document.getElementById('userViewModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
+    currentViewingUserId = null;
+}
+
+function editUserFromView() {
+    if (currentViewingUserId) {
+        closeUserViewModal();
+        editUser(currentViewingUserId);
+    }
+}
+
+function closeAllModals() {
+    closeUserViewModal();
+    closeUserFormModal();
+}
+
+async function editUser(userId) {
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/user')) ?>?id=' + userId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const user = result.data;
+            document.getElementById('userForm').elements['first_name'].value = user.first_name || '';
+            document.getElementById('userForm').elements['last_name'].value = user.last_name || '';
+            document.getElementById('userForm').elements['email'].value = user.email || '';
+            document.getElementById('userForm').elements['phone'].value = user.phone || '';
+            document.getElementById('userId').value = user.id;
+            document.getElementById('formAction').value = 'update';
+            document.getElementById('userModalTitle').textContent = 'Edit User';
+            
+            const formModal = document.getElementById('userFormModal');
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+            formModal.style.display = 'flex';
+            formModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        } else {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification(result.message || 'Failed to load user data', 'error');
+            } else {
+                alert(result.message || 'Failed to load user data');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading user:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while loading user data', 'error');
+        } else {
+            alert('An error occurred while loading user data');
+        }
+    }
 }
 
 function deleteUser(userId) {
@@ -296,22 +444,21 @@ function addUser() {
     document.getElementById('userId').value = '';
     document.getElementById('formAction').value = 'create';
     document.getElementById('userModalTitle').textContent = 'Add User';
-    if (typeof showModal !== 'undefined') {
-        showModal(document.getElementById('userFormModal'));
-    } else {
-        document.getElementById('userFormModal').classList.add('active');
-        document.getElementById('userFormModal').style.display = 'flex';
-    }
+    
+    const formModal = document.getElementById('userFormModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) { overlay.style.display = 'flex'; overlay.classList.add('active'); }
+    formModal.style.display = 'flex';
+    formModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeUserFormModal() {
     const modal = document.getElementById('userFormModal');
-    if (typeof hideModal !== 'undefined') {
-        hideModal(modal);
-    } else {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-    }
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); }
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
+    document.body.style.overflow = '';
 }
 
 function handleUserFormSubmit(e) {

@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS `students` (
     `gpa` DECIMAL(3,2) DEFAULT 0.00,
     `student_number` VARCHAR(50) UNIQUE,
     `admission_date` DATE DEFAULT NULL,
+    `major` VARCHAR(100) DEFAULT NULL,
+    `minor` VARCHAR(100) DEFAULT NULL,
+    `midterm_cardinality` VARCHAR(255) DEFAULT NULL COMMENT 'Password for midterm quiz access',
+    `final_cardinality` VARCHAR(255) DEFAULT NULL COMMENT 'Password for final quiz access',
     `status` ENUM('active', 'inactive', 'graduated', 'suspended') DEFAULT 'active',
     `advisor_id` INT(11) DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -31,7 +35,8 @@ CREATE TABLE IF NOT EXISTS `students` (
     PRIMARY KEY (`student_id`),
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
     INDEX `idx_user_id` (`user_id`),
-    INDEX `idx_student_number` (`student_number`)
+    INDEX `idx_student_number` (`student_number`),
+    INDEX `idx_major` (`major`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Doctors table (extends users)

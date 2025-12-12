@@ -790,6 +790,8 @@ class Admin extends Controller
                 $year_enrolled = !empty($_POST['year_enrolled']) ? (int)$_POST['year_enrolled'] : null;
                 $major = trim($_POST['major'] ?? '');
                 $minor = trim($_POST['minor'] ?? '');
+                $midterm_cardinality = trim($_POST['midterm_cardinality'] ?? ''); // Password for midterm quiz
+                $final_cardinality = trim($_POST['final_cardinality'] ?? ''); // Password for final quiz
                 $gpa = !empty($_POST['gpa']) ? (float)$_POST['gpa'] : 0.00;
                 $status = trim($_POST['status'] ?? 'active');
                 $password = $_POST['password'] ?? '';
@@ -807,9 +809,11 @@ class Admin extends Controller
 
                     $studentData = [
                         'student_number' => $student_number ?: null,
-                        'year_enrolled' => $year_enrolled,
+                        'year_enrolled' => $year_enrolled, // Will be converted to admission_date in model
                         'major' => $major ?: null,
                         'minor' => $minor ?: null,
+                        'midterm_cardinality' => $midterm_cardinality ?: null, // Password for midterm quiz
+                        'final_cardinality' => $final_cardinality ?: null, // Password for final quiz
                         'gpa' => $gpa,
                         'status' => $status,
                     ];
@@ -827,13 +831,19 @@ class Admin extends Controller
                             }
                             $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
 
-                            $success = $this->studentModel->createStudentWithUser($userData, $studentData);
-                            if ($success) {
-                                $message = 'Student created successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to create student';
+                            try {
+                                $success = $this->studentModel->createStudentWithUser($userData, $studentData);
+                                if ($success) {
+                                    $message = 'Student created successfully';
+                                    $messageType = 'success';
+                                } else {
+                                    $message = 'Failed to create student';
+                                    $messageType = 'error';
+                                }
+                            } catch (\PDOException $e) {
+                                $message = 'Failed to create student: ' . $e->getMessage();
                                 $messageType = 'error';
+                                error_log("Student creation error: " . $e->getMessage());
                             }
                         }
                     } else {
@@ -843,13 +853,19 @@ class Admin extends Controller
                             if (!empty($password)) {
                                 $userData['password'] = $password; // Will be hashed in model
                             }
-                            $success = $this->studentModel->updateStudent($studentId, $userData, $studentData);
-                            if ($success) {
-                                $message = 'Student updated successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to update student';
+                            try {
+                                $success = $this->studentModel->updateStudent($studentId, $userData, $studentData);
+                                if ($success) {
+                                    $message = 'Student updated successfully';
+                                    $messageType = 'success';
+                                } else {
+                                    $message = 'Failed to update student';
+                                    $messageType = 'error';
+                                }
+                            } catch (\PDOException $e) {
+                                $message = 'Failed to update student: ' . $e->getMessage();
                                 $messageType = 'error';
+                                error_log("Student update error: " . $e->getMessage());
                             }
                         } else {
                             $message = 'Invalid student ID';
@@ -915,6 +931,31 @@ class Admin extends Controller
             $editStudent = $this->studentModel->findById((int)$_GET['edit']);
         }
 
+        // Check if required columns exist
+        $missingColumns = [];
+        try {
+            $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+            $stmt = $db->query("SHOW COLUMNS FROM students LIKE 'major'");
+            if ($stmt->rowCount() === 0) {
+                $missingColumns[] = 'major';
+            }
+            $stmt = $db->query("SHOW COLUMNS FROM students LIKE 'minor'");
+            if ($stmt->rowCount() === 0) {
+                $missingColumns[] = 'minor';
+            }
+            $stmt = $db->query("SHOW COLUMNS FROM students LIKE 'midterm_cardinality'");
+            if ($stmt->rowCount() === 0) {
+                $missingColumns[] = 'midterm_cardinality';
+            }
+            $stmt = $db->query("SHOW COLUMNS FROM students LIKE 'final_cardinality'");
+            if ($stmt->rowCount() === 0) {
+                $missingColumns[] = 'final_cardinality';
+            }
+        } catch (\Exception $e) {
+            // Error checking columns - assume they might be missing
+            $missingColumns = ['major', 'minor', 'midterm_cardinality', 'final_cardinality'];
+        }
+
         $this->view->render('admin/admin_manage_student', [
             'title' => 'Manage Students',
             'students' => $students,
@@ -930,6 +971,7 @@ class Admin extends Controller
             'message' => $message,
             'messageType' => $messageType,
             'editStudent' => $editStudent,
+            'missingColumns' => $missingColumns,
             'showSidebar' => true,
         ]);
     }
@@ -980,13 +1022,35 @@ class Admin extends Controller
                             }
                             $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
 
-                            $success = $this->doctorModel->createDoctorWithUser($userData, $doctorData);
-                            if ($success) {
-                                $message = 'Doctor created successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to create doctor';
+                            try {
+                                $success = $this->doctorModel->createDoctorWithUser($userData, $doctorData);
+                                if ($success) {
+                                    $message = 'Doctor created successfully';
+                                    $messageType = 'success';
+                                } else {
+                                    $message = 'Failed to create doctor (unknown error)';
+                                    $messageType = 'error';
+                                    error_log("Doctor creation returned false without exception");
+                                }
+                            } catch (\PDOException $e) {
+                                $errorMsg = $e->getMessage();
+                                // Extract more user-friendly error message
+                                if (strpos($errorMsg, 'Duplicate entry') !== false) {
+                                    $message = 'Email already exists in the system';
+                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
+                                    // Extract the actual SQL error
+                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
+                                } else {
+                                    $message = 'Failed to create doctor: ' . $errorMsg;
+                                }
                                 $messageType = 'error';
+                                error_log("Doctor creation PDO error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
+                            } catch (\Exception $e) {
+                                $message = 'Failed to create doctor: ' . $e->getMessage();
+                                $messageType = 'error';
+                                error_log("Doctor creation error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -1772,6 +1836,119 @@ class Admin extends Controller
             'editUser' => $editUser,
             'showSidebar' => true,
         ]);
+    }
+
+    // API endpoints for AJAX requests
+    public function getStudentDetails(): void
+    {
+        header('Content-Type: application/json');
+        $studentId = (int)($_GET['id'] ?? 0);
+        if ($studentId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid student ID']);
+            return;
+        }
+        $student = $this->studentModel->findById($studentId);
+        if ($student) {
+            echo json_encode(['success' => true, 'data' => $student]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Student not found']);
+        }
+    }
+
+    public function getDoctorDetails(): void
+    {
+        header('Content-Type: application/json');
+        $doctorId = (int)($_GET['id'] ?? 0);
+        if ($doctorId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid doctor ID']);
+            return;
+        }
+        $doctor = $this->doctorModel->findById($doctorId);
+        if ($doctor) {
+            echo json_encode(['success' => true, 'data' => $doctor]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Doctor not found']);
+        }
+    }
+
+    public function getAdvisorDetails(): void
+    {
+        header('Content-Type: application/json');
+        $advisorId = (int)($_GET['id'] ?? 0);
+        if ($advisorId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid advisor ID']);
+            return;
+        }
+        $advisor = $this->advisorModel->findByAdvisorId($advisorId);
+        if ($advisor) {
+            echo json_encode(['success' => true, 'data' => $advisor]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Advisor not found']);
+        }
+    }
+
+    public function getItOfficerDetails(): void
+    {
+        header('Content-Type: application/json');
+        $itId = (int)($_GET['id'] ?? 0);
+        if ($itId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid IT officer ID']);
+            return;
+        }
+        $itOfficer = $this->itOfficerModel->findByItId($itId);
+        if ($itOfficer) {
+            echo json_encode(['success' => true, 'data' => $itOfficer]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'IT officer not found']);
+        }
+    }
+
+    public function getAdminDetails(): void
+    {
+        header('Content-Type: application/json');
+        $adminId = (int)($_GET['id'] ?? 0);
+        if ($adminId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid admin ID']);
+            return;
+        }
+        $admin = $this->adminRoleModel->findByAdminId($adminId);
+        if ($admin) {
+            echo json_encode(['success' => true, 'data' => $admin]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Admin not found']);
+        }
+    }
+
+    public function getUserDetails(): void
+    {
+        header('Content-Type: application/json');
+        $userId = (int)($_GET['id'] ?? 0);
+        if ($userId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid user ID']);
+            return;
+        }
+        $user = $this->userModel->findById($userId);
+        if ($user) {
+            echo json_encode(['success' => true, 'data' => $user]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'User not found']);
+        }
+    }
+
+    public function getCourseDetails(): void
+    {
+        header('Content-Type: application/json');
+        $courseId = (int)($_GET['id'] ?? 0);
+        if ($courseId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid course ID']);
+            return;
+        }
+        $course = $this->courseModel->findById($courseId);
+        if ($course) {
+            echo json_encode(['success' => true, 'data' => $course]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Course not found']);
+        }
     }
 }
 

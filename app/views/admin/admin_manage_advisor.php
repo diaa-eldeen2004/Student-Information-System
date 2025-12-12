@@ -197,8 +197,35 @@ $editAdvisor = $editAdvisor ?? null;
     </div>
 </div>
 
+<!-- Modal Overlay -->
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" style="display: none;"></div>
+
+<!-- View Advisor Details Modal -->
+<div id="advisorViewModal" class="modal" data-header-style="primary" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-tie"></i> Advisor Details</h2>
+            <button class="modal-close" onclick="closeAdvisorViewModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="advisorViewContent" style="padding: 1.5rem;">
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Loading advisor details...</p>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeAdvisorViewModal()">Close</button>
+            <button class="btn btn-primary" onclick="editAdvisorFromView()">
+                <i class="fas fa-edit"></i> Edit Advisor
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit Advisor Modal -->
-<div id="advisorFormModal" class="modal" data-header-style="primary">
+<div id="advisorFormModal" class="modal" data-header-style="primary" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2 id="advisorModalTitle">Add Advisor</h2>
@@ -281,17 +308,179 @@ function toggleSelectAll() {
     });
 }
 
-// Advisor actions
-function viewAdvisor(advisorId) {
-    if (typeof showNotification !== 'undefined') {
-        showNotification(`Viewing advisor ${advisorId}...`, 'info');
+// Store current viewing advisor ID
+let currentViewingAdvisorId = null;
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+async function viewAdvisor(advisorId) {
+    currentViewingAdvisorId = advisorId;
+    const modal = document.getElementById('advisorViewModal');
+    const content = document.getElementById('advisorViewContent');
+    
+    // Show loading state
+    content.innerHTML = `
+        <div style="text-align: center; padding: 2rem;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+            <p style="margin-top: 1rem; color: var(--text-secondary);">Loading advisor details...</p>
+        </div>
+    `;
+    
+    // Open modal
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        overlay.classList.add('active');
+    }
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    // Fetch advisor details
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/advisor')) ?>?id=' + advisorId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const a = result.data;
+            
+            content.innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: var(--surface-color); border-radius: 8px;">
+                        <div style="width: 80px; height: 80px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-user-tie"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-primary);">${escapeHtml(a.first_name || '')} ${escapeHtml(a.last_name || '')}</h3>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary);">${escapeHtml(a.email || '')}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Advisor ID</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.advisor_id || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Phone</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Department</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.department || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-group">
+                            <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
+                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-secondary);">${escapeHtml(result.message || 'Failed to load advisor details')}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        content.innerHTML = `
+            <div style="text-align: center; padding: 2rem;">
+                <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--error-color); margin-bottom: 1rem;"></i>
+                <p style="color: var(--text-secondary);">An error occurred while loading advisor details.</p>
+            </div>
+        `;
+        console.error('Error loading advisor:', error);
     }
 }
 
-function editAdvisor(advisorId) {
-    // Redirect to edit page with advisor ID
-    const editUrl = '<?= htmlspecialchars($url('admin/manage-advisor')) ?>?edit=' + advisorId;
-    window.location.href = editUrl;
+function closeAdvisorViewModal() {
+    const modal = document.getElementById('advisorViewModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+    if (overlay) {
+        overlay.style.display = 'none';
+        overlay.classList.remove('active');
+    }
+    document.body.style.overflow = '';
+    currentViewingAdvisorId = null;
+}
+
+function editAdvisorFromView() {
+    if (currentViewingAdvisorId) {
+        closeAdvisorViewModal();
+        editAdvisor(currentViewingAdvisorId);
+    }
+}
+
+function closeAllModals() {
+    closeAdvisorViewModal();
+    closeAdvisorFormModal();
+}
+
+async function editAdvisor(advisorId) {
+    try {
+        const response = await fetch('<?= htmlspecialchars($url('admin/api/advisor')) ?>?id=' + advisorId);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const advisor = result.data;
+            
+            // Populate form fields
+            document.getElementById('advisorForm').elements['first_name'].value = advisor.first_name || '';
+            document.getElementById('advisorForm').elements['last_name'].value = advisor.last_name || '';
+            document.getElementById('advisorForm').elements['email'].value = advisor.email || '';
+            document.getElementById('advisorForm').elements['phone'].value = advisor.phone || '';
+            document.getElementById('advisorForm').elements['department'].value = advisor.department || '';
+            
+            document.getElementById('advisorId').value = advisor.advisor_id;
+            document.getElementById('formAction').value = 'update';
+            document.getElementById('advisorModalTitle').textContent = 'Edit Advisor';
+            
+            // Open modal
+            const formModal = document.getElementById('advisorFormModal');
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.classList.add('active');
+            }
+            formModal.style.display = 'flex';
+            formModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        } else {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification(result.message || 'Failed to load advisor data', 'error');
+            } else {
+                alert(result.message || 'Failed to load advisor data');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading advisor:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while loading advisor data', 'error');
+        } else {
+            alert('An error occurred while loading advisor data');
+        }
+    }
 }
 
 function deleteAdvisor(advisorId) {
@@ -322,22 +511,30 @@ function addAdvisor() {
     document.getElementById('advisorId').value = '';
     document.getElementById('formAction').value = 'create';
     document.getElementById('advisorModalTitle').textContent = 'Add Advisor';
-    if (typeof showModal !== 'undefined') {
-        showModal(document.getElementById('advisorFormModal'));
-    } else {
-        document.getElementById('advisorFormModal').classList.add('active');
-        document.getElementById('advisorFormModal').style.display = 'flex';
+    
+    const formModal = document.getElementById('advisorFormModal');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        overlay.classList.add('active');
     }
+    formModal.style.display = 'flex';
+    formModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeAdvisorFormModal() {
     const modal = document.getElementById('advisorFormModal');
-    if (typeof hideModal !== 'undefined') {
-        hideModal(modal);
-    } else {
-        modal.classList.remove('active');
+    const overlay = document.getElementById('modalOverlay');
+    if (modal) {
         modal.style.display = 'none';
+        modal.classList.remove('active');
     }
+    if (overlay) {
+        overlay.style.display = 'none';
+        overlay.classList.remove('active');
+    }
+    document.body.style.overflow = '';
 }
 
 function handleAdvisorFormSubmit(e) {

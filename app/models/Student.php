@@ -33,14 +33,18 @@ class Student extends Model
     public function createStudent(array $data): bool
     {
         try {
-            $sql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, status, advisor_id)
-                    VALUES (:user_id, :student_number, :gpa, :admission_date, :status, :advisor_id)";
+            $sql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status, advisor_id)
+                    VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status, :advisor_id)";
             $stmt = $this->db->prepare($sql);
             return $stmt->execute([
                 'user_id' => $data['user_id'],
                 'student_number' => $data['student_number'] ?? null,
                 'gpa' => $data['gpa'] ?? 0.00,
                 'admission_date' => $data['admission_date'] ?? null,
+                'major' => $data['major'] ?? null,
+                'minor' => $data['minor'] ?? null,
+                'midterm_cardinality' => $data['midterm_cardinality'] ?? null,
+                'final_cardinality' => $data['final_cardinality'] ?? null,
                 'status' => $data['status'] ?? 'active',
                 'advisor_id' => $data['advisor_id'] ?? null,
             ]) && $stmt->rowCount() > 0;
@@ -122,19 +126,19 @@ class Student extends Model
             $params[] = $like;
         }
 
-        if (!empty($filters['year_enrolled'])) {
-            $where .= " AND s.year_enrolled = ?";
-            $params[] = $filters['year_enrolled'];
-        }
-
         if (!empty($filters['status'])) {
             $where .= " AND s.status = ?";
             $params[] = $filters['status'];
         }
-
+        
         if (!empty($filters['major'])) {
             $where .= " AND s.major = ?";
             $params[] = $filters['major'];
+        }
+        
+        if (!empty($filters['year_enrolled'])) {
+            $where .= " AND YEAR(s.admission_date) = ?";
+            $params[] = $filters['year_enrolled'];
         }
 
         $sql = "SELECT s.*, u.first_name, u.last_name, u.email, u.phone 
@@ -173,19 +177,19 @@ class Student extends Model
             $params[] = $like;
         }
 
-        if (!empty($filters['year_enrolled'])) {
-            $where .= " AND s.year_enrolled = ?";
-            $params[] = $filters['year_enrolled'];
-        }
-
         if (!empty($filters['status'])) {
             $where .= " AND s.status = ?";
             $params[] = $filters['status'];
         }
-
+        
         if (!empty($filters['major'])) {
             $where .= " AND s.major = ?";
             $params[] = $filters['major'];
+        }
+        
+        if (!empty($filters['year_enrolled'])) {
+            $where .= " AND YEAR(s.admission_date) = ?";
+            $params[] = $filters['year_enrolled'];
         }
 
         $sql = "SELECT COUNT(*) as cnt 
@@ -235,17 +239,26 @@ class Student extends Model
             $userId = $this->db->lastInsertId();
 
             // Then create the student record
-            $studentSql = "INSERT INTO {$this->table} (user_id, student_number, year_enrolled, major, minor, gpa, status)
-                          VALUES (:user_id, :student_number, :year_enrolled, :major, :minor, :gpa, :status)";
+            $admissionDate = null;
+            if (!empty($studentData['year_enrolled'])) {
+                // Convert year_enrolled to admission_date (use January 1st of that year)
+                $admissionDate = $studentData['year_enrolled'] . '-01-01';
+            }
+            
+            $studentSql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status, advisor_id)
+                          VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status, :advisor_id)";
             $studentStmt = $this->db->prepare($studentSql);
             $studentStmt->execute([
                 'user_id' => $userId,
                 'student_number' => $studentData['student_number'] ?? null,
-                'year_enrolled' => $studentData['year_enrolled'] ?? null,
+                'gpa' => $studentData['gpa'] ?? 0.00,
+                'admission_date' => $admissionDate,
                 'major' => $studentData['major'] ?? null,
                 'minor' => $studentData['minor'] ?? null,
-                'gpa' => $studentData['gpa'] ?? 0.00,
+                'midterm_cardinality' => $studentData['midterm_cardinality'] ?? null,
+                'final_cardinality' => $studentData['final_cardinality'] ?? null,
                 'status' => $studentData['status'] ?? 'active',
+                'advisor_id' => $studentData['advisor_id'] ?? null,
             ]);
 
             $this->db->commit();
@@ -253,7 +266,8 @@ class Student extends Model
         } catch (\PDOException $e) {
             $this->db->rollBack();
             error_log("Student creation failed: " . $e->getMessage());
-            return false;
+            // Re-throw to get error message in controller
+            throw $e;
         }
     }
 
@@ -295,31 +309,56 @@ class Student extends Model
             }
 
             // Update student data
-            $studentSql = "UPDATE {$this->table} SET 
-                          student_number = :student_number,
-                          year_enrolled = :year_enrolled,
-                          major = :major,
-                          minor = :minor,
-                          gpa = :gpa,
-                          status = :status
-                          WHERE student_id = :student_id";
-            $studentStmt = $this->db->prepare($studentSql);
-            $studentStmt->execute([
+            $admissionDate = null;
+            if (!empty($studentData['year_enrolled'])) {
+                // Convert year_enrolled to admission_date (use January 1st of that year)
+                $admissionDate = $studentData['year_enrolled'] . '-01-01';
+            }
+            
+            // Build UPDATE query dynamically - only update password fields if provided
+            $updateFields = [
+                'student_number = :student_number',
+                'gpa = :gpa',
+                'admission_date = :admission_date',
+                'major = :major',
+                'minor = :minor',
+                'status = :status',
+                'advisor_id = :advisor_id'
+            ];
+            
+            $params = [
                 'student_number' => $studentData['student_number'] ?? null,
-                'year_enrolled' => $studentData['year_enrolled'] ?? null,
+                'gpa' => $studentData['gpa'] ?? 0.00,
+                'admission_date' => $admissionDate,
                 'major' => $studentData['major'] ?? null,
                 'minor' => $studentData['minor'] ?? null,
-                'gpa' => $studentData['gpa'] ?? 0.00,
                 'status' => $studentData['status'] ?? 'active',
+                'advisor_id' => $studentData['advisor_id'] ?? null,
                 'student_id' => $studentId,
-            ]);
+            ];
+            
+            // Only update password fields if they are provided (not empty)
+            if (!empty($studentData['midterm_cardinality'])) {
+                $updateFields[] = 'midterm_cardinality = :midterm_cardinality';
+                $params['midterm_cardinality'] = $studentData['midterm_cardinality'];
+            }
+            
+            if (!empty($studentData['final_cardinality'])) {
+                $updateFields[] = 'final_cardinality = :final_cardinality';
+                $params['final_cardinality'] = $studentData['final_cardinality'];
+            }
+            
+            $studentSql = "UPDATE {$this->table} SET " . implode(', ', $updateFields) . " WHERE student_id = :student_id";
+            $studentStmt = $this->db->prepare($studentSql);
+            $studentStmt->execute($params);
 
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
             $this->db->rollBack();
             error_log("Student update failed: " . $e->getMessage());
-            return false;
+            // Re-throw to get error message in controller
+            throw $e;
         }
     }
 
@@ -337,16 +376,27 @@ class Student extends Model
 
     public function getUniqueMajors(): array
     {
-        $stmt = $this->db->query("SELECT DISTINCT major FROM {$this->table} WHERE major IS NOT NULL AND major != '' ORDER BY major");
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return array_column($results, 'major');
+        try {
+            $stmt = $this->db->query("SELECT DISTINCT major FROM {$this->table} WHERE major IS NOT NULL AND major != '' ORDER BY major");
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return array_column($results, 'major');
+        } catch (\PDOException $e) {
+            error_log("getUniqueMajors failed: " . $e->getMessage());
+            return [];
+        }
     }
 
     public function getUniqueYears(): array
     {
-        $stmt = $this->db->query("SELECT DISTINCT year_enrolled FROM {$this->table} WHERE year_enrolled IS NOT NULL ORDER BY year_enrolled DESC");
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return array_column($results, 'year_enrolled');
+        // Extract years from admission_date column
+        try {
+            $stmt = $this->db->query("SELECT DISTINCT YEAR(admission_date) as year FROM {$this->table} WHERE admission_date IS NOT NULL ORDER BY year DESC");
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return array_column($results, 'year');
+        } catch (\PDOException $e) {
+            error_log("getUniqueYears failed: " . $e->getMessage());
+            return [];
+        }
     }
 }
 
