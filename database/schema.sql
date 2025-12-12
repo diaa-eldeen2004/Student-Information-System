@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS `doctors` (
     `doctor_id` INT(11) NOT NULL AUTO_INCREMENT,
     `user_id` INT(11) NOT NULL,
     `department` VARCHAR(100) DEFAULT NULL,
+    `bio` TEXT DEFAULT NULL,
     `title` VARCHAR(50) DEFAULT NULL,
     `office_location` VARCHAR(100) DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

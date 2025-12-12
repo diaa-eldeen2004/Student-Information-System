@@ -784,7 +784,7 @@ class Admin extends Controller
             if ($action === 'create' || $action === 'update') {
                 $first_name = trim($_POST['first_name'] ?? '');
                 $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
+                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
                 $phone = trim($_POST['phone'] ?? '');
                 $student_number = trim($_POST['student_number'] ?? '');
                 $year_enrolled = !empty($_POST['year_enrolled']) ? (int)$_POST['year_enrolled'] : null;
@@ -819,11 +819,12 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
-                        // Check if email already exists
+                        // Check if email already exists (case-insensitive)
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists';
+                            $message = 'Email already exists: ' . htmlspecialchars($email);
                             $messageType = 'error';
+                            error_log("Email check for IT - Found existing user with email: " . $email);
                         } else {
                             // Generate password if not provided
                             if (empty($password)) {
@@ -841,9 +842,24 @@ class Admin extends Controller
                                     $messageType = 'error';
                                 }
                             } catch (\PDOException $e) {
+                                $errorMsg = $e->getMessage();
+                                // Extract more user-friendly error message
+                                if (strpos($errorMsg, 'Duplicate entry') !== false) {
+                                    $message = 'Email already exists in the system';
+                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
+                                    // Extract the actual SQL error
+                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
+                                } else {
+                                    $message = 'Failed to create student: ' . $errorMsg;
+                                }
+                                $messageType = 'error';
+                                error_log("Student creation PDO error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
+                            } catch (\Exception $e) {
                                 $message = 'Failed to create student: ' . $e->getMessage();
                                 $messageType = 'error';
                                 error_log("Student creation error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -987,7 +1003,7 @@ class Admin extends Controller
             if ($action === 'create' || $action === 'update') {
                 $first_name = trim($_POST['first_name'] ?? '');
                 $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
+                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
                 $phone = trim($_POST['phone'] ?? '');
                 $department = trim($_POST['department'] ?? '');
                 $bio = trim($_POST['bio'] ?? '');
@@ -1010,11 +1026,13 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
-                        // Check if email already exists
+                        // Check if email already exists (case-insensitive)
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists';
+                            $message = 'Email already exists: ' . htmlspecialchars($email);
                             $messageType = 'error';
+                            error_log("Email check for doctor - Found existing user with email: " . $email);
+                            error_log("Email check for IT - Found existing user with email: " . $email);
                         } else {
                             // Generate password if not provided
                             if (empty($password)) {
@@ -1127,6 +1145,19 @@ class Admin extends Controller
             $editDoctor = $this->doctorModel->findById((int)$_GET['edit']);
         }
 
+        // Check if required columns exist
+        $missingColumns = [];
+        try {
+            $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+            $stmt = $db->query("SHOW COLUMNS FROM doctors LIKE 'bio'");
+            if ($stmt->rowCount() === 0) {
+                $missingColumns[] = 'bio';
+            }
+        } catch (\Exception $e) {
+            // Error checking columns - assume they might be missing
+            $missingColumns = ['bio'];
+        }
+
         $this->view->render('admin/admin_manage_doctor', [
             'title' => 'Manage Doctors',
             'doctors' => $doctors,
@@ -1139,6 +1170,7 @@ class Admin extends Controller
             'message' => $message,
             'messageType' => $messageType,
             'editDoctor' => $editDoctor,
+            'missingColumns' => $missingColumns,
             'showSidebar' => true,
         ]);
     }
@@ -1178,13 +1210,35 @@ class Admin extends Controller
                             $message = 'Course code already exists';
                             $messageType = 'error';
                         } else {
-                            $success = $this->courseModel->create($data);
-                            if ($success) {
-                                $message = 'Course created successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to create course';
+                            try {
+                                $success = $this->courseModel->create($data);
+                                if ($success) {
+                                    $message = 'Course created successfully';
+                                    $messageType = 'success';
+                                } else {
+                                    $message = 'Failed to create course (unknown error)';
+                                    $messageType = 'error';
+                                    error_log("Course creation returned false without exception");
+                                }
+                            } catch (\PDOException $e) {
+                                $errorMsg = $e->getMessage();
+                                // Extract more user-friendly error message
+                                if (strpos($errorMsg, 'Duplicate entry') !== false) {
+                                    $message = 'Course code already exists';
+                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
+                                    // Extract the actual SQL error
+                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
+                                } else {
+                                    $message = 'Failed to create course: ' . $errorMsg;
+                                }
                                 $messageType = 'error';
+                                error_log("Course creation PDO error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
+                            } catch (\Exception $e) {
+                                $message = 'Failed to create course: ' . $e->getMessage();
+                                $messageType = 'error';
+                                error_log("Course creation error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -1308,11 +1362,12 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
-                        // Check if email already exists
+                        // Check if email already exists (case-insensitive)
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists';
+                            $message = 'Email already exists: ' . htmlspecialchars($email);
                             $messageType = 'error';
+                            error_log("Email check for IT - Found existing user with email: " . $email);
                         } else {
                             // Generate password if not provided
                             if (empty($password)) {
@@ -1429,7 +1484,7 @@ class Admin extends Controller
             if ($action === 'create' || $action === 'update') {
                 $first_name = trim($_POST['first_name'] ?? '');
                 $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
+                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
                 $phone = trim($_POST['phone'] ?? '');
                 $password = $_POST['password'] ?? '';
 
@@ -1445,11 +1500,12 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
-                        // Check if email already exists
+                        // Check if email already exists (case-insensitive)
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists';
+                            $message = 'Email already exists: ' . htmlspecialchars($email);
                             $messageType = 'error';
+                            error_log("Email check for IT - Found existing user with email: " . $email);
                         } else {
                             // Generate password if not provided
                             if (empty($password)) {
@@ -1457,13 +1513,37 @@ class Admin extends Controller
                             }
                             $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
 
-                            $success = $this->itOfficerModel->createItOfficerWithUser($userData);
-                            if ($success) {
-                                $message = 'IT Officer created successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to create IT Officer';
+                            try {
+                                $success = $this->itOfficerModel->createItOfficerWithUser($userData);
+                                if ($success) {
+                                    $message = 'IT Officer created successfully';
+                                    $messageType = 'success';
+                                } else {
+                                    $message = 'Failed to create IT officer (unknown error)';
+                                    $messageType = 'error';
+                                    error_log("IT Officer creation returned false without exception");
+                                }
+                            } catch (\PDOException $e) {
+                                $errorMsg = $e->getMessage();
+                                // Extract more user-friendly error message
+                                if (strpos($errorMsg, 'Duplicate entry') !== false && strpos($errorMsg, 'PRIMARY') !== false) {
+                                    $message = 'Database error: Duplicate primary key. This might indicate an auto-increment issue. Please check the database.';
+                                } elseif (strpos($errorMsg, 'Duplicate entry') !== false) {
+                                    $message = 'Email already exists in the system';
+                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
+                                    // Extract the actual SQL error
+                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
+                                } else {
+                                    $message = 'Failed to create IT officer: ' . $errorMsg;
+                                }
                                 $messageType = 'error';
+                                error_log("IT Officer creation PDO error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
+                            } catch (\Exception $e) {
+                                $message = 'Failed to create IT officer: ' . $e->getMessage();
+                                $messageType = 'error';
+                                error_log("IT Officer creation error: " . $e->getMessage());
+                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -1561,7 +1641,7 @@ class Admin extends Controller
             if ($action === 'create' || $action === 'update') {
                 $first_name = trim($_POST['first_name'] ?? '');
                 $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
+                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
                 $phone = trim($_POST['phone'] ?? '');
                 $password = $_POST['password'] ?? '';
 
@@ -1579,11 +1659,12 @@ class Admin extends Controller
                     $adminData = [];
 
                     if ($action === 'create') {
-                        // Check if email already exists
+                        // Check if email already exists (case-insensitive)
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists';
+                            $message = 'Email already exists: ' . htmlspecialchars($email);
                             $messageType = 'error';
+                            error_log("Email check for IT - Found existing user with email: " . $email);
                         } else {
                             // Generate password if not provided
                             if (empty($password)) {
@@ -1708,7 +1789,7 @@ class Admin extends Controller
             if ($action === 'create' || $action === 'update') {
                 $first_name = trim($_POST['first_name'] ?? '');
                 $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
+                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
                 $phone = trim($_POST['phone'] ?? '');
                 $password = $_POST['password'] ?? '';
 
@@ -1717,11 +1798,12 @@ class Admin extends Controller
                     $messageType = 'error';
                 } else {
                     if ($action === 'create') {
-                        // Check if email already exists
+                        // Check if email already exists (case-insensitive)
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists';
+                            $message = 'Email already exists: ' . htmlspecialchars($email);
                             $messageType = 'error';
+                            error_log("Email check for IT - Found existing user with email: " . $email);
                         } else {
                             // Generate password if not provided
                             if (empty($password)) {

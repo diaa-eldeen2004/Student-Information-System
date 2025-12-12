@@ -10,7 +10,10 @@ class User extends Model
 
     public function findByEmail(string $email): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE email = :email LIMIT 1");
+        // Trim email for comparison
+        $email = trim($email);
+        // Use case-insensitive comparison
+        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE LOWER(email) = LOWER(:email) LIMIT 1");
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         return $user ?: null;

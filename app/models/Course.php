@@ -33,19 +33,34 @@ class Course extends Model
     public function create(array $data): bool
     {
         try {
+            // Validate required fields
+            if (empty($data['course_code']) || empty($data['name'])) {
+                throw new \InvalidArgumentException('Course code and name are required');
+            }
+
             $sql = "INSERT INTO {$this->table} (course_code, name, description, credit_hours, department)
                     VALUES (:course_code, :name, :description, :credit_hours, :department)";
             $stmt = $this->db->prepare($sql);
-            return $stmt->execute([
+            $result = $stmt->execute([
                 'course_code' => $data['course_code'],
                 'name' => $data['name'],
                 'description' => $data['description'] ?? null,
                 'credit_hours' => $data['credit_hours'] ?? 3,
                 'department' => $data['department'] ?? null,
-            ]) && $stmt->rowCount() > 0;
+            ]);
+
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                throw new \PDOException('Failed to create course: ' . ($errorInfo[2] ?? 'Unknown error'));
+            }
+
+            return $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log("Course creation failed: " . $e->getMessage());
-            return false;
+            throw $e; // Re-throw to allow controller to catch and display error
+        } catch (\Exception $e) {
+            error_log("Course creation failed: " . $e->getMessage());
+            throw $e; // Re-throw to allow controller to catch and display error
         }
     }
 

@@ -110,37 +110,98 @@ class ItOfficer extends Model
 
     public function createItOfficerWithUser(array $userData): bool
     {
+        $userStmt = null;
+        $itStmt = null;
+        
         try {
             $this->db->beginTransaction();
+
+            // Validate required fields
+            if (empty($userData['first_name']) || empty($userData['last_name']) || empty($userData['email'])) {
+                throw new \InvalidArgumentException('First name, last name, and email are required');
+            }
+
+            if (empty($userData['password'])) {
+                throw new \InvalidArgumentException('Password is required');
+            }
+
+            // Normalize email to lowercase
+            $email = trim(strtolower($userData['email'] ?? ''));
+            if (empty($email)) {
+                throw new \InvalidArgumentException('Email is required and cannot be empty');
+            }
 
             // First create the user
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
                         VALUES (:first_name, :last_name, :email, :phone, :password, 'it')";
             $userStmt = $this->db->prepare($userSql);
-            $userStmt->execute([
+            $result = $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
-                'email' => $userData['email'],
+                'email' => $email,
                 'phone' => $userData['phone'] ?? '',
                 'password' => $userData['password'],
             ]);
 
+            if (!$result) {
+                $errorInfo = $userStmt->errorInfo();
+                $errorMsg = $errorInfo[2] ?? 'Unknown error';
+                error_log("User creation failed. Error info: " . print_r($errorInfo, true));
+                throw new \PDOException('Failed to create user record: ' . $errorMsg);
+            }
+
             $userId = $this->db->lastInsertId();
+            
+            // Use getAttribute to get the last insert ID if lastInsertId() fails
+            if (!$userId || $userId === 0 || $userId === '0') {
+                // Try alternative method
+                $userId = $this->db->lastInsertId('users');
+                if (!$userId || $userId === 0 || $userId === '0') {
+                    // Query directly for the last insert
+                    $stmt = $this->db->query("SELECT LAST_INSERT_ID() as id");
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $userId = $result['id'] ?? null;
+                    
+                    if (!$userId || $userId === 0) {
+                        error_log("All methods to get lastInsertId failed. User creation may have failed.");
+                        throw new \PDOException('Failed to get user ID after creation. User may not have been created.');
+                    }
+                }
+            }
 
             // Then create the IT officer record
             $itSql = "INSERT INTO {$this->table} (user_id)
                       VALUES (:user_id)";
             $itStmt = $this->db->prepare($itSql);
-            $itStmt->execute([
+            $result = $itStmt->execute([
                 'user_id' => $userId,
             ]);
+
+            if (!$result) {
+                $errorInfo = $itStmt->errorInfo();
+                throw new \PDOException('Failed to create IT officer record: ' . ($errorInfo[2] ?? 'Unknown error'));
+            }
 
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log("IT Officer creation failed: " . $e->getMessage());
-            return false;
+            if ($userStmt) {
+                error_log("User SQL Error Info: " . print_r($userStmt->errorInfo(), true));
+            }
+            if ($itStmt) {
+                error_log("IT SQL Error Info: " . print_r($itStmt->errorInfo(), true));
+            }
+            throw $e; // Re-throw to allow controller to catch and display error
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("IT Officer creation failed: " . $e->getMessage());
+            throw $e; // Re-throw to allow controller to catch and display error
         }
     }
 

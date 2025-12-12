@@ -10,9 +10,37 @@ $departmentFilter = $departmentFilter ?? '';
 $message = $message ?? null;
 $messageType = $messageType ?? 'info';
 $editDoctor = $editDoctor ?? null;
+$missingColumns = $missingColumns ?? [];
+$needsMigration = !empty($missingColumns);
 ?>
 
 <div class="admin-container">
+    <!-- Migration Alert -->
+    <?php if ($needsMigration): ?>
+        <div class="alert alert-warning" style="margin-bottom: 1.5rem; padding: 1.5rem; border-radius: 8px; background-color: #fff3cd; border-left: 4px solid #ffc107; display: flex; flex-direction: column; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: #ffc107;"></i>
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 0.5rem 0; color: #856404;">Database Migration Required</h3>
+                    <p style="margin: 0; color: #856404;">
+                        The following columns are missing from the doctors table: <strong><?= htmlspecialchars(implode(', ', $missingColumns)) ?></strong>
+                    </p>
+                    <p style="margin: 0.5rem 0 0 0; color: #856404; font-size: 0.9rem;">
+                        Please run the migration to add these columns before creating doctors.
+                    </p>
+                </div>
+            </div>
+            <div>
+                <button class="btn btn-warning" onclick="runMigration('add_doctor_bio.sql')" style="font-weight: 600;">
+                    <i class="fas fa-database"></i> Run Migration Now
+                </button>
+                <a href="<?= htmlspecialchars($url('admin/manage-doctor')) ?>" class="btn btn-outline" style="margin-left: 0.5rem;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </a>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <div class="admin-header">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <div>
@@ -373,10 +401,10 @@ async function viewDoctor(doctorId) {
                             <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Email</label>
                             <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.email || 'N/A')}</div>
                         </div>
-                        ${d.bio ? `<div class="info-group" style="grid-column: 1 / -1;">
+                        <div class="info-group">
                             <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Bio</label>
-                            <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.bio)}</div>
-                        </div>` : ''}
+                            <div style="color: var(--text-primary); font-weight: 500; white-space: pre-wrap;">${escapeHtml(d.bio || 'N/A')}</div>
+                        </div>
                         <div class="info-group">
                             <label style="color: var(--text-secondary); font-size: 0.9rem; display: block; margin-bottom: 0.25rem;">Created</label>
                             <div style="color: var(--text-primary); font-weight: 500;">${escapeHtml(d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A')}</div>
@@ -514,9 +542,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('doctorForm').elements['last_name'].value = doctor.last_name || '';
         document.getElementById('doctorForm').elements['email'].value = doctor.email || '';
         document.getElementById('doctorForm').elements['phone'].value = doctor.phone || '';
-        document.getElementById('doctorForm').elements['department'].value = doctor.department || '';
-        document.getElementById('doctorForm').elements['bio'].value = doctor.bio || '';
-        document.getElementById('doctorId').value = doctor.doctor_id;
+            document.getElementById('doctorForm').elements['department'].value = doctor.department || '';
+            document.getElementById('doctorId').value = doctor.doctor_id;
         document.getElementById('formAction').value = 'update';
         document.getElementById('doctorModalTitle').textContent = 'Edit Doctor';
         
@@ -525,4 +552,59 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 <?php endif; ?>
+
+// Migration function
+function runMigration(migrationFile) {
+    if (!confirm('Are you sure you want to run the migration? This will modify your database structure.')) {
+        return;
+    }
+    
+    // Show loading state
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Migration...';
+    
+    fetch('<?= htmlspecialchars($url('migrate/run')) ?>?file=' + encodeURIComponent(migrationFile), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Migration completed successfully! Refreshing page...', 'success');
+            } else {
+                alert('Migration completed successfully!\n\n' + (data.messages ? data.messages.join('\n') : ''));
+            }
+            // Reload page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Show error message
+            const errorMsg = data.messages ? data.messages.join('\n') : 'Unknown error';
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Migration failed: ' + errorMsg, 'error');
+            } else {
+                alert('Migration failed:\n\n' + errorMsg);
+            }
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Migration error:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while running migration', 'error');
+        } else {
+            alert('An error occurred while running migration: ' + error.message);
+        }
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
 </script>

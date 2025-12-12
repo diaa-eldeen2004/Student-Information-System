@@ -120,6 +120,12 @@ class Doctor extends Model
                 throw new \InvalidArgumentException('Password is required');
             }
 
+            // Normalize email to lowercase
+            $email = trim(strtolower($userData['email'] ?? ''));
+            if (empty($email)) {
+                throw new \InvalidArgumentException('Email is required and cannot be empty');
+            }
+
             // First create the user
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
                         VALUES (:first_name, :last_name, :email, :phone, :password, 'doctor')";
@@ -127,20 +133,35 @@ class Doctor extends Model
             $result = $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
-                'email' => $userData['email'],
+                'email' => $email,
                 'phone' => $userData['phone'] ?? '',
                 'password' => $userData['password'],
             ]);
 
             if (!$result) {
                 $errorInfo = $userStmt->errorInfo();
-                throw new \PDOException('Failed to create user record: ' . ($errorInfo[2] ?? 'Unknown error'));
+                $errorMsg = $errorInfo[2] ?? 'Unknown error';
+                error_log("User creation failed for doctor. Error info: " . print_r($errorInfo, true));
+                throw new \PDOException('Failed to create user record: ' . $errorMsg);
             }
 
             $userId = $this->db->lastInsertId();
-
-            if (!$userId) {
-                throw new \PDOException('Failed to get user ID after creation');
+            
+            // Use getAttribute to get the last insert ID if lastInsertId() fails
+            if (!$userId || $userId === 0 || $userId === '0') {
+                // Try alternative method
+                $userId = $this->db->lastInsertId('users');
+                if (!$userId || $userId === 0 || $userId === '0') {
+                    // Query directly for the last insert
+                    $stmt = $this->db->query("SELECT LAST_INSERT_ID() as id");
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $userId = $result['id'] ?? null;
+                    
+                    if (!$userId || $userId === 0) {
+                        error_log("All methods to get lastInsertId failed for doctor. User creation may have failed.");
+                        throw new \PDOException('Failed to get user ID after creation. User may not have been created.');
+                    }
+                }
             }
 
             // Then create the doctor record
@@ -220,13 +241,11 @@ class Doctor extends Model
 
             // Update doctor data
             $doctorSql = "UPDATE {$this->table} SET 
-                         department = :department,
-                         bio = :bio
+                         department = :department
                          WHERE doctor_id = :doctor_id";
             $doctorStmt = $this->db->prepare($doctorSql);
             $doctorStmt->execute([
                 'department' => $doctorData['department'] ?? null,
-                'bio' => $doctorData['bio'] ?? null,
                 'doctor_id' => $doctorId,
             ]);
 

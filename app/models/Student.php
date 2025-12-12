@@ -221,22 +221,62 @@ class Student extends Model
 
     public function createStudentWithUser(array $userData, array $studentData): bool
     {
+        $userStmt = null;
+        $studentStmt = null;
+        
         try {
             $this->db->beginTransaction();
+
+            // Validate required fields
+            if (empty($userData['first_name']) || empty($userData['last_name']) || empty($userData['email'])) {
+                throw new \InvalidArgumentException('First name, last name, and email are required');
+            }
+
+            if (empty($userData['password'])) {
+                throw new \InvalidArgumentException('Password is required');
+            }
+
+            // Normalize email to lowercase
+            $email = trim(strtolower($userData['email'] ?? ''));
+            if (empty($email)) {
+                throw new \InvalidArgumentException('Email is required and cannot be empty');
+            }
 
             // First create the user
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
                         VALUES (:first_name, :last_name, :email, :phone, :password, 'student')";
             $userStmt = $this->db->prepare($userSql);
-            $userStmt->execute([
+            $result = $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
-                'email' => $userData['email'],
+                'email' => $email,
                 'phone' => $userData['phone'] ?? '',
                 'password' => $userData['password'],
             ]);
 
+            if (!$result) {
+                $errorInfo = $userStmt->errorInfo();
+                throw new \PDOException('Failed to create user record: ' . ($errorInfo[2] ?? 'Unknown error'));
+            }
+
             $userId = $this->db->lastInsertId();
+            
+            // Use getAttribute to get the last insert ID if lastInsertId() fails
+            if (!$userId || $userId === 0 || $userId === '0') {
+                // Try alternative method
+                $userId = $this->db->lastInsertId('users');
+                if (!$userId || $userId === 0 || $userId === '0') {
+                    // Query directly for the last insert
+                    $stmt = $this->db->query("SELECT LAST_INSERT_ID() as id");
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $userId = $result['id'] ?? null;
+                    
+                    if (!$userId || $userId === 0) {
+                        error_log("All methods to get lastInsertId failed for student. User creation may have failed.");
+                        throw new \PDOException('Failed to get user ID after creation. User may not have been created.');
+                    }
+                }
+            }
 
             // Then create the student record
             $admissionDate = null;
@@ -245,10 +285,15 @@ class Student extends Model
                 $admissionDate = $studentData['year_enrolled'] . '-01-01';
             }
             
+            // Convert advisor_id to null if it's 0 or empty
+            $advisorId = !empty($studentData['advisor_id']) && $studentData['advisor_id'] > 0 
+                ? (int)$studentData['advisor_id'] 
+                : null;
+            
             $studentSql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status, advisor_id)
                           VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status, :advisor_id)";
             $studentStmt = $this->db->prepare($studentSql);
-            $studentStmt->execute([
+            $result = $studentStmt->execute([
                 'user_id' => $userId,
                 'student_number' => $studentData['student_number'] ?? null,
                 'gpa' => $studentData['gpa'] ?? 0.00,
@@ -258,15 +303,33 @@ class Student extends Model
                 'midterm_cardinality' => $studentData['midterm_cardinality'] ?? null,
                 'final_cardinality' => $studentData['final_cardinality'] ?? null,
                 'status' => $studentData['status'] ?? 'active',
-                'advisor_id' => $studentData['advisor_id'] ?? null,
+                'advisor_id' => $advisorId,
             ]);
+
+            if (!$result) {
+                $errorInfo = $studentStmt->errorInfo();
+                throw new \PDOException('Failed to create student record: ' . ($errorInfo[2] ?? 'Unknown error'));
+            }
 
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log("Student creation failed: " . $e->getMessage());
-            // Re-throw to get error message in controller
+            if ($userStmt) {
+                error_log("User SQL Error Info: " . print_r($userStmt->errorInfo(), true));
+            }
+            if ($studentStmt) {
+                error_log("Student SQL Error Info: " . print_r($studentStmt->errorInfo(), true));
+            }
+            throw $e;
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("Student creation failed: " . $e->getMessage());
             throw $e;
         }
     }
