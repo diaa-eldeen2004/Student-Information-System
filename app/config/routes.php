@@ -42,9 +42,11 @@ return [
     ['POST', '/doctor/take-attendance', 'Doctor@takeAttendance'],
     ['GET', '/doctor/calendar', 'Doctor@calendar'],
     ['GET', '/doctor/notifications', 'Doctor@notifications'],
+    ['POST', '/doctor/notifications', 'Doctor@notifications'],
     ['GET', '/doctor/send-notification', 'Doctor@sendNotification'],
     ['POST', '/doctor/send-notification', 'Doctor@sendNotification'],
     ['GET', '/doctor/profile', 'Doctor@profile'],
+    ['POST', '/doctor/profile', 'Doctor@profile'],
     ['GET', '/doctor/create-course', 'Doctor@createCourse'],
     ['POST', '/doctor/create-course', 'Doctor@createCourse'],
 

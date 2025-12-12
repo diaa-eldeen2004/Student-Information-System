@@ -15,14 +15,20 @@ class RoleMiddleware extends Middleware
     public function handle(): bool
     {
         if (!isset($_SESSION['user_id'])) {
-            header('Location: /auth/login');
+            $config = require dirname(__DIR__) . '/config/config.php';
+            $basePath = rtrim(parse_url($config['base_url'] ?? '', PHP_URL_PATH) ?? '', '/');
+            $loginPath = $basePath ? $basePath . '/auth/login' : '/auth/login';
+            header('Location: ' . $loginPath);
             return false;
         }
 
         $userRole = $_SESSION['user_role'] ?? null;
         
         if (!in_array($userRole, $this->allowedRoles)) {
-            header('Location: /errors/403');
+            $config = require dirname(__DIR__) . '/config/config.php';
+            $basePath = rtrim(parse_url($config['base_url'] ?? '', PHP_URL_PATH) ?? '', '/');
+            $errorPath = $basePath ? $basePath . '/errors/403' : '/errors/403';
+            header('Location: ' . $errorPath);
             return false;
         }
 

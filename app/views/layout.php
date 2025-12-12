@@ -36,34 +36,54 @@
 </head>
 <body>
     <?php
-    // Check if we're on an IT page (sidebar should be shown)
-    $showSidebar = isset($showSidebar) ? $showSidebar : (strpos($_SERVER['REQUEST_URI'] ?? '', '/it/') !== false);
+    // Check if we're on an IT or Doctor page (sidebar should be shown)
+    $showSidebar = isset($showSidebar) ? $showSidebar : (strpos($_SERVER['REQUEST_URI'] ?? '', '/it/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/doctor/') !== false);
     $currentPage = $_SERVER['REQUEST_URI'] ?? '';
     $currentPath = parse_url($currentPage, PHP_URL_PATH) ?? '';
+    $isDoctorPage = strpos($currentPath, '/doctor/') !== false;
+    $isItPage = strpos($currentPath, '/it/') !== false;
     ?>
     
     <?php if ($showSidebar): ?>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2><i class="fas fa-graduation-cap"></i> IT Portal</h2>
+            <h2><i class="fas fa-graduation-cap"></i> <?= $isDoctorPage ? 'Doctor' : 'IT' ?> Portal</h2>
         </div>
         <nav class="sidebar-nav">
-            <a href="<?= htmlspecialchars($url('it/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/it/dashboard') !== false || ($currentPath === '/it' || $currentPath === '/it/')) ? 'active' : '' ?>">
-                <i class="fas fa-tachometer-alt"></i> Dashboard
-            </a>
-            <a href="<?= htmlspecialchars($url('it/schedule')) ?>" class="nav-item <?= strpos($currentPath, '/it/schedule') !== false ? 'active' : '' ?>">
-                <i class="fas fa-calendar-alt"></i> Schedule
-            </a>
-            <a href="<?= htmlspecialchars($url('it/course')) ?>" class="nav-item <?= strpos($currentPath, '/it/course') !== false ? 'active' : '' ?>">
-                <i class="fas fa-book"></i> Courses
-            </a>
-            <a href="<?= htmlspecialchars($url('it/enrollments')) ?>" class="nav-item <?= strpos($currentPath, '/it/enrollments') !== false ? 'active' : '' ?>">
-                <i class="fas fa-user-check"></i> Enrollments
-            </a>
-            <a href="<?= htmlspecialchars($url('it/logs')) ?>" class="nav-item <?= strpos($currentPath, '/it/logs') !== false ? 'active' : '' ?>">
-                <i class="fas fa-file-alt"></i> Audit Logs
-            </a>
+            <?php if ($isDoctorPage): ?>
+                <a href="<?= htmlspecialchars($url('doctor/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/doctor/dashboard') !== false || ($currentPath === '/doctor' || $currentPath === '/doctor/')) ? 'active' : '' ?>">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="<?= htmlspecialchars($url('doctor/course')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/course') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-book"></i> Courses
+                </a>
+                <a href="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/assignments') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-tasks"></i> Assignments
+                </a>
+                <a href="<?= htmlspecialchars($url('doctor/attendance')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/attendance') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-calendar-check"></i> Attendance
+                </a>
+                <a href="<?= htmlspecialchars($url('doctor/calendar')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/calendar') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-calendar-alt"></i> Calendar
+                </a>
+            <?php else: ?>
+                <a href="<?= htmlspecialchars($url('it/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/it/dashboard') !== false || ($currentPath === '/it' || $currentPath === '/it/')) ? 'active' : '' ?>">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="<?= htmlspecialchars($url('it/schedule')) ?>" class="nav-item <?= strpos($currentPath, '/it/schedule') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-calendar-alt"></i> Schedule
+                </a>
+                <a href="<?= htmlspecialchars($url('it/course')) ?>" class="nav-item <?= strpos($currentPath, '/it/course') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-book"></i> Courses
+                </a>
+                <a href="<?= htmlspecialchars($url('it/enrollments')) ?>" class="nav-item <?= strpos($currentPath, '/it/enrollments') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-user-check"></i> Enrollments
+                </a>
+                <a href="<?= htmlspecialchars($url('it/logs')) ?>" class="nav-item <?= strpos($currentPath, '/it/logs') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-file-alt"></i> Audit Logs
+                </a>
+            <?php endif; ?>
             <hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--border-color);">
             <a href="<?= htmlspecialchars($url('')) ?>" class="nav-item">
                 <i class="fas fa-home"></i> Home

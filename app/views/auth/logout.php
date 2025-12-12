@@ -11,8 +11,8 @@
             <div class="progress-fill" id="progressFill" style="width: 100%;"></div>
         </div>
         <div class="logout-actions">
-            <button class="btn btn-primary" onclick="window.location.href='/auth/login'">Go to Login</button>
-            <button class="btn btn-outline" onclick="window.location.href='/'">Back to Home</button>
+            <button class="btn btn-primary" onclick="window.location.href='<?= htmlspecialchars($url('auth/login')) ?>'">Go to Login</button>
+            <button class="btn btn-outline" onclick="window.location.href='<?= htmlspecialchars($url('')) ?>'">Back to Home</button>
         </div>
     </div>
 </div>
@@ -20,13 +20,14 @@
     let countdown = 3;
     const counter = document.getElementById('countdown');
     const fill = document.getElementById('progressFill');
+    const loginUrl = '<?= htmlspecialchars($url('auth/login')) ?>';
     const timer = setInterval(() => {
         countdown--;
         counter.textContent = `Redirecting in ${countdown} seconds...`;
         fill.style.width = `${countdown / 3 * 100}%`;
         if (countdown <= 0) {
             clearInterval(timer);
-            window.location.href = '/auth/login';
+            window.location.href = loginUrl;
         }
     }, 1000);
 </script>

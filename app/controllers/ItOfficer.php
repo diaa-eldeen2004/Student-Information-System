@@ -55,8 +55,7 @@ class ItOfficer extends Controller
 
         // Check authentication
         if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'it') {
-            header('Location: /auth/login');
-            exit;
+            $this->redirectTo('auth/login');
         }
 
         // Factory Method Pattern - Create all models
@@ -81,6 +80,18 @@ class ItOfficer extends Controller
         // Strategy Pattern - Initialize conflict detector with default strategy
         $db = DatabaseConnection::getInstance()->getConnection();
         $this->conflictDetector = new ConflictDetector(new TimeSlotConflictStrategy($db));
+    }
+
+    /**
+     * Redirect helper that respects base_url config
+     */
+    private function redirectTo(string $path): void
+    {
+        $config = require dirname(__DIR__) . '/config/config.php';
+        $base = rtrim($config['base_url'] ?? '', '/');
+        $target = $base . '/' . ltrim($path, '/');
+        header("Location: {$target}");
+        exit;
     }
 
     public function dashboard(): void
@@ -541,7 +552,9 @@ class ItOfficer extends Controller
             
             // Redirect to avoid resubmission
             if ($message) {
-                $redirectUrl = '/it/course?message=' . urlencode($message) . '&type=' . urlencode($messageType);
+                $config = require dirname(__DIR__) . '/config/config.php';
+                $base = rtrim($config['base_url'] ?? '', '/');
+                $redirectUrl = $base . '/it/course?message=' . urlencode($message) . '&type=' . urlencode($messageType);
                 header('Location: ' . $redirectUrl);
                 exit;
             }

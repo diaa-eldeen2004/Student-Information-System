@@ -2,19 +2,665 @@
 namespace controllers;
 
 use core\Controller;
+use patterns\Factory\ModelFactory;
+use patterns\Singleton\DatabaseConnection;
+use patterns\Adapter\NotificationService;
+use patterns\Adapter\DatabaseNotificationAdapter;
+use patterns\Observer\AssignmentSubject;
+use patterns\Observer\NotificationObserver;
+use patterns\Observer\AuditLogObserver;
+use patterns\Decorator\AssignmentDecorator;
+use patterns\Builder\AssignmentBuilder;
+use models\Doctor as DoctorModel;
+use models\Course;
+use models\Section;
+use models\Assignment;
+use models\Attendance;
+use models\Student;
+use models\AuditLog;
+use models\Notification;
 
 class Doctor extends Controller
 {
-    public function dashboard(): void {}
-    public function course(): void {}
-    public function assignments(): void {}
-    public function createAssignment(): void {}
-    public function attendance(): void {}
-    public function takeAttendance(): void {}
-    public function calendar(): void {}
-    public function notifications(): void {}
-    public function sendNotification(): void {}
-    public function profile(): void {}
-    public function createCourse(): void {}
+    private DoctorModel $doctorModel;
+    private Course $courseModel;
+    private Section $sectionModel;
+    private Assignment $assignmentModel;
+    private Attendance $attendanceModel;
+    private Student $studentModel;
+    private AuditLog $auditLogModel;
+    private Notification $notificationModel;
+    
+    // Observer Pattern
+    private AssignmentSubject $assignmentSubject;
+    
+    // Adapter Pattern
+    private NotificationService $notificationService;
+
+    public function __construct()
+    {
+        parent::__construct();
+        
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        // Check authentication
+        if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'doctor') {
+            $this->redirectTo('auth/login');
+        }
+
+        // Factory Method Pattern - Create all models
+        $this->doctorModel = ModelFactory::create('Doctor');
+        $this->courseModel = ModelFactory::create('Course');
+        $this->sectionModel = ModelFactory::create('Section');
+        $this->assignmentModel = ModelFactory::create('Assignment');
+        $this->attendanceModel = ModelFactory::create('Attendance');
+        $this->studentModel = ModelFactory::create('Student');
+        $this->auditLogModel = ModelFactory::create('AuditLog');
+        $this->notificationModel = ModelFactory::create('Notification');
+
+        // Adapter Pattern - Notification service with database adapter
+        $notificationAdapter = new DatabaseNotificationAdapter($this->notificationModel);
+        $this->notificationService = new NotificationService($notificationAdapter);
+
+        // Observer Pattern - Setup observers for assignment events
+        $this->assignmentSubject = new AssignmentSubject();
+        $this->assignmentSubject->attach(new NotificationObserver($this->notificationModel));
+        $this->assignmentSubject->attach(new AuditLogObserver($this->auditLogModel));
+    }
+
+    /**
+     * Redirect helper that respects base_url config
+     */
+    private function redirectTo(string $path): void
+    {
+        $config = require dirname(__DIR__) . '/config/config.php';
+        $base = rtrim($config['base_url'] ?? '', '/');
+        $target = $base . '/' . ltrim($path, '/');
+        header("Location: {$target}");
+        exit;
+    }
+
+    public function dashboard(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'] ?? null;
+            
+            if (!$userId) {
+                $this->view->render('errors/403', ['title' => 'Access Denied', 'message' => 'User not logged in']);
+                return;
+            }
+            
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                // Create a temporary doctor record if it doesn't exist
+                try {
+                    $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+                    $stmt = $db->prepare("INSERT INTO doctors (user_id) VALUES (:user_id)");
+                    $stmt->execute(['user_id' => $userId]);
+                    $doctor = $this->doctorModel->findByUserId($userId);
+                } catch (\Exception $e) {
+                    error_log("Error creating doctor record: " . $e->getMessage());
+                }
+                
+                if (!$doctor) {
+                    $this->view->render('errors/403', [
+                        'title' => 'Access Denied', 
+                        'message' => 'Doctor profile not found. Please contact administrator to create your doctor profile.'
+                    ]);
+                    return;
+                }
+            }
+
+            // Get doctor's sections and assignments
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id']);
+
+            $this->view->render('doctor/doctor_dashboard', [
+                'title' => 'Doctor Dashboard',
+                'doctor' => $doctor,
+                'sections' => $sections ?? [],
+                'assignments' => $assignments ?? [],
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Dashboard error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load dashboard: ' . $e->getMessage()]);
+        }
+    }
+
+    public function course(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            // Get doctor's courses
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $courses = [];
+            foreach ($sections as $section) {
+                $courseId = $section['course_id'];
+                if (!isset($courses[$courseId])) {
+                    $course = $this->courseModel->findById($courseId);
+                    if ($course) {
+                        $courses[$courseId] = $course;
+                        $courses[$courseId]['sections'] = [];
+                    }
+                }
+                $courses[$courseId]['sections'][] = $section;
+            }
+
+            $this->view->render('doctor/doctor_course', [
+                'title' => 'My Courses',
+                'courses' => array_values($courses),
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Course error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load courses: ' . $e->getMessage()]);
+        }
+    }
+
+    public function assignments(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            // Get filter parameters
+            $courseFilter = trim($_GET['course'] ?? '');
+            $statusFilter = trim($_GET['status'] ?? '');
+            $typeFilter = trim($_GET['type'] ?? '');
+            
+            $filters = [];
+            if (!empty($courseFilter)) $filters['course_id'] = $courseFilter;
+            if (!empty($statusFilter)) $filters['status'] = $statusFilter;
+            if (!empty($typeFilter)) $filters['type'] = $typeFilter;
+
+            // Get assignments from database
+            $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id'], $filters);
+            
+            // Decorator Pattern - Format assignments for display
+            $decoratedAssignments = [];
+            foreach ($assignments as $assignment) {
+                $decorator = new AssignmentDecorator($assignment);
+                $assignment['formatted'] = $decorator->format();
+                $assignment['status_badge'] = $decorator->getStatusBadge();
+                $submissionStats = $this->assignmentModel->getSubmissionCount($assignment['assignment_id']);
+                $assignment['submission_stats'] = $submissionStats;
+                $decoratedAssignments[] = $assignment;
+            }
+
+            // Get doctor's courses for filter
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $courses = [];
+            foreach ($sections as $section) {
+                $course = $this->courseModel->findById($section['course_id']);
+                if ($course && !isset($courses[$course['course_id']])) {
+                    $courses[$course['course_id']] = $course;
+                }
+            }
+
+            $this->view->render('doctor/doctor_assignments', [
+                'title' => 'Assignments',
+                'assignments' => $decoratedAssignments,
+                'courses' => array_values($courses),
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Assignments error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load assignments: ' . $e->getMessage()]);
+        }
+    }
+
+    public function createAssignment(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Builder Pattern - Build assignment step by step
+                $builder = new AssignmentBuilder();
+                $builder->setCourse((int)($_POST['course_id'] ?? 0))
+                        ->setSection((int)($_POST['section_id'] ?? 0))
+                        ->setDoctor($doctor['doctor_id'])
+                        ->setTitle(trim($_POST['title'] ?? ''))
+                        ->setDescription(trim($_POST['description'] ?? ''))
+                        ->setDueDate(trim($_POST['due_date'] ?? ''))
+                        ->setMaxPoints((float)($_POST['points'] ?? 100))
+                        ->setType(trim($_POST['type'] ?? 'homework'));
+
+                $assignmentData = $builder->build();
+
+                if ($this->assignmentModel->create($assignmentData)) {
+                    // Observer Pattern - Notify observers about new assignment
+                    $this->assignmentSubject->notify('assignment_created', [
+                        'assignment_id' => $this->assignmentModel->getLastInsertId(),
+                        'doctor_id' => $doctor['doctor_id'],
+                        'title' => $assignmentData['title']
+                    ]);
+
+                    $message = 'Assignment created successfully';
+                    $messageType = 'success';
+                } else {
+                    $message = 'Error creating assignment';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get doctor's sections for dropdown
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $courses = [];
+            foreach ($sections as $section) {
+                $course = $this->courseModel->findById($section['course_id']);
+                if ($course && !isset($courses[$course['course_id']])) {
+                    $courses[$course['course_id']] = $course;
+                    $courses[$course['course_id']]['sections'] = [];
+                }
+                if ($course) {
+                    $courses[$course['course_id']]['sections'][] = $section;
+                }
+            }
+
+            // Get recent assignments
+            $recentAssignments = $this->assignmentModel->getByDoctor($doctor['doctor_id'], ['status' => 'active']);
+            $recentAssignments = array_slice($recentAssignments, 0, 5);
+
+            $this->view->render('doctor/create_assignment', [
+                'title' => 'Create Assignment',
+                'courses' => array_values($courses),
+                'recentAssignments' => $recentAssignments,
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Create assignment error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to create assignment: ' . $e->getMessage()]);
+        }
+    }
+
+    public function attendance(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            // Get doctor's sections
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            
+            // Get attendance stats for each section
+            $sectionsWithStats = [];
+            foreach ($sections as $section) {
+                $stats = $this->attendanceModel->getAttendanceStats($section['section_id']);
+                $section['attendance_stats'] = $stats;
+                $sectionsWithStats[] = $section;
+            }
+
+            $this->view->render('doctor/doctor_attendance', [
+                'title' => 'Attendance Management',
+                'sections' => $sectionsWithStats,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Attendance error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load attendance: ' . $e->getMessage()]);
+        }
+    }
+
+    public function takeAttendance(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $sectionId = (int)($_GET['section_id'] ?? 0);
+            if (!$sectionId) {
+                $this->view->render('errors/400', ['title' => 'Bad Request', 'message' => 'Section ID required']);
+                return;
+            }
+
+            $section = $this->sectionModel->findById($sectionId);
+            if (!$section || $section['doctor_id'] != $doctor['doctor_id']) {
+                $this->view->render('errors/403', ['title' => 'Access Denied', 'message' => 'You do not have access to this section']);
+                return;
+            }
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $attendanceDate = trim($_POST['attendance_date'] ?? date('Y-m-d'));
+                $attendanceData = [];
+                
+                foreach ($_POST['attendance'] ?? [] as $studentId => $status) {
+                    $attendanceData[] = [
+                        'student_id' => (int)$studentId,
+                        'date' => $attendanceDate,
+                        'status' => $status,
+                        'notes' => trim($_POST['notes'][$studentId] ?? ''),
+                    ];
+                }
+
+                if ($this->attendanceModel->recordAttendance($sectionId, $attendanceData, $doctor['doctor_id'])) {
+                    $config = require dirname(__DIR__) . '/config/config.php';
+                    $base = rtrim($config['base_url'] ?? '', '/');
+                    $target = $base . '/doctor/attendance?success=recorded';
+                    header("Location: {$target}");
+                    exit;
+                } else {
+                    $message = 'Error recording attendance';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get enrolled students
+            $enrollments = $this->sectionModel->getEnrolledStudents($sectionId);
+            $students = [];
+            foreach ($enrollments as $enrollment) {
+                $student = $this->studentModel->findById($enrollment['student_id']);
+                if ($student) {
+                    $students[] = $student;
+                }
+            }
+
+            $this->view->render('doctor/take_attendance', [
+                'title' => 'Take Attendance',
+                'section' => $section,
+                'students' => $students,
+                'message' => $message ?? null,
+                'messageType' => $messageType ?? 'info',
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Take attendance error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to take attendance: ' . $e->getMessage()]);
+        }
+    }
+
+    public function calendar(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            // Get doctor's sections and assignments for calendar
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id']);
+
+            $this->view->render('doctor/doctor_calendar', [
+                'title' => 'Calendar Management',
+                'sections' => $sections,
+                'assignments' => $assignments,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Calendar error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load calendar: ' . $e->getMessage()]);
+        }
+    }
+
+    public function createCourse(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Note: Course creation is typically done by IT Officer, but doctors can request
+                // For now, we'll just show a message
+                $message = 'Course creation requests should be submitted to IT Officer';
+                $messageType = 'info';
+            }
+
+            // Get recent courses
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $recentCourses = [];
+            foreach (array_slice($sections, 0, 5) as $section) {
+                $course = $this->courseModel->findById($section['course_id']);
+                if ($course && !isset($recentCourses[$course['course_id']])) {
+                    $recentCourses[$course['course_id']] = $course;
+                }
+            }
+
+            $this->view->render('doctor/create_course', [
+                'title' => 'Create Course',
+                'recentCourses' => array_values($recentCourses),
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Create course error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to create course: ' . $e->getMessage()]);
+        }
+    }
+
+    public function notifications(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            // Handle mark as read action
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_read') {
+                $notificationId = (int)($_POST['notification_id'] ?? 0);
+                if ($notificationId) {
+                    $this->notificationModel->markAsRead($notificationId, $userId);
+                }
+                $config = require dirname(__DIR__) . '/config/config.php';
+                $base = rtrim($config['base_url'] ?? '', '/');
+                $target = $base . '/doctor/notifications';
+                header("Location: {$target}");
+                exit;
+            }
+
+            // Get notifications for the doctor
+            $notifications = $this->notificationModel->getByUserId($userId, 50);
+            $unreadCount = count($this->notificationModel->getUnreadByUserId($userId));
+
+            $this->view->render('doctor/doctor_notifications', [
+                'title' => 'Notifications',
+                'notifications' => $notifications,
+                'unreadCount' => $unreadCount,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Notifications error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load notifications: ' . $e->getMessage()]);
+        }
+    }
+
+    public function sendNotification(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $targetUserId = (int)($_POST['user_id'] ?? 0);
+                $title = trim($_POST['title'] ?? '');
+                $content = trim($_POST['message'] ?? '');
+                $type = trim($_POST['type'] ?? 'info');
+
+                if ($targetUserId && $title && $content) {
+                    if ($this->notificationModel->create([
+                        'user_id' => $targetUserId,
+                        'title' => $title,
+                        'message' => $content,
+                        'type' => $type,
+                        'related_id' => $doctor['doctor_id'],
+                        'related_type' => 'doctor'
+                    ])) {
+                        $message = 'Notification sent successfully';
+                        $messageType = 'success';
+                    } else {
+                        $message = 'Error sending notification';
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = 'Please fill all required fields';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get doctor's sections to get enrolled students
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $students = [];
+            foreach ($sections as $section) {
+                $enrollments = $this->sectionModel->getEnrolledStudents($section['section_id']);
+                foreach ($enrollments as $enrollment) {
+                    $student = $this->studentModel->findById($enrollment['student_id']);
+                    if ($student && !isset($students[$student['student_id']])) {
+                        $students[$student['student_id']] = $student;
+                    }
+                }
+            }
+
+            $this->view->render('doctor/send_notification', [
+                'title' => 'Send Notification',
+                'students' => array_values($students),
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Send notification error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to send notification: ' . $e->getMessage()]);
+        }
+    }
+
+    public function profile(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Update profile
+                $firstName = trim($_POST['first_name'] ?? '');
+                $lastName = trim($_POST['last_name'] ?? '');
+                $phone = trim($_POST['phone'] ?? '');
+                $department = trim($_POST['department'] ?? '');
+
+                if ($firstName && $lastName) {
+                    try {
+                        $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+                        $db->beginTransaction();
+                        
+                        // Update user info
+                        $userStmt = $db->prepare("UPDATE users SET first_name = :first_name, last_name = :last_name, phone = :phone WHERE id = :id");
+                        $userStmt->execute([
+                            'first_name' => $firstName,
+                            'last_name' => $lastName,
+                            'phone' => $phone,
+                            'id' => $userId
+                        ]);
+                        
+                        // Update doctor info
+                        $doctorStmt = $db->prepare("UPDATE doctors SET department = :department WHERE doctor_id = :doctor_id");
+                        $doctorStmt->execute([
+                            'department' => $department,
+                            'doctor_id' => $doctor['doctor_id']
+                        ]);
+                        
+                        $db->commit();
+                        $message = 'Profile updated successfully';
+                        $messageType = 'success';
+                        
+                        // Reload doctor data
+                        $doctor = $this->doctorModel->findByUserId($userId);
+                    } catch (\Exception $e) {
+                        $db->rollBack();
+                        error_log("Profile update error: " . $e->getMessage());
+                        $message = 'Error updating profile: ' . $e->getMessage();
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = 'First name and last name are required';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get doctor's sections count
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id']);
+
+            $this->view->render('doctor/doctor_profile', [
+                'title' => 'My Profile',
+                'doctor' => $doctor,
+                'sectionsCount' => count($sections),
+                'assignmentsCount' => count($assignments),
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Profile error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load profile: ' . $e->getMessage()]);
+        }
+    }
 }
 

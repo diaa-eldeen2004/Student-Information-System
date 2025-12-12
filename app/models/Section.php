@@ -195,5 +195,33 @@ class Section extends Model
     {
         return (int)$this->db->lastInsertId();
     }
+
+    public function getByDoctor(int $doctorId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
+                   CONCAT(c.course_code, ' - Section ', s.section_number) as section_name
+            FROM {$this->table} s
+            JOIN courses c ON s.course_id = c.course_id
+            WHERE s.doctor_id = :doctor_id
+            ORDER BY s.semester DESC, s.academic_year DESC, c.course_code
+        ");
+        $stmt->execute(['doctor_id' => $doctorId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getEnrolledStudents(int $sectionId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT e.student_id, s.student_number, u.first_name, u.last_name, u.email
+            FROM enrollments e
+            JOIN students s ON e.student_id = s.student_id
+            JOIN users u ON s.user_id = u.id
+            WHERE e.section_id = :section_id AND e.status = 'enrolled'
+            ORDER BY u.last_name, u.first_name
+        ");
+        $stmt->execute(['section_id' => $sectionId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 

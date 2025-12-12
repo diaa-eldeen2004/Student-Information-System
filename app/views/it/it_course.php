@@ -23,6 +23,14 @@ $statusFilter = $statusFilter ?? '';
     </div>
 
     <div class="course-content">
+        <!-- Success/Error Messages -->
+        <?php if (!empty($message)): ?>
+            <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'error' ? 'error' : ($messageType === 'warning' ? 'warning' : 'info')) ?>" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 6px; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-<?= $messageType === 'success' ? 'check-circle' : ($messageType === 'error' ? 'exclamation-circle' : ($messageType === 'warning' ? 'exclamation-triangle' : 'info-circle')) ?>"></i>
+                <?= htmlspecialchars($message) ?>
+            </div>
+        <?php endif; ?>
+        
         <!-- Filters -->
         <section class="mb-4">
             <div class="card">
@@ -558,5 +566,37 @@ document.addEventListener('click', function(e) {
     .grid-3 {
         grid-template-columns: 1fr !important;
     }
+}
+
+.alert {
+    padding: 1rem;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.alert-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.alert-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.alert-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
 }
 </style>

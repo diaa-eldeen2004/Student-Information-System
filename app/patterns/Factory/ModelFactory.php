@@ -9,6 +9,8 @@ use models\EnrollmentRequest;
 use models\AuditLog;
 use models\Notification;
 use models\Student;
+use models\Assignment;
+use models\Attendance;
 
 /**
  * Factory Method Pattern - Creational
@@ -37,6 +39,8 @@ class ModelFactory
             'AuditLog' => new AuditLog(),
             'Notification' => new Notification(),
             'Student' => new Student(),
+            'Assignment' => new Assignment(),
+            'Attendance' => new Attendance(),
             default => throw new \InvalidArgumentException("Unknown model type: {$modelType}")
         };
 
