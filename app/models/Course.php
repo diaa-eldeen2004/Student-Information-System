@@ -294,5 +294,129 @@ class Course extends Model
             return [];
         }
     }
+
+    public function getCount(array $filters = []): int
+    {
+        $where = ["1=1"];
+        $params = [];
+        
+        if (!empty($filters['search'])) {
+            $where[] = "(course_code LIKE ? OR name LIKE ? OR description LIKE ?)";
+            $like = "%{$filters['search']}%";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+        
+        if (!empty($filters['department'])) {
+            $where[] = "department = ?";
+            $params[] = $filters['department'];
+        }
+        
+        $whereClause = implode(' AND ', $where);
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM {$this->table} WHERE {$whereClause}");
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
+    }
+
+    public function getThisMonthCount(): int
+    {
+        $stmt = $this->db->query("
+            SELECT COUNT(*) 
+            FROM {$this->table} 
+            WHERE YEAR(created_at) = YEAR(CURRENT_DATE()) 
+            AND MONTH(created_at) = MONTH(CURRENT_DATE())
+        ");
+        return (int)$stmt->fetchColumn();
+    }
+
+    public function getActiveCount(): int
+    {
+        // Since status column doesn't exist in schema, count all courses
+        // If status exists in your DB, uncomment the WHERE clause
+        $stmt = $this->db->query("SELECT COUNT(*) FROM {$this->table}");
+        return (int)$stmt->fetchColumn();
+    }
+
+    public function getCoursesWithDoctorInfo(array $filters = []): array
+    {
+        $where = ["1=1"];
+        $params = [];
+        
+        if (!empty($filters['search'])) {
+            $where[] = "(c.course_code LIKE ? OR c.name LIKE ? OR c.description LIKE ?)";
+            $like = "%{$filters['search']}%";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+        
+        if (!empty($filters['department'])) {
+            $where[] = "c.department = ?";
+            $params[] = $filters['department'];
+        }
+        
+        $whereClause = implode(' AND ', $where);
+        
+        $sql = "
+            SELECT c.*, 
+                   GROUP_CONCAT(DISTINCT CONCAT(u.first_name, ' ', u.last_name) SEPARATOR ', ') as doctors,
+                   COUNT(DISTINCT e.student_id) as student_count
+            FROM {$this->table} c
+            LEFT JOIN sections s ON c.course_id = s.course_id
+            LEFT JOIN doctors d ON s.doctor_id = d.doctor_id
+            LEFT JOIN users u ON d.user_id = u.id
+            LEFT JOIN enrollments e ON s.section_id = e.section_id
+            WHERE {$whereClause}
+            GROUP BY c.course_id
+            ORDER BY c.created_at DESC
+            LIMIT 100
+        ";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function update(array $data): bool
+    {
+        try {
+            $courseId = $data['course_id'] ?? $data['id'] ?? null;
+            if (!$courseId) {
+                return false;
+            }
+            
+            $sql = "UPDATE {$this->table} SET 
+                    course_code = :course_code,
+                    name = :name,
+                    description = :description,
+                    credit_hours = :credit_hours,
+                    department = :department
+                    WHERE course_id = :course_id";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute([
+                'course_code' => $data['course_code'] ?? '',
+                'name' => $data['name'] ?? '',
+                'description' => $data['description'] ?? null,
+                'credit_hours' => $data['credit_hours'] ?? 3,
+                'department' => $data['department'] ?? null,
+                'course_id' => $courseId,
+            ]) && $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log("Course update failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function delete(int $courseId): bool
+    {
+        try {
+            $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE course_id = :course_id");
+            return $stmt->execute(['course_id' => $courseId]) && $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log("Course deletion failed: " . $e->getMessage());
+            return false;
+        }
+    }
 }
 

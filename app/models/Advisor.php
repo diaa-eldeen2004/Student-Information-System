@@ -4,45 +4,30 @@ namespace models;
 use core\Model;
 use PDO;
 
-class ItOfficer extends Model
+class Advisor extends Model
 {
-    private string $table = 'it_officers';
+    private string $table = 'advisors';
 
     public function findByUserId(int $userId): ?array
     {
-        $stmt = $this->db->prepare("SELECT it.*, u.first_name, u.last_name, u.email, u.phone 
-                                    FROM {$this->table} it 
-                                    JOIN users u ON it.user_id = u.id 
-                                    WHERE it.user_id = :user_id LIMIT 1");
+        $stmt = $this->db->prepare("SELECT a.*, u.first_name, u.last_name, u.email, u.phone 
+                                    FROM {$this->table} a 
+                                    JOIN users u ON a.user_id = u.id 
+                                    WHERE a.user_id = :user_id LIMIT 1");
         $stmt->execute(['user_id' => $userId]);
-        $itOfficer = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $itOfficer ?: null;
+        $advisor = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $advisor ?: null;
     }
 
-    public function findByItId(int $itId): ?array
+    public function findByAdvisorId(int $advisorId): ?array
     {
-        $stmt = $this->db->prepare("SELECT it.*, u.first_name, u.last_name, u.email, u.phone 
-                                    FROM {$this->table} it 
-                                    JOIN users u ON it.user_id = u.id 
-                                    WHERE it.it_id = :it_id LIMIT 1");
-        $stmt->execute(['it_id' => $itId]);
-        $itOfficer = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $itOfficer ?: null;
-    }
-
-    public function createItOfficer(array $data): bool
-    {
-        try {
-            $sql = "INSERT INTO {$this->table} (user_id)
-                    VALUES (:user_id)";
-            $stmt = $this->db->prepare($sql);
-            return $stmt->execute([
-                'user_id' => $data['user_id'],
-            ]) && $stmt->rowCount() > 0;
-        } catch (\PDOException $e) {
-            error_log("IT Officer creation failed: " . $e->getMessage());
-            return false;
-        }
+        $stmt = $this->db->prepare("SELECT a.*, u.first_name, u.last_name, u.email, u.phone 
+                                    FROM {$this->table} a 
+                                    JOIN users u ON a.user_id = u.id 
+                                    WHERE a.advisor_id = :advisor_id LIMIT 1");
+        $stmt->execute(['advisor_id' => $advisorId]);
+        $advisor = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $advisor ?: null;
     }
 
     public function getAll(array $filters = []): array
@@ -58,21 +43,21 @@ class ItOfficer extends Model
             $params[] = $like;
         }
 
-        $sql = "SELECT it.*, u.first_name, u.last_name, u.email, u.phone 
-                FROM {$this->table} it 
-                JOIN users u ON it.user_id = u.id 
-                $where
-                ORDER BY it.created_at DESC 
+        if (!empty($filters['department'])) {
+            $where .= " AND a.department = ?";
+            $params[] = $filters['department'];
+        }
+
+        $sql = "SELECT a.*, u.first_name, u.last_name, u.email, u.phone 
+                FROM {$this->table} a 
+                JOIN users u ON a.user_id = u.id 
+                $where 
+                ORDER BY a.created_at DESC 
                 LIMIT 100";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    public function getAllItOfficers(): array
-    {
-        return $this->getAll();
     }
 
     public function getCount(array $filters = []): int
@@ -88,9 +73,14 @@ class ItOfficer extends Model
             $params[] = $like;
         }
 
+        if (!empty($filters['department'])) {
+            $where .= " AND a.department = ?";
+            $params[] = $filters['department'];
+        }
+
         $sql = "SELECT COUNT(*) as cnt 
-                FROM {$this->table} it 
-                JOIN users u ON it.user_id = u.id 
+                FROM {$this->table} a 
+                JOIN users u ON a.user_id = u.id 
                 $where";
         
         $stmt = $this->db->prepare($sql);
@@ -108,14 +98,23 @@ class ItOfficer extends Model
         return (int)$stmt->fetchColumn();
     }
 
-    public function createItOfficerWithUser(array $userData): bool
+    public function getUniqueDepartments(): array
+    {
+        $stmt = $this->db->query("SELECT DISTINCT department 
+                                  FROM {$this->table} 
+                                  WHERE department IS NOT NULL AND department != '' 
+                                  ORDER BY department");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function createAdvisor(array $userData, array $advisorData): bool
     {
         try {
             $this->db->beginTransaction();
 
             // First create the user
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
-                        VALUES (:first_name, :last_name, :email, :phone, :password, 'it')";
+                        VALUES (:first_name, :last_name, :email, :phone, :password, 'advisor')";
             $userStmt = $this->db->prepare($userSql);
             $userStmt->execute([
                 'first_name' => $userData['first_name'],
@@ -127,32 +126,33 @@ class ItOfficer extends Model
 
             $userId = $this->db->lastInsertId();
 
-            // Then create the IT officer record
-            $itSql = "INSERT INTO {$this->table} (user_id)
-                      VALUES (:user_id)";
-            $itStmt = $this->db->prepare($itSql);
-            $itStmt->execute([
+            // Then create the advisor record
+            $advisorSql = "INSERT INTO {$this->table} (user_id, department)
+                          VALUES (:user_id, :department)";
+            $advisorStmt = $this->db->prepare($advisorSql);
+            $advisorStmt->execute([
                 'user_id' => $userId,
+                'department' => $advisorData['department'] ?? null,
             ]);
 
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
             $this->db->rollBack();
-            error_log("IT Officer creation failed: " . $e->getMessage());
+            error_log("Advisor creation failed: " . $e->getMessage());
             return false;
         }
     }
 
-    public function updateItOfficer(int $itId, array $userData): bool
+    public function updateAdvisor(int $advisorId, array $userData, array $advisorData): bool
     {
         try {
             $this->db->beginTransaction();
 
-            // Get user_id from it_id
-            $itOfficer = $this->findByItId($itId);
-            if (!$itOfficer) {
-                throw new \RuntimeException("IT Officer not found");
+            // Get user_id from advisor_id
+            $advisor = $this->findByAdvisorId($advisorId);
+            if (!$advisor) {
+                throw new \RuntimeException("Advisor not found");
             }
 
             // Update user data
@@ -168,7 +168,7 @@ class ItOfficer extends Model
                 'last_name' => $userData['last_name'],
                 'email' => $userData['email'],
                 'phone' => $userData['phone'] ?? '',
-                'user_id' => $itOfficer['user_id'],
+                'user_id' => $advisor['user_id'],
             ]);
 
             // Update password if provided
@@ -177,27 +177,36 @@ class ItOfficer extends Model
                 $passwordStmt = $this->db->prepare($passwordSql);
                 $passwordStmt->execute([
                     'password' => password_hash($userData['password'], PASSWORD_DEFAULT),
-                    'user_id' => $itOfficer['user_id'],
+                    'user_id' => $advisor['user_id'],
                 ]);
             }
+
+            // Update advisor data
+            $advisorSql = "UPDATE {$this->table} SET department = :department 
+                          WHERE advisor_id = :advisor_id";
+            $advisorStmt = $this->db->prepare($advisorSql);
+            $advisorStmt->execute([
+                'department' => $advisorData['department'] ?? null,
+                'advisor_id' => $advisorId,
+            ]);
 
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
             $this->db->rollBack();
-            error_log("IT Officer update failed: " . $e->getMessage());
+            error_log("Advisor update failed: " . $e->getMessage());
             return false;
         }
     }
 
-    public function deleteItOfficer(int $itId): bool
+    public function deleteAdvisor(int $advisorId): bool
     {
         try {
             // Cascade delete will handle user deletion
-            $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE it_id = :it_id");
-            return $stmt->execute(['it_id' => $itId]) && $stmt->rowCount() > 0;
+            $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE advisor_id = :advisor_id");
+            return $stmt->execute(['advisor_id' => $advisorId]) && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
-            error_log("IT Officer deletion failed: " . $e->getMessage());
+            error_log("Advisor deletion failed: " . $e->getMessage());
             return false;
         }
     }

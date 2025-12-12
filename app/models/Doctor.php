@@ -28,13 +28,194 @@ class Doctor extends Model
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function getAll(): array
+    public function getAll(array $filters = []): array
     {
-        $stmt = $this->db->query("SELECT d.*, u.first_name, u.last_name, u.email, u.phone 
-                                  FROM {$this->table} d 
-                                  JOIN users u ON d.user_id = u.id 
-                                  ORDER BY u.last_name, u.first_name");
+        $where = "WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where .= " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)";
+            $like = "%{$filters['search']}%";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        if (!empty($filters['department'])) {
+            $where .= " AND d.department = ?";
+            $params[] = $filters['department'];
+        }
+
+        $sql = "SELECT d.*, u.first_name, u.last_name, u.email, u.phone 
+                FROM {$this->table} d 
+                JOIN users u ON d.user_id = u.id 
+                $where
+                ORDER BY d.created_at DESC 
+                LIMIT 100";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getCount(array $filters = []): int
+    {
+        $where = "WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where .= " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)";
+            $like = "%{$filters['search']}%";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        if (!empty($filters['department'])) {
+            $where .= " AND d.department = ?";
+            $params[] = $filters['department'];
+        }
+
+        $sql = "SELECT COUNT(*) as cnt 
+                FROM {$this->table} d 
+                JOIN users u ON d.user_id = u.id 
+                $where";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
+    }
+
+    public function getThisMonthCount(): int
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt 
+                                    FROM {$this->table} 
+                                    WHERE YEAR(created_at) = YEAR(CURRENT_DATE()) 
+                                    AND MONTH(created_at) = MONTH(CURRENT_DATE())");
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
+    public function getActiveCount(): int
+    {
+        // For now, all doctors are considered active
+        // In the future, add a status field
+        return $this->getCount();
+    }
+
+    public function createDoctorWithUser(array $userData, array $doctorData): bool
+    {
+        try {
+            $this->db->beginTransaction();
+
+            // First create the user
+            $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
+                        VALUES (:first_name, :last_name, :email, :phone, :password, 'doctor')";
+            $userStmt = $this->db->prepare($userSql);
+            $userStmt->execute([
+                'first_name' => $userData['first_name'],
+                'last_name' => $userData['last_name'],
+                'email' => $userData['email'],
+                'phone' => $userData['phone'] ?? '',
+                'password' => $userData['password'],
+            ]);
+
+            $userId = $this->db->lastInsertId();
+
+            // Then create the doctor record
+            $doctorSql = "INSERT INTO {$this->table} (user_id, department, bio)
+                          VALUES (:user_id, :department, :bio)";
+            $doctorStmt = $this->db->prepare($doctorSql);
+            $doctorStmt->execute([
+                'user_id' => $userId,
+                'department' => $doctorData['department'] ?? null,
+                'bio' => $doctorData['bio'] ?? null,
+            ]);
+
+            $this->db->commit();
+            return true;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            error_log("Doctor creation failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateDoctor(int $doctorId, array $userData, array $doctorData): bool
+    {
+        try {
+            $this->db->beginTransaction();
+
+            // Get user_id from doctor_id
+            $doctor = $this->findById($doctorId);
+            if (!$doctor) {
+                throw new \RuntimeException("Doctor not found");
+            }
+
+            // Update user data
+            $userSql = "UPDATE users SET 
+                        first_name = :first_name,
+                        last_name = :last_name,
+                        email = :email,
+                        phone = :phone
+                        WHERE id = :user_id";
+            $userStmt = $this->db->prepare($userSql);
+            $userStmt->execute([
+                'first_name' => $userData['first_name'],
+                'last_name' => $userData['last_name'],
+                'email' => $userData['email'],
+                'phone' => $userData['phone'] ?? '',
+                'user_id' => $doctor['user_id'],
+            ]);
+
+            // Update password if provided
+            if (!empty($userData['password'])) {
+                $passwordSql = "UPDATE users SET password = :password WHERE id = :user_id";
+                $passwordStmt = $this->db->prepare($passwordSql);
+                $passwordStmt->execute([
+                    'password' => password_hash($userData['password'], PASSWORD_DEFAULT),
+                    'user_id' => $doctor['user_id'],
+                ]);
+            }
+
+            // Update doctor data
+            $doctorSql = "UPDATE {$this->table} SET 
+                         department = :department,
+                         bio = :bio
+                         WHERE doctor_id = :doctor_id";
+            $doctorStmt = $this->db->prepare($doctorSql);
+            $doctorStmt->execute([
+                'department' => $doctorData['department'] ?? null,
+                'bio' => $doctorData['bio'] ?? null,
+                'doctor_id' => $doctorId,
+            ]);
+
+            $this->db->commit();
+            return true;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            error_log("Doctor update failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function deleteDoctor(int $doctorId): bool
+    {
+        try {
+            // Cascade delete will handle user deletion
+            $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE doctor_id = :doctor_id");
+            return $stmt->execute(['doctor_id' => $doctorId]) && $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log("Doctor deletion failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getUniqueDepartments(): array
+    {
+        $stmt = $this->db->query("SELECT DISTINCT department FROM {$this->table} WHERE department IS NOT NULL AND department != '' ORDER BY department");
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return array_column($results, 'department');
     }
 
     public function isAvailable(int $doctorId, string $dayOfWeek, string $startTime, string $endTime, string $semester, string $academicYear): bool

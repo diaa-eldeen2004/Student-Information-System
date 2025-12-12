@@ -36,22 +36,57 @@
 </head>
 <body>
     <?php
-    // Check if we're on an IT or Doctor page (sidebar should be shown)
-    $showSidebar = isset($showSidebar) ? $showSidebar : (strpos($_SERVER['REQUEST_URI'] ?? '', '/it/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/doctor/') !== false);
+    // Check if we're on an IT, Doctor, or Admin page (sidebar should be shown)
+    $showSidebar = isset($showSidebar) ? $showSidebar : (strpos($_SERVER['REQUEST_URI'] ?? '', '/it/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/doctor/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false);
     $currentPage = $_SERVER['REQUEST_URI'] ?? '';
     $currentPath = parse_url($currentPage, PHP_URL_PATH) ?? '';
     $isDoctorPage = strpos($currentPath, '/doctor/') !== false;
     $isItPage = strpos($currentPath, '/it/') !== false;
+    $isAdminPage = strpos($currentPath, '/admin/') !== false;
     ?>
     
     <?php if ($showSidebar): ?>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2><i class="fas fa-graduation-cap"></i> <?= $isDoctorPage ? 'Doctor' : 'IT' ?> Portal</h2>
+            <h2><i class="fas fa-graduation-cap"></i> <?= $isAdminPage ? 'Admin' : ($isDoctorPage ? 'Doctor' : 'IT') ?> Portal</h2>
         </div>
         <nav class="sidebar-nav">
-            <?php if ($isDoctorPage): ?>
+            <?php if ($isAdminPage): ?>
+                <a href="<?= htmlspecialchars($url('admin/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/admin/dashboard') !== false || ($currentPath === '/admin' || $currentPath === '/admin/')) ? 'active' : '' ?>">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-student')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-student') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-user-graduate"></i> Manage Students
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-doctor')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-doctor') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-chalkboard-teacher"></i> Manage Doctors
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-course')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-course') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-book"></i> Manage Courses
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-advisor')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-advisor') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-user-tie"></i> Manage Advisors
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-it')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-it') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-laptop-code"></i> Manage IT
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-admin')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-admin') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-user-shield"></i> Manage Admins
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/manage-user')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-user') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-users"></i> Manage Users
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/reports')) ?>" class="nav-item <?= strpos($currentPath, '/admin/reports') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-chart-bar"></i> Reports
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/calendar')) ?>" class="nav-item <?= strpos($currentPath, '/admin/calendar') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-calendar-alt"></i> Calendar
+                </a>
+                <a href="<?= htmlspecialchars($url('admin/profile')) ?>" class="nav-item <?= strpos($currentPath, '/admin/profile') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-user"></i> Profile
+                </a>
+            <?php elseif ($isDoctorPage): ?>
                 <a href="<?= htmlspecialchars($url('doctor/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/doctor/dashboard') !== false || ($currentPath === '/doctor' || $currentPath === '/doctor/')) ? 'active' : '' ?>">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a>
@@ -107,21 +142,13 @@
         <i class="fas fa-moon"></i>
     </button>
 
-    <?php if (!$showSidebar): ?>
-    <header>
-        <h1><?= htmlspecialchars($title ?? 'App') ?></h1>
-        <nav>
-            <a href="/">Home</a>
-        </nav>
-    </header>
-    <?php endif; ?>
 
     <main class="main-content">
         <?= $content ?? '' ?>
     </main>
 
-    <?php if (!$showSidebar): ?>
-    <footer class="footer">
+    <!-- Footer - Show on all pages -->
+    <footer class="footer" id="main-footer">
         <div class="footer-content">
             <div class="footer-section">
                 <h3>University Portal</h3>
@@ -144,7 +171,6 @@
             <p>&copy; <?= date('Y') ?> University Portal. All rights reserved. | Privacy Policy | Terms of Service</p>
         </div>
     </footer>
-    <?php endif; ?>
 
     <!-- JavaScript Files -->
     <?php

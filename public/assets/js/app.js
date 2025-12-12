@@ -1,7 +1,7 @@
 // University Portal - Shared JavaScript
 
 // Global Variables
-let sidebarOpen = true;
+let sidebarOpen = open; // Default to open on desktop
 let chatOpen = false;
 let currentTheme = localStorage.getItem('theme') || 'light';
 
@@ -62,6 +62,9 @@ function initializeSidebar() {
         // Check if sidebar should be collapsed on mobile
         if (window.innerWidth <= 768) {
             collapseSidebar();
+        } else {
+            // On desktop, sidebar should be open by default
+            expandSidebar();
         }
         
         // Handle window resize
@@ -87,6 +90,7 @@ function toggleSidebar() {
 function expandSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
+    const footer = document.querySelector('.footer');
     const sidebarToggle = document.querySelector('.sidebar-toggle i');
     
     if (sidebar && mainContent) {
@@ -94,9 +98,16 @@ function expandSidebar() {
         mainContent.classList.remove('sidebar-collapsed');
         sidebarOpen = true;
         
+        // Update footer margin if it exists (CSS handles this automatically, but ensure it's set)
+        if (footer && window.innerWidth > 768) {
+            footer.style.marginLeft = 'var(--sidebar-width)';
+        } else if (footer) {
+            footer.style.marginLeft = '0';
+        }
+        
         // Update toggle icon
         if (sidebarToggle) {
-            sidebarToggle.className = 'fas fa-bars';
+            sidebarToggle.className = 'fas fa-times';
         }
     }
 }
@@ -104,12 +115,18 @@ function expandSidebar() {
 function collapseSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
+    const footer = document.querySelector('.footer');
     const sidebarToggle = document.querySelector('.sidebar-toggle i');
     
     if (sidebar && mainContent) {
         sidebar.classList.add('collapsed');
         mainContent.classList.add('sidebar-collapsed');
         sidebarOpen = false;
+        
+        // Update footer margin if it exists
+        if (footer) {
+            footer.style.marginLeft = '0';
+        }
         
         // Update toggle icon
         if (sidebarToggle) {
