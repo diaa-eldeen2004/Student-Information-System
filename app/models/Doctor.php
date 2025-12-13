@@ -105,20 +105,12 @@ class Doctor extends Model
 
     public function createDoctorWithUser(array $userData, array $doctorData): bool
     {
-        $userStmt = null;
-        $doctorStmt = null;
-        
         try {
+            // Ensure no active transaction before starting a new one
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->db->beginTransaction();
-
-            // Validate required fields
-            if (empty($userData['first_name']) || empty($userData['last_name']) || empty($userData['email'])) {
-                throw new \InvalidArgumentException('First name, last name, and email are required');
-            }
-
-            if (empty($userData['password'])) {
-                throw new \InvalidArgumentException('Password is required');
-            }
 
             // Normalize email to lowercase
             $email = trim(strtolower($userData['email'] ?? ''));
@@ -130,7 +122,7 @@ class Doctor extends Model
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
                         VALUES (:first_name, :last_name, :email, :phone, :password, 'doctor')";
             $userStmt = $this->db->prepare($userSql);
-            $result = $userStmt->execute([
+            $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
                 'email' => $email,
@@ -138,29 +130,18 @@ class Doctor extends Model
                 'password' => $userData['password'],
             ]);
 
-            if (!$result) {
-                $errorInfo = $userStmt->errorInfo();
-                $errorMsg = $errorInfo[2] ?? 'Unknown error';
-                error_log("User creation failed for doctor. Error info: " . print_r($errorInfo, true));
-                throw new \PDOException('Failed to create user record: ' . $errorMsg);
-            }
-
             $userId = $this->db->lastInsertId();
             
-            // Use getAttribute to get the last insert ID if lastInsertId() fails
-            if (!$userId || $userId === 0 || $userId === '0') {
-                // Try alternative method
-                $userId = $this->db->lastInsertId('users');
-                if (!$userId || $userId === 0 || $userId === '0') {
-                    // Query directly for the last insert
-                    $stmt = $this->db->query("SELECT LAST_INSERT_ID() as id");
-                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                    $userId = $result['id'] ?? null;
-                    
-                    if (!$userId || $userId === 0) {
-                        error_log("All methods to get lastInsertId failed for doctor. User creation may have failed.");
-                        throw new \PDOException('Failed to get user ID after creation. User may not have been created.');
-                    }
+            // CRITICAL: If lastInsertId returns 0/false, query the database directly
+            // This can happen in some MySQL configurations or transaction scenarios
+            if (!$userId || $userId == 0) {
+                $checkStmt = $this->db->prepare("SELECT id FROM users WHERE email = :email ORDER BY id DESC LIMIT 1");
+                $checkStmt->execute(['email' => $email]);
+                $checkResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                if ($checkResult && isset($checkResult['id'])) {
+                    $userId = (int)$checkResult['id'];
+                } else {
+                    throw new \PDOException('Failed to get user ID after creation. lastInsertId returned: ' . ($userId ?: '0/false') . ' and query by email also failed.');
                 }
             }
 
@@ -168,43 +149,28 @@ class Doctor extends Model
             $doctorSql = "INSERT INTO {$this->table} (user_id, department, bio)
                           VALUES (:user_id, :department, :bio)";
             $doctorStmt = $this->db->prepare($doctorSql);
-            $result = $doctorStmt->execute([
+            $doctorStmt->execute([
                 'user_id' => $userId,
                 'department' => $doctorData['department'] ?? null,
                 'bio' => $doctorData['bio'] ?? null,
             ]);
 
-            if (!$result) {
-                $errorInfo = $doctorStmt->errorInfo();
-                throw new \PDOException('Failed to create doctor record: ' . ($errorInfo[2] ?? 'Unknown error'));
-            }
-
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
+            $this->db->rollBack();
             error_log("Doctor creation failed: " . $e->getMessage());
-            if ($userStmt) {
-                error_log("User SQL Error Info: " . print_r($userStmt->errorInfo(), true));
-            }
-            if ($doctorStmt) {
-                error_log("Doctor SQL Error Info: " . print_r($doctorStmt->errorInfo(), true));
-            }
-            throw $e; // Re-throw to allow controller to catch and display error
-        } catch (\Exception $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            error_log("Doctor creation failed: " . $e->getMessage());
-            throw $e; // Re-throw to allow controller to catch and display error
+            return false;
         }
     }
 
     public function updateDoctor(int $doctorId, array $userData, array $doctorData): bool
     {
         try {
+            // Ensure no active transaction before starting a new one
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->db->beginTransaction();
 
             // Get user_id from doctor_id

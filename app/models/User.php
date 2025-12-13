@@ -2,6 +2,7 @@
 namespace models;
 
 use core\Model;
+use core\DebugLogger;
 use PDO;
 
 class User extends Model
@@ -10,18 +11,83 @@ class User extends Model
 
     public function findByEmail(string $email): ?array
     {
-        // Trim email for comparison
-        $email = trim($email);
-        // Use case-insensitive comparison
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE LOWER(email) = LOWER(:email) LIMIT 1");
-        $stmt->execute(['email' => $email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $user ?: null;
+        // Trim and normalize email for comparison
+        $email = trim(strtolower($email));
+        
+        try {
+            // CRITICAL FIX: Use singleton's ensureCleanState to avoid transaction state issues
+            // This ensures we see only committed data without interfering with active transactions
+            $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+            $wasInTransaction = $dbSingleton->getConnection()->inTransaction();
+            
+            DebugLogger::log("findByEmail called", [
+                'email' => $email,
+                'was_in_transaction' => $wasInTransaction,
+                'connection_state' => $wasInTransaction ? 'IN_TRANSACTION' : 'CLEAN'
+            ]);
+            
+            $dbSingleton->ensureCleanState();
+            
+            // Get a clean connection for read-only operation
+            $readOnlyDb = $dbSingleton->getReadOnlyConnection();
+            
+            // Check connection state again
+            $afterCleanState = $readOnlyDb->inTransaction();
+            DebugLogger::log("After ensureCleanState", [
+                'in_transaction' => $afterCleanState,
+                'connection_state' => $afterCleanState ? 'STILL_IN_TRANSACTION' : 'CLEAN'
+            ]);
+            
+            // Email is already normalized to lowercase in PHP
+            // Compare with database column (which may have different case) using LOWER(TRIM())
+            // Since email is already normalized, we only need to apply LOWER to the database column
+            $stmt = $readOnlyDb->prepare("SELECT * FROM {$this->table} WHERE LOWER(TRIM(email)) = :email LIMIT 1");
+            $stmt->execute(['email' => $email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Enhanced debug logging to help diagnose issues
+            if ($user) {
+                $logMessage = "findByEmail FOUND: ID={$user['id']}, Stored Email='{$user['email']}', Role={$user['role']}, Searched for: '{$email}'";
+                error_log($logMessage);
+                DebugLogger::log("findByEmail RESULT: FOUND", [
+                    'found_user_id' => $user['id'],
+                    'found_email' => $user['email'],
+                    'found_role' => $user['role'],
+                    'searched_email' => $email,
+                    'match' => strtolower(trim($user['email'])) === $email
+                ]);
+            } else {
+                $logMessage = "findByEmail NOT FOUND: Searched for email: '{$email}'";
+                error_log($logMessage);
+                DebugLogger::log("findByEmail RESULT: NOT FOUND", [
+                    'searched_email' => $email
+                ]);
+            }
+            
+            return $user ?: null;
+        } catch (\PDOException $e) {
+            DebugLogger::logError("findByEmail PDOException", $e, [
+                'email' => $email,
+                'sql_state' => $e->getCode(),
+                'error_info' => $e->getMessage()
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            DebugLogger::logError("findByEmail Exception", $e, [
+                'email' => $email
+            ]);
+            throw $e;
+        }
     }
 
     public function createUser(array $data): bool
     {
         try {
+            // Ensure no active transaction (autocommit mode for single INSERT)
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            
             $sql = "INSERT INTO {$this->table} (first_name, last_name, email, phone, password, role)
                     VALUES (:first_name, :last_name, :email, :phone, :password, :role)";
             $stmt = $this->db->prepare($sql);

@@ -64,9 +64,39 @@ $needsMigration = !empty($missingColumns);
 
         <!-- Success/Error Messages -->
         <?php if (!empty($message)): ?>
-            <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'error' ? 'error' : ($messageType === 'warning' ? 'warning' : 'info')) ?>" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 6px; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-<?= $messageType === 'success' ? 'check-circle' : ($messageType === 'error' ? 'exclamation-circle' : ($messageType === 'warning' ? 'exclamation-triangle' : 'info-circle')) ?>"></i>
-                <?= htmlspecialchars($message) ?>
+            <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'error' ? 'error' : ($messageType === 'warning' ? 'warning' : 'info')) ?>" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 6px;">
+                <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
+                    <i class="fas fa-<?= $messageType === 'success' ? 'check-circle' : ($messageType === 'error' ? 'exclamation-circle' : ($messageType === 'warning' ? 'exclamation-triangle' : 'info-circle')) ?>"></i>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; margin-bottom: 0.5rem;"><?= htmlspecialchars($message) ?></div>
+                        <?php if ($messageType === 'error'): ?>
+                            <?php 
+                            $logFile = dirname(__DIR__, 2) . '/logs/debug_' . date('Y-m-d') . '.log';
+                            if (file_exists($logFile)):
+                                $recentLogs = array_slice(file($logFile), -15); // Last 15 lines
+                            ?>
+                                <details style="margin-top: 0.75rem;" open>
+                                    <summary style="cursor: pointer; font-weight: 600; padding: 0.5rem; background: rgba(0,0,0,0.1); border-radius: 4px; margin-bottom: 0.5rem;">
+                                        <i class="fas fa-bug"></i> Debug Logs (Click to collapse)
+                                    </summary>
+                                    <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(0,0,0,0.05); border-radius: 4px; font-size: 0.85rem; font-family: monospace; max-height: 300px; overflow-y: auto;">
+                                        <?php foreach (array_reverse($recentLogs) as $logLine): ?>
+                                            <div style="margin-bottom: 0.25rem; white-space: pre-wrap; word-break: break-all; padding: 0.25rem; background: rgba(255,255,255,0.5); border-left: 3px solid #007bff;"><?= htmlspecialchars($logLine) ?></div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div style="margin-top: 0.5rem;">
+                                        <a href="<?= htmlspecialchars($url('debug/log')) ?>" target="_blank" style="color: inherit; text-decoration: underline;">
+                                            <i class="fas fa-external-link-alt"></i> View Full Log File (opens in new tab)
+                                        </a>
+                                    </div>
+                                </details>
+                                <div style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.8;">
+                                    Log file: <code style="background: rgba(0,0,0,0.1); padding: 0.2rem 0.4rem; border-radius: 3px;">logs/debug_<?= date('Y-m-d') ?>.log</code>
+                                </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
         <?php endif; ?>
 

@@ -18,6 +18,7 @@ class Course extends Model
 
     public function findByCode(string $courseCode): ?array
     {
+        // Simple approach - same as other working models
         $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE course_code = :course_code LIMIT 1");
         $stmt->execute(['course_code' => $courseCode]);
         $course = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -33,6 +34,11 @@ class Course extends Model
     public function create(array $data): bool
     {
         try {
+            // Ensure no active transaction before starting
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            
             // Validate required fields
             if (empty($data['course_code']) || empty($data['name'])) {
                 throw new \InvalidArgumentException('Course code and name are required');
@@ -49,18 +55,13 @@ class Course extends Model
                 'department' => $data['department'] ?? null,
             ]);
 
-            if (!$result) {
-                $errorInfo = $stmt->errorInfo();
-                throw new \PDOException('Failed to create course: ' . ($errorInfo[2] ?? 'Unknown error'));
-            }
-
-            return $stmt->rowCount() > 0;
+            return $result && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log("Course creation failed: " . $e->getMessage());
-            throw $e; // Re-throw to allow controller to catch and display error
+            return false;
         } catch (\Exception $e) {
             error_log("Course creation failed: " . $e->getMessage());
-            throw $e; // Re-throw to allow controller to catch and display error
+            return false;
         }
     }
 

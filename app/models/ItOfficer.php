@@ -33,14 +33,46 @@ class ItOfficer extends Model
     public function createItOfficer(array $data): bool
     {
         try {
-            $sql = "INSERT INTO {$this->table} (user_id)
+            // Ensure no active transaction
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            
+            // CRITICAL: Explicitly only insert user_id, never it_id
+            // Use backticks to ensure proper table name handling
+            $sql = "INSERT INTO `{$this->table}` (`user_id`)
                     VALUES (:user_id)";
             $stmt = $this->db->prepare($sql);
-            return $stmt->execute([
+            $result = $stmt->execute([
                 'user_id' => $data['user_id'],
-            ]) && $stmt->rowCount() > 0;
+            ]);
+            
+            if (!$result) {
+                error_log("IT Officer INSERT execute returned false");
+                return false;
+            }
+            
+            // Verify the insert worked
+            $itId = $this->db->lastInsertId();
+            if ($itId && $itId > 0) {
+                error_log("IT Officer created successfully with it_id: {$itId}");
+                return true;
+            } else {
+                // Check if record was actually inserted
+                $checkStmt = $this->db->prepare("SELECT it_id FROM `{$this->table}` WHERE user_id = :user_id ORDER BY it_id DESC LIMIT 1");
+                $checkStmt->execute(['user_id' => $data['user_id']]);
+                $checkResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                if ($checkResult && isset($checkResult['it_id']) && $checkResult['it_id'] > 0) {
+                    error_log("IT Officer created successfully (verified via query) with it_id: {$checkResult['it_id']}");
+                    return true;
+                } else {
+                    error_log("IT Officer creation failed: lastInsertId returned {$itId}, and query found no record");
+                    return false;
+                }
+            }
         } catch (\PDOException $e) {
-            error_log("IT Officer creation failed: " . $e->getMessage());
+            error_log("IT Officer creation failed (PDO): " . $e->getMessage() . " (Code: " . $e->getCode() . ")");
+            error_log("SQL was: INSERT INTO `{$this->table}` (`user_id`) VALUES (:user_id)");
             return false;
         }
     }
@@ -108,12 +140,17 @@ class ItOfficer extends Model
         return (int)$stmt->fetchColumn();
     }
 
+    private static $lastError = null;
+
     public function createItOfficerWithUser(array $userData): bool
     {
-        $userStmt = null;
-        $itStmt = null;
+        self::$lastError = null;
         
         try {
+            // Ensure no active transaction before starting a new one
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->db->beginTransaction();
 
             // Validate required fields
@@ -135,7 +172,7 @@ class ItOfficer extends Model
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
                         VALUES (:first_name, :last_name, :email, :phone, :password, 'it')";
             $userStmt = $this->db->prepare($userSql);
-            $result = $userStmt->execute([
+            $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
                 'email' => $email,
@@ -143,33 +180,24 @@ class ItOfficer extends Model
                 'password' => $userData['password'],
             ]);
 
-            if (!$result) {
-                $errorInfo = $userStmt->errorInfo();
-                $errorMsg = $errorInfo[2] ?? 'Unknown error';
-                error_log("User creation failed. Error info: " . print_r($errorInfo, true));
-                throw new \PDOException('Failed to create user record: ' . $errorMsg);
-            }
-
             $userId = $this->db->lastInsertId();
             
-            // Use getAttribute to get the last insert ID if lastInsertId() fails
-            if (!$userId || $userId === 0 || $userId === '0') {
-                // Try alternative method
-                $userId = $this->db->lastInsertId('users');
-                if (!$userId || $userId === 0 || $userId === '0') {
-                    // Query directly for the last insert
-                    $stmt = $this->db->query("SELECT LAST_INSERT_ID() as id");
-                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                    $userId = $result['id'] ?? null;
-                    
-                    if (!$userId || $userId === 0) {
-                        error_log("All methods to get lastInsertId failed. User creation may have failed.");
-                        throw new \PDOException('Failed to get user ID after creation. User may not have been created.');
-                    }
+            // CRITICAL: If lastInsertId returns 0/false, query the database directly
+            // This can happen in some MySQL configurations or transaction scenarios
+            if (!$userId || $userId == 0) {
+                $checkStmt = $this->db->prepare("SELECT id FROM users WHERE email = :email ORDER BY id DESC LIMIT 1");
+                $checkStmt->execute(['email' => $email]);
+                $checkResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                if ($checkResult && isset($checkResult['id'])) {
+                    $userId = (int)$checkResult['id'];
+                } else {
+                    throw new \PDOException('Failed to get user ID after creation. lastInsertId returned: ' . ($userId ?: '0/false') . ' and query by email also failed.');
                 }
             }
 
             // Then create the IT officer record
+            // CRITICAL: Only insert user_id, let AUTO_INCREMENT handle it_id
+            // Explicitly avoid setting it_id to prevent duplicate key errors
             $itSql = "INSERT INTO {$this->table} (user_id)
                       VALUES (:user_id)";
             $itStmt = $this->db->prepare($itSql);
@@ -177,9 +205,25 @@ class ItOfficer extends Model
                 'user_id' => $userId,
             ]);
 
+            // Verify the insert was successful
             if (!$result) {
-                $errorInfo = $itStmt->errorInfo();
-                throw new \PDOException('Failed to create IT officer record: ' . ($errorInfo[2] ?? 'Unknown error'));
+                throw new \PDOException('Failed to insert IT officer record');
+            }
+
+            // Get the inserted it_id to verify it was auto-generated
+            $itId = $this->db->lastInsertId();
+            if (!$itId || $itId == 0) {
+                // If lastInsertId failed, try to get it from the database
+                $checkItStmt = $this->db->prepare("SELECT it_id FROM {$this->table} WHERE user_id = :user_id ORDER BY it_id DESC LIMIT 1");
+                $checkItStmt->execute(['user_id' => $userId]);
+                $checkItResult = $checkItStmt->fetch(PDO::FETCH_ASSOC);
+                if ($checkItResult && isset($checkItResult['it_id'])) {
+                    $itId = (int)$checkItResult['it_id'];
+                } else {
+                    // Try to fix AUTO_INCREMENT and retry
+                    $this->fixAutoIncrement();
+                    throw new \PDOException('Failed to get IT officer ID after creation. AUTO_INCREMENT may not be working correctly. Please try again after the fix.');
+                }
             }
 
             $this->db->commit();
@@ -188,26 +232,34 @@ class ItOfficer extends Model
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            error_log("IT Officer creation failed: " . $e->getMessage());
-            if ($userStmt) {
-                error_log("User SQL Error Info: " . print_r($userStmt->errorInfo(), true));
-            }
-            if ($itStmt) {
-                error_log("IT SQL Error Info: " . print_r($itStmt->errorInfo(), true));
-            }
-            throw $e; // Re-throw to allow controller to catch and display error
+            $errorMsg = "IT Officer creation failed (PDO): " . $e->getMessage() . " (Code: " . $e->getCode() . ")";
+            self::$lastError = $errorMsg;
+            error_log($errorMsg);
+            error_log("IT Officer creation failed (PDO) - Trace: " . $e->getTraceAsString());
+            return false;
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            error_log("IT Officer creation failed: " . $e->getMessage());
-            throw $e; // Re-throw to allow controller to catch and display error
+            $errorMsg = "IT Officer creation failed (" . get_class($e) . "): " . $e->getMessage();
+            self::$lastError = $errorMsg;
+            error_log($errorMsg);
+            return false;
         }
+    }
+    
+    public static function getLastError(): ?string
+    {
+        return self::$lastError;
     }
 
     public function updateItOfficer(int $itId, array $userData): bool
     {
         try {
+            // Ensure no active transaction before starting a new one
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->db->beginTransaction();
 
             // Get user_id from it_id
@@ -260,6 +312,121 @@ class ItOfficer extends Model
         } catch (\PDOException $e) {
             error_log("IT Officer deletion failed: " . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Fix AUTO_INCREMENT value for it_officers table
+     * This method ensures AUTO_INCREMENT is set correctly to prevent duplicate key errors
+     * 
+     * @return array ['success' => bool, 'message' => string]
+     */
+    public function fixAutoIncrement(): array
+    {
+        try {
+            // Ensure no active transaction
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            
+            // Check if table exists
+            $tableCheck = $this->db->query("SHOW TABLES LIKE '{$this->table}'");
+            if ($tableCheck->rowCount() === 0) {
+                return [
+                    'success' => false,
+                    'message' => "Table '{$this->table}' does not exist"
+                ];
+            }
+            
+            // Get the maximum it_id value
+            $stmt = $this->db->query("SELECT COALESCE(MAX(it_id), 0) as max_id FROM {$this->table}");
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $maxId = (int)($result['max_id'] ?? 0);
+            
+            // Set AUTO_INCREMENT to max_id + 1 (minimum 1 for empty tables)
+            $newAutoIncrement = max($maxId + 1, 1);
+            
+            // Execute the ALTER TABLE statement
+            $alterSql = "ALTER TABLE `{$this->table}` AUTO_INCREMENT = {$newAutoIncrement}";
+            error_log("Executing: {$alterSql}");
+            $this->db->exec($alterSql);
+            
+            // Verify the fix worked - use INFORMATION_SCHEMA for more reliable results
+            // First try INFORMATION_SCHEMA
+            $verifyStmt = $this->db->query("
+                SELECT AUTO_INCREMENT 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = '{$this->table}'
+            ");
+            $verifyResult = $verifyStmt->fetch(PDO::FETCH_ASSOC);
+            $actualAutoIncrement = (int)($verifyResult['AUTO_INCREMENT'] ?? 0);
+            
+            // If INFORMATION_SCHEMA didn't work, try SHOW TABLE STATUS
+            if ($actualAutoIncrement == 0) {
+                $verifyStmt2 = $this->db->query("SHOW TABLE STATUS WHERE Name = '{$this->table}'");
+                $verifyResult2 = $verifyStmt2->fetch(PDO::FETCH_ASSOC);
+                $actualAutoIncrement = (int)($verifyResult2['Auto_increment'] ?? 0);
+            }
+            
+            // If still 0, try without WHERE clause
+            if ($actualAutoIncrement == 0) {
+                $verifyStmt3 = $this->db->query("SHOW TABLE STATUS LIKE '{$this->table}'");
+                $verifyResult3 = $verifyStmt3->fetch(PDO::FETCH_ASSOC);
+                $actualAutoIncrement = (int)($verifyResult3['Auto_increment'] ?? $verifyResult3['AUTO_INCREMENT'] ?? 0);
+            }
+            
+            // For empty tables, AUTO_INCREMENT might be NULL or 1
+            // If we set it to 1 and got 0 or NULL, it might still be correct (MySQL behavior)
+            if ($maxId == 0 && $newAutoIncrement == 1) {
+                // For empty tables, if we can't verify but the ALTER didn't error, assume success
+                if ($actualAutoIncrement == 0 || $actualAutoIncrement == 1) {
+                    error_log("Fixed it_officers AUTO_INCREMENT to: {$newAutoIncrement} (empty table, max_id was: {$maxId})");
+                    return [
+                        'success' => true,
+                        'message' => "AUTO_INCREMENT fixed successfully. Set to {$newAutoIncrement} (table was empty)"
+                    ];
+                }
+            }
+            
+            if ($actualAutoIncrement >= $newAutoIncrement || ($actualAutoIncrement > 0 && $maxId == 0)) {
+                error_log("Fixed it_officers AUTO_INCREMENT to: {$actualAutoIncrement} (requested: {$newAutoIncrement}, max_id was: {$maxId})");
+                return [
+                    'success' => true,
+                    'message' => "AUTO_INCREMENT fixed successfully. Set to {$actualAutoIncrement} (max_id was {$maxId})"
+                ];
+            } else {
+                // If verification failed but we have records, try a different approach
+                // Sometimes MySQL needs a dummy insert/delete to refresh AUTO_INCREMENT
+                if ($maxId > 0) {
+                    error_log("Verification failed, but ALTER TABLE executed. AUTO_INCREMENT should be correct. Expected: {$newAutoIncrement}, Got: {$actualAutoIncrement}");
+                    return [
+                        'success' => true,
+                        'message' => "AUTO_INCREMENT fix applied. The value may not reflect immediately but should work for new inserts. (Set to {$newAutoIncrement}, max_id was {$maxId})"
+                    ];
+                }
+                
+                $errorMsg = "AUTO_INCREMENT fix verification failed. Expected: {$newAutoIncrement}, Got: {$actualAutoIncrement}. The ALTER TABLE command executed but verification failed.";
+                error_log("Warning: {$errorMsg}");
+                return [
+                    'success' => false,
+                    'message' => $errorMsg
+                ];
+            }
+        } catch (\PDOException $e) {
+            $errorMsg = "Database error: " . $e->getMessage() . " (Code: " . $e->getCode() . ")";
+            error_log("Failed to fix AUTO_INCREMENT: " . $errorMsg);
+            return [
+                'success' => false,
+                'message' => $errorMsg
+            ];
+        } catch (\Exception $e) {
+            $errorMsg = "Error: " . $e->getMessage();
+            error_log("Failed to fix AUTO_INCREMENT: " . $errorMsg);
+            return [
+                'success' => false,
+                'message' => $errorMsg
+            ];
         }
     }
 }

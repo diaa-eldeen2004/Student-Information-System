@@ -47,14 +47,19 @@ class DatabaseConnection
             );
 
             try {
+                $options = $config['options'] ?? [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ];
+                
+                // CRITICAL: Disable persistent connections to avoid state retention issues
+                $options[PDO::ATTR_PERSISTENT] = false;
+                
                 $this->connection = new PDO(
                     $dsn,
                     $config['username'],
                     $config['password'],
-                    $config['options'] ?? [
-                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    ]
+                    $options
                 );
             } catch (PDOException $e) {
                 throw new \RuntimeException('Database connection failed: ' . $e->getMessage());
@@ -62,6 +67,49 @@ class DatabaseConnection
         }
 
         return $this->connection;
+    }
+
+    /**
+     * Ensure connection is in a clean state (no active transactions)
+     * This is critical for singleton pattern to work correctly across requests
+     */
+    public function ensureCleanState(): void
+    {
+        if ($this->connection !== null && $this->connection->inTransaction()) {
+            error_log("Warning: Active transaction found on singleton connection, rolling back to ensure clean state");
+            try {
+                $this->connection->rollBack();
+            } catch (\PDOException $e) {
+                error_log("Error rolling back transaction: " . $e->getMessage());
+                // If rollback fails, the connection might be in a bad state
+                // In this case, we might need to reconnect
+                $this->reconnect();
+            }
+        }
+    }
+
+    /**
+     * Reconnect to the database (useful if connection is in a bad state)
+     */
+    public function reconnect(): void
+    {
+        if ($this->connection !== null) {
+            $this->connection = null;
+        }
+        // Next call to getConnection() will create a new connection
+    }
+
+    /**
+     * Get a fresh connection for read-only operations (email checks)
+     * This ensures we see only committed data without interfering with transactions
+     */
+    public function getReadOnlyConnection(): PDO
+    {
+        // For read operations, we want to ensure we see committed data
+        // So we get the connection and ensure it's not in a transaction
+        $conn = $this->getConnection();
+        $this->ensureCleanState();
+        return $conn;
     }
 
     /**

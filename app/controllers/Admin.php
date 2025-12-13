@@ -819,47 +819,35 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if email already exists (case-insensitive)
+                        error_log("Checking email existence for student: " . $email);
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email);
+                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
                             $messageType = 'error';
-                            error_log("Email check for IT - Found existing user with email: " . $email);
+                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
                         } else {
+                            error_log("Email check PASSED - No existing user found for: '{$email}'");
                             // Generate password if not provided
                             if (empty($password)) {
                                 $password = bin2hex(random_bytes(8)); // Generate random password
                             }
                             $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
 
-                            try {
-                                $success = $this->studentModel->createStudentWithUser($userData, $studentData);
-                                if ($success) {
-                                    $message = 'Student created successfully';
-                                    $messageType = 'success';
-                                } else {
-                                    $message = 'Failed to create student';
-                                    $messageType = 'error';
-                                }
-                            } catch (\PDOException $e) {
-                                $errorMsg = $e->getMessage();
-                                // Extract more user-friendly error message
-                                if (strpos($errorMsg, 'Duplicate entry') !== false) {
-                                    $message = 'Email already exists in the system';
-                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
-                                    // Extract the actual SQL error
-                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
-                                } else {
-                                    $message = 'Failed to create student: ' . $errorMsg;
-                                }
+                            $success = $this->studentModel->createStudentWithUser($userData, $studentData);
+                            if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
+                                $message = 'Student created successfully';
+                                $messageType = 'success';
+                            } else {
+                                $message = 'Failed to create student';
                                 $messageType = 'error';
-                                error_log("Student creation PDO error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
-                            } catch (\Exception $e) {
-                                $message = 'Failed to create student: ' . $e->getMessage();
-                                $messageType = 'error';
-                                error_log("Student creation error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -1026,49 +1014,35 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if email already exists (case-insensitive)
+                        error_log("Checking email existence for doctor: " . $email);
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email);
+                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
                             $messageType = 'error';
-                            error_log("Email check for doctor - Found existing user with email: " . $email);
-                            error_log("Email check for IT - Found existing user with email: " . $email);
+                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
                         } else {
+                            error_log("Email check PASSED - No existing user found for: '{$email}'");
                             // Generate password if not provided
                             if (empty($password)) {
                                 $password = bin2hex(random_bytes(8)); // Generate random password
                             }
                             $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
 
-                            try {
-                                $success = $this->doctorModel->createDoctorWithUser($userData, $doctorData);
-                                if ($success) {
-                                    $message = 'Doctor created successfully';
-                                    $messageType = 'success';
-                                } else {
-                                    $message = 'Failed to create doctor (unknown error)';
-                                    $messageType = 'error';
-                                    error_log("Doctor creation returned false without exception");
-                                }
-                            } catch (\PDOException $e) {
-                                $errorMsg = $e->getMessage();
-                                // Extract more user-friendly error message
-                                if (strpos($errorMsg, 'Duplicate entry') !== false) {
-                                    $message = 'Email already exists in the system';
-                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
-                                    // Extract the actual SQL error
-                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
-                                } else {
-                                    $message = 'Failed to create doctor: ' . $errorMsg;
-                                }
+                            $success = $this->doctorModel->createDoctorWithUser($userData, $doctorData);
+                            if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
+                                $message = 'Doctor created successfully';
+                                $messageType = 'success';
+                            } else {
+                                $message = 'Failed to create doctor';
                                 $messageType = 'error';
-                                error_log("Doctor creation PDO error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
-                            } catch (\Exception $e) {
-                                $message = 'Failed to create doctor: ' . $e->getMessage();
-                                $messageType = 'error';
-                                error_log("Doctor creation error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -1204,41 +1178,29 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if course code already exists
+                        error_log("Checking course code existence for course: " . $course_code);
                         $existingCourse = $this->courseModel->findByCode($course_code);
                         if ($existingCourse) {
-                            $message = 'Course code already exists';
+                            $message = 'Course code already exists: ' . htmlspecialchars($course_code);
                             $messageType = 'error';
+                            error_log("Course code check FAILED - Found existing course: ID={$existingCourse['course_id']}, Code='{$existingCourse['course_code']}', Searching for: '{$course_code}'");
                         } else {
-                            try {
-                                $success = $this->courseModel->create($data);
-                                if ($success) {
-                                    $message = 'Course created successfully';
-                                    $messageType = 'success';
-                                } else {
-                                    $message = 'Failed to create course (unknown error)';
-                                    $messageType = 'error';
-                                    error_log("Course creation returned false without exception");
-                                }
-                            } catch (\PDOException $e) {
-                                $errorMsg = $e->getMessage();
-                                // Extract more user-friendly error message
-                                if (strpos($errorMsg, 'Duplicate entry') !== false) {
-                                    $message = 'Course code already exists';
-                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
-                                    // Extract the actual SQL error
-                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
-                                } else {
-                                    $message = 'Failed to create course: ' . $errorMsg;
-                                }
+                            error_log("Course code check PASSED - No existing course found for: '{$course_code}'");
+                            $success = $this->courseModel->create($data);
+                            if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
+                                $message = 'Course created successfully';
+                                $messageType = 'success';
+                            } else {
+                                $message = 'Failed to create course';
                                 $messageType = 'error';
-                                error_log("Course creation PDO error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
-                            } catch (\Exception $e) {
-                                $message = 'Failed to create course: ' . $e->getMessage();
-                                $messageType = 'error';
-                                error_log("Course creation error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
                             }
                         }
                     } else {
@@ -1341,7 +1303,7 @@ class Admin extends Controller
             if ($action === 'create' || $action === 'update') {
                 $first_name = trim($_POST['first_name'] ?? '');
                 $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
+                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
                 $phone = trim($_POST['phone'] ?? '');
                 $department = trim($_POST['department'] ?? '');
                 $password = $_POST['password'] ?? '';
@@ -1362,13 +1324,20 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if email already exists (case-insensitive)
+                        error_log("Checking email existence for advisor: " . $email);
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email);
+                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
                             $messageType = 'error';
-                            error_log("Email check for IT - Found existing user with email: " . $email);
+                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
                         } else {
+                            error_log("Email check PASSED - No existing user found for: '{$email}'");
                             // Generate password if not provided
                             if (empty($password)) {
                                 $password = bin2hex(random_bytes(8)); // Generate random password
@@ -1377,6 +1346,8 @@ class Admin extends Controller
 
                             $success = $this->advisorModel->createAdvisor($userData, $advisorData);
                             if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
                                 $message = 'Advisor created successfully';
                                 $messageType = 'success';
                             } else {
@@ -1500,50 +1471,137 @@ class Admin extends Controller
                     ];
 
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if email already exists (case-insensitive)
+                        error_log("Checking email existence for IT officer: " . $email);
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email);
+                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
                             $messageType = 'error';
-                            error_log("Email check for IT - Found existing user with email: " . $email);
+                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
                         } else {
+                            error_log("Email check PASSED - No existing user found for: '{$email}'");
                             // Generate password if not provided
                             if (empty($password)) {
                                 $password = bin2hex(random_bytes(8)); // Generate random password
                             }
                             $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
 
-                            try {
-                                $success = $this->itOfficerModel->createItOfficerWithUser($userData);
-                                if ($success) {
-                                    $message = 'IT Officer created successfully';
-                                    $messageType = 'success';
+                            $success = $this->itOfficerModel->createItOfficerWithUser($userData);
+                            if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
+                                $message = 'IT Officer created successfully';
+                                $messageType = 'success';
+                            } else {
+                                // Get the actual error from the model
+                                $modelError = \models\ItOfficer::getLastError();
+                                
+                                // Check if it's a duplicate key error (AUTO_INCREMENT issue)
+                                if ($modelError && (strpos($modelError, 'Duplicate entry') !== false || strpos($modelError, '23000') !== false)) {
+                                    // Try to fix AUTO_INCREMENT first
+                                    $fixResult = $this->itOfficerModel->fixAutoIncrement();
+                                    if ($fixResult['success']) {
+                                        // CRITICAL: Ensure clean state before retry
+                                        $dbSingleton->ensureCleanState();
+                                        
+                                        // Verify AUTO_INCREMENT is actually fixed before retrying
+                                        $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+                                        $verifyStmt = $db->query("
+                                            SELECT AUTO_INCREMENT 
+                                            FROM INFORMATION_SCHEMA.TABLES 
+                                            WHERE TABLE_SCHEMA = DATABASE() 
+                                            AND TABLE_NAME = 'it_officers'
+                                        ");
+                                        $verifyResult = $verifyStmt->fetch(PDO::FETCH_ASSOC);
+                                        $actualAutoIncrement = (int)($verifyResult['AUTO_INCREMENT'] ?? 0);
+                                        
+                                        // Get max it_id
+                                        $maxStmt = $db->query("SELECT COALESCE(MAX(it_id), 0) as max_id FROM it_officers");
+                                        $maxResult = $maxStmt->fetch(PDO::FETCH_ASSOC);
+                                        $maxId = (int)($maxResult['max_id'] ?? 0);
+                                        
+                                        // If AUTO_INCREMENT is still not fixed, try manual fix
+                                        if ($actualAutoIncrement <= 0 || ($maxId > 0 && $actualAutoIncrement <= $maxId)) {
+                                            // Manual fix: set to max + 1
+                                            $newValue = max($maxId + 1, 1);
+                                            $db->exec("ALTER TABLE it_officers AUTO_INCREMENT = {$newValue}");
+                                            error_log("Manual AUTO_INCREMENT fix: Set to {$newValue} (max_id was {$maxId})");
+                                        }
+                                        
+                                        // Check if user was already created in the first attempt
+                                        $existingUser = $this->userModel->findByEmail($email);
+                                        
+                                        if ($existingUser) {
+                                            // User exists, check if IT officer record exists
+                                            $existingIt = $this->itOfficerModel->findByUserId($existingUser['id']);
+                                            
+                                            if ($existingIt) {
+                                                // Both user and IT officer exist - creation actually succeeded!
+                                                $dbSingleton->ensureCleanState();
+                                                $message = 'IT Officer created successfully (AUTO_INCREMENT was fixed automatically)';
+                                                $messageType = 'success';
+                                            } else {
+                                                // User exists but IT officer doesn't - create IT officer record only
+                                                // Use direct INSERT to avoid transaction issues
+                                                try {
+                                                    $dbSingleton->ensureCleanState();
+                                                    $insertStmt = $db->prepare("INSERT INTO it_officers (user_id) VALUES (:user_id)");
+                                                    $insertSuccess = $insertStmt->execute(['user_id' => $existingUser['id']]);
+                                                    
+                                                    if ($insertSuccess) {
+                                                        $dbSingleton->ensureCleanState();
+                                                        $message = 'IT Officer created successfully (AUTO_INCREMENT was fixed automatically)';
+                                                        $messageType = 'success';
+                                                    } else {
+                                                        $message = 'AUTO_INCREMENT was fixed, but failed to create IT officer record. Please try again.';
+                                                        $messageType = 'error';
+                                                    }
+                                                } catch (\PDOException $e) {
+                                                    $message = 'AUTO_INCREMENT was fixed, but failed to create IT officer: ' . htmlspecialchars($e->getMessage());
+                                                    $messageType = 'error';
+                                                    error_log("IT Officer insert error: " . $e->getMessage());
+                                                }
+                                            }
+                                        } else {
+                                            // User doesn't exist, retry full creation
+                                            $dbSingleton->ensureCleanState();
+                                            $retrySuccess = $this->itOfficerModel->createItOfficerWithUser($userData);
+                                            if ($retrySuccess) {
+                                                // CRITICAL: Ensure clean state after successful creation
+                                                $dbSingleton->ensureCleanState();
+                                                $message = 'IT Officer created successfully (AUTO_INCREMENT was fixed automatically)';
+                                                $messageType = 'success';
+                                            } else {
+                                                $retryError = \models\ItOfficer::getLastError();
+                                                $message = 'AUTO_INCREMENT was fixed, but creation still failed: ' . htmlspecialchars($retryError ?? 'Unknown error');
+                                                $messageType = 'error';
+                                                error_log("Retry creation failed after AUTO_INCREMENT fix. Error: " . ($retryError ?? 'Unknown'));
+                                            }
+                                        }
+                                    } else {
+                                        $message = 'Failed to create IT officer due to AUTO_INCREMENT issue: ' . htmlspecialchars($fixResult['message'] ?? 'Unknown error');
+                                        $messageType = 'error';
+                                    }
                                 } else {
-                                    $message = 'Failed to create IT officer (unknown error)';
+                                    if ($modelError) {
+                                        $message = 'Failed to create IT officer: ' . htmlspecialchars($modelError);
+                                    } else {
+                                        $message = 'Failed to create IT officer. Please check server logs for details.';
+                                    }
                                     $messageType = 'error';
-                                    error_log("IT Officer creation returned false without exception");
                                 }
-                            } catch (\PDOException $e) {
-                                $errorMsg = $e->getMessage();
-                                // Extract more user-friendly error message
-                                if (strpos($errorMsg, 'Duplicate entry') !== false && strpos($errorMsg, 'PRIMARY') !== false) {
-                                    $message = 'Database error: Duplicate primary key. This might indicate an auto-increment issue. Please check the database.';
-                                } elseif (strpos($errorMsg, 'Duplicate entry') !== false) {
-                                    $message = 'Email already exists in the system';
-                                } elseif (strpos($errorMsg, 'SQLSTATE') !== false) {
-                                    // Extract the actual SQL error
-                                    $message = 'Database error: ' . substr($errorMsg, strpos($errorMsg, 'SQLSTATE') + 8);
-                                } else {
-                                    $message = 'Failed to create IT officer: ' . $errorMsg;
-                                }
-                                $messageType = 'error';
-                                error_log("IT Officer creation PDO error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
-                            } catch (\Exception $e) {
-                                $message = 'Failed to create IT officer: ' . $e->getMessage();
-                                $messageType = 'error';
-                                error_log("IT Officer creation error: " . $e->getMessage());
-                                error_log("Stack trace: " . $e->getTraceAsString());
+                                
+                                error_log("Admin controller - IT Officer creation returned false. User data: " . json_encode([
+                                    'first_name' => $userData['first_name'] ?? 'missing',
+                                    'last_name' => $userData['last_name'] ?? 'missing',
+                                    'email' => $email ?? 'missing',
+                                    'has_password' => !empty($userData['password'] ?? ''),
+                                ]));
                             }
                         }
                     } else {
@@ -1616,6 +1674,72 @@ class Admin extends Controller
             $editIT = $this->itOfficerModel->findByItId((int)$_GET['edit']);
         }
 
+        // Check for AUTO_INCREMENT issues
+        $needsAutoIncrementFix = false;
+        try {
+            $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+            
+            // Get max it_id first
+            $stmt = $db->query("SELECT COALESCE(MAX(it_id), 0) as max_id FROM it_officers");
+            $maxResult = $stmt->fetch(PDO::FETCH_ASSOC);
+            $maxId = (int)($maxResult['max_id'] ?? 0);
+            
+            // Try multiple methods to get AUTO_INCREMENT value (same as fix method)
+            $autoIncrement = 0;
+            
+            // Method 1: INFORMATION_SCHEMA (most reliable)
+            try {
+                $stmt = $db->query("
+                    SELECT AUTO_INCREMENT 
+                    FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'it_officers'
+                ");
+                $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                $autoIncrement = (int)($result['AUTO_INCREMENT'] ?? 0);
+            } catch (\Exception $e) {
+                // Try next method
+            }
+            
+            // Method 2: SHOW TABLE STATUS WHERE Name
+            if ($autoIncrement == 0) {
+                try {
+                    $stmt = $db->query("SHOW TABLE STATUS WHERE Name = 'it_officers'");
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $autoIncrement = (int)($result['Auto_increment'] ?? $result['AUTO_INCREMENT'] ?? 0);
+                } catch (\Exception $e) {
+                    // Try next method
+                }
+            }
+            
+            // Method 3: SHOW TABLE STATUS LIKE
+            if ($autoIncrement == 0) {
+                try {
+                    $stmt = $db->query("SHOW TABLE STATUS LIKE 'it_officers'");
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $autoIncrement = (int)($result['Auto_increment'] ?? $result['AUTO_INCREMENT'] ?? 0);
+                } catch (\Exception $e) {
+                    // Last resort
+                }
+            }
+            
+            // If AUTO_INCREMENT is 0 or NULL, and we have records, it needs fixing
+            // If AUTO_INCREMENT is less than or equal to max_id, it needs fixing
+            // Exception: If table is empty (maxId == 0), AUTO_INCREMENT of 0 or 1 is acceptable
+            if ($maxId > 0 && ($autoIncrement <= 0 || $autoIncrement <= $maxId)) {
+                $needsAutoIncrementFix = true;
+            } elseif ($maxId == 0 && $autoIncrement == 0) {
+                // Empty table with AUTO_INCREMENT = 0 might be okay, but let's fix it to 1 to be safe
+                $needsAutoIncrementFix = true;
+            }
+            
+            // Debug logging
+            error_log("AUTO_INCREMENT check: autoIncrement={$autoIncrement}, maxId={$maxId}, needsFix=" . ($needsAutoIncrementFix ? 'true' : 'false'));
+        } catch (\Exception $e) {
+            // If we can't check, assume it's okay
+            error_log("Could not check AUTO_INCREMENT: " . $e->getMessage());
+        }
+
         $this->view->render('admin/admin_manage_it', [
             'title' => 'Manage IT Officers',
             'itOfficers' => $itOfficers,
@@ -1625,6 +1749,7 @@ class Admin extends Controller
             'message' => $message,
             'messageType' => $messageType,
             'editIT' => $editIT,
+            'needsAutoIncrementFix' => $needsAutoIncrementFix,
             'showSidebar' => true,
         ]);
     }
@@ -1659,13 +1784,20 @@ class Admin extends Controller
                     $adminData = [];
 
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if email already exists (case-insensitive)
+                        error_log("Checking email existence for admin: " . $email);
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email);
+                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
                             $messageType = 'error';
-                            error_log("Email check for IT - Found existing user with email: " . $email);
+                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
                         } else {
+                            error_log("Email check PASSED - No existing user found for: '{$email}'");
                             // Generate password if not provided
                             if (empty($password)) {
                                 $password = bin2hex(random_bytes(8)); // Generate random password
@@ -1674,6 +1806,8 @@ class Admin extends Controller
 
                             $success = $this->adminRoleModel->createAdminWithUser($userData, $adminData);
                             if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
                                 $message = 'Admin created successfully';
                                 $messageType = 'success';
                             } else {
@@ -1798,13 +1932,20 @@ class Admin extends Controller
                     $messageType = 'error';
                 } else {
                     if ($action === 'create') {
+                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
+                        // This properly handles transaction state without interfering with model operations
+                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
+                        $dbSingleton->ensureCleanState();
+                        
                         // Check if email already exists (case-insensitive)
+                        error_log("Checking email existence for user: " . $email);
                         $existingUser = $this->userModel->findByEmail($email);
                         if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email);
+                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
                             $messageType = 'error';
-                            error_log("Email check for IT - Found existing user with email: " . $email);
+                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
                         } else {
+                            error_log("Email check PASSED - No existing user found for: '{$email}'");
                             // Generate password if not provided
                             if (empty($password)) {
                                 $password = bin2hex(random_bytes(8)); // Generate random password
@@ -1821,6 +1962,8 @@ class Admin extends Controller
                             ]);
                             
                             if ($success) {
+                                // CRITICAL: Ensure clean state after successful creation
+                                $dbSingleton->ensureCleanState();
                                 $message = 'User created successfully';
                                 $messageType = 'success';
                             } else {
@@ -2030,6 +2173,21 @@ class Admin extends Controller
             echo json_encode(['success' => true, 'data' => $course]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Course not found']);
+        }
+    }
+
+    public function fixItAutoIncrement(): void
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $result = $this->itOfficerModel->fixAutoIncrement();
+            echo json_encode($result);
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unexpected error: ' . $e->getMessage()
+            ]);
         }
     }
 }

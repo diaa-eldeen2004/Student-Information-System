@@ -110,7 +110,17 @@ class Advisor extends Model
     public function createAdvisor(array $userData, array $advisorData): bool
     {
         try {
+            // Ensure no active transaction before starting a new one
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->db->beginTransaction();
+
+            // Normalize email to lowercase
+            $email = trim(strtolower($userData['email'] ?? ''));
+            if (empty($email)) {
+                throw new \InvalidArgumentException('Email is required and cannot be empty');
+            }
 
             // First create the user
             $userSql = "INSERT INTO users (first_name, last_name, email, phone, password, role)
@@ -119,7 +129,7 @@ class Advisor extends Model
             $userStmt->execute([
                 'first_name' => $userData['first_name'],
                 'last_name' => $userData['last_name'],
-                'email' => $userData['email'],
+                'email' => $email,
                 'phone' => $userData['phone'] ?? '',
                 'password' => $userData['password'],
             ]);
@@ -147,6 +157,10 @@ class Advisor extends Model
     public function updateAdvisor(int $advisorId, array $userData, array $advisorData): bool
     {
         try {
+            // Ensure no active transaction before starting a new one
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->db->beginTransaction();
 
             // Get user_id from advisor_id

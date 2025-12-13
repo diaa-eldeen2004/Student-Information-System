@@ -7,6 +7,7 @@ $search = $search ?? '';
 $message = $message ?? null;
 $messageType = $messageType ?? 'info';
 $editIT = $editIT ?? null;
+$needsAutoIncrementFix = $needsAutoIncrementFix ?? false;
 ?>
 
 <div class="admin-container">
@@ -27,6 +28,35 @@ $editIT = $editIT ?? null;
     </div>
 
     <div class="admin-content">
+        <!-- AUTO_INCREMENT Fix Alert -->
+        <?php if ($needsAutoIncrementFix): ?>
+            <div class="alert alert-warning" style="margin-bottom: 1.5rem; padding: 1.5rem; border-radius: 8px; background-color: #fff3cd; border-left: 4px solid #ffc107; display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: #ffc107;"></i>
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 0.5rem 0; color: #856404;">AUTO_INCREMENT Fix Required</h3>
+                        <p style="margin: 0; color: #856404;">
+                            The <code>it_officers</code> table's AUTO_INCREMENT value is not set correctly. This may prevent creating new IT officers.
+                        </p>
+                        <p style="margin: 0.5rem 0 0 0; color: #856404; font-size: 0.9rem;">
+                            Please run the migration to fix the AUTO_INCREMENT value before creating IT officers.
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <button class="btn btn-warning" onclick="fixAutoIncrement()" style="font-weight: 600; margin-right: 0.5rem;">
+                        <i class="fas fa-tools"></i> Fix AUTO_INCREMENT Now
+                    </button>
+                    <button class="btn btn-outline" onclick="runMigration('fix_it_officers_autoincrement.sql')" style="font-weight: 600; margin-right: 0.5rem;">
+                        <i class="fas fa-database"></i> Run Migration
+                    </button>
+                    <a href="<?= htmlspecialchars($url('admin/manage-it')) ?>" class="btn btn-outline">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </a>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Success/Error Messages -->
         <?php if (!empty($message)): ?>
             <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'error' ? 'error' : ($messageType === 'warning' ? 'warning' : 'info')) ?>" style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 6px; display: flex; align-items: center; gap: 0.5rem;">
@@ -459,6 +489,118 @@ function handleITFormSubmit(e) {
     // Form validation is handled by HTML5 required attributes
     // The form will submit normally to the controller
     return true;
+}
+
+// Fix AUTO_INCREMENT directly (preferred method)
+function fixAutoIncrement() {
+    if (!confirm('This will fix the AUTO_INCREMENT value for the it_officers table.\n\nDo you want to continue?')) {
+        return;
+    }
+
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fixing...';
+
+    fetch('<?= htmlspecialchars($url('admin/api/fix-it-autoincrement')) ?>', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('AUTO_INCREMENT fixed successfully! Refreshing page...', 'success');
+            } else {
+                alert('AUTO_INCREMENT fixed successfully!\n\n' + (data.message || ''));
+            }
+            // Force a hard refresh to ensure the alert disappears
+            // Use a longer delay to ensure database changes are committed
+            setTimeout(() => {
+                // Remove any query parameters and add a cache-busting parameter
+                const baseUrl = window.location.href.split('?')[0];
+                window.location.href = baseUrl + '?fix_applied=' + Date.now();
+            }, 2000);
+        } else {
+            const errorMsg = data.message || 'Unknown error';
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Failed to fix AUTO_INCREMENT: ' + errorMsg, 'error');
+            } else {
+                alert('Failed to fix AUTO_INCREMENT:\n\n' + errorMsg);
+            }
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Fix error:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while fixing AUTO_INCREMENT', 'error');
+        } else {
+            alert('An error occurred: ' + error.message);
+        }
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+// Migration function
+function runMigration(migrationFile) {
+    if (!confirm('This will run the database migration: ' + migrationFile + '\n\nThis will fix the AUTO_INCREMENT value for the it_officers table.\n\nNote: The "Fix AUTO_INCREMENT Now" button is recommended as it calculates the correct value dynamically.\n\nDo you want to continue?')) {
+        return;
+    }
+
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Migration...';
+
+    fetch('<?= htmlspecialchars($url('migrate/run')) ?>?file=' + encodeURIComponent(migrationFile), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Migration completed successfully! Refreshing page...', 'success');
+            } else {
+                alert('Migration completed successfully!\n\n' + (data.messages ? data.messages.join('\n') : ''));
+            }
+            // Force a hard refresh to ensure the alert disappears
+            // Use a longer delay to ensure database changes are committed
+            setTimeout(() => {
+                // Remove any query parameters and add a cache-busting parameter
+                const baseUrl = window.location.href.split('?')[0];
+                window.location.href = baseUrl + '?migration_fixed=' + Date.now();
+            }, 2000);
+        } else {
+            // Show error message
+            const errorMsg = data.messages ? data.messages.join('\n') : 'Unknown error';
+            if (typeof showToastifyNotification !== 'undefined') {
+                showToastifyNotification('Migration failed: ' + errorMsg, 'error');
+            } else {
+                alert('Migration failed:\n\n' + errorMsg);
+            }
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Migration error:', error);
+        if (typeof showToastifyNotification !== 'undefined') {
+            showToastifyNotification('An error occurred while running migration', 'error');
+        } else {
+            alert('An error occurred while running migration: ' + error.message);
+        }
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
 }
 
 // Auto-populate form if editing

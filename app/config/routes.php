@@ -99,4 +99,9 @@ return [
     ['GET', '/admin/api/admin', 'Admin@getAdminDetails'],
     ['GET', '/admin/api/user', 'Admin@getUserDetails'],
     ['GET', '/admin/api/course', 'Admin@getCourseDetails'],
+    ['POST', '/admin/api/fix-it-autoincrement', 'Admin@fixItAutoIncrement'],
+    
+    // Debug routes (admin only)
+    ['GET', '/debug/log', 'Debug@viewLog'],
+    ['GET', '/debug/clear', 'Debug@clearLog'],
 ];
