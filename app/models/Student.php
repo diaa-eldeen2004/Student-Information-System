@@ -461,5 +461,177 @@ class Student extends Model
             return [];
         }
     }
+
+    public function getEnrolledCourses(int $studentId, ?string $semester = null, ?string $academicYear = null): array
+    {
+        try {
+            $where = ["e.student_id = :student_id", "e.status = 'enrolled'"];
+            $params = ['student_id' => $studentId];
+            
+            if ($semester) {
+                $where[] = "s.semester = :semester";
+                $params['semester'] = $semester;
+            }
+            
+            if ($academicYear) {
+                $where[] = "s.academic_year = :academic_year";
+                $params['academic_year'] = $academicYear;
+            }
+            
+            $whereClause = implode(' AND ', $where);
+            $stmt = $this->db->prepare("
+                SELECT DISTINCT c.course_id, c.course_code, c.name as course_name, c.credit_hours, c.description,
+                       s.section_id, s.section_number, s.semester, s.academic_year, s.room, s.time_slot,
+                       s.day_of_week, s.start_time, s.end_time,
+                       u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+                       e.enrollment_date, e.status as enrollment_status
+                FROM enrollments e
+                JOIN sections s ON e.section_id = s.section_id
+                JOIN courses c ON s.course_id = c.course_id
+                JOIN doctors d ON s.doctor_id = d.doctor_id
+                JOIN users u ON d.user_id = u.id
+                WHERE {$whereClause}
+                ORDER BY s.semester DESC, s.academic_year DESC, c.course_code
+            ");
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log("getEnrolledCourses failed: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getAssignmentsForStudent(int $studentId, ?int $courseId = null): array
+    {
+        try {
+            $where = [
+                "e.student_id = :student_id",
+                "e.status = 'enrolled'",
+                "a.is_visible = 1",
+                "(a.visible_until IS NULL OR a.visible_until >= NOW())"
+            ];
+            $params = ['student_id' => $studentId];
+            
+            if ($courseId) {
+                $where[] = "a.course_id = :course_id";
+                $params['course_id'] = $courseId;
+            }
+            
+            $whereClause = implode(' AND ', $where);
+            $stmt = $this->db->prepare("
+                SELECT DISTINCT a.*, c.course_code, c.name as course_name,
+                       s.section_number, s.semester, s.academic_year,
+                       sub.submission_id, sub.submitted_at, sub.grade, sub.status as submission_status,
+                       sub.feedback
+                FROM assignments a
+                JOIN courses c ON a.course_id = c.course_id
+                JOIN sections s ON a.section_id = s.section_id
+                JOIN enrollments e ON s.section_id = e.section_id
+                LEFT JOIN assignment_submissions sub ON a.assignment_id = sub.assignment_id AND sub.student_id = :student_id
+                WHERE {$whereClause}
+                ORDER BY a.due_date DESC, c.course_code
+            ");
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log("getAssignmentsForStudent failed: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getSubmission(int $studentId, int $assignmentId): ?array
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM assignment_submissions
+                WHERE student_id = :student_id AND assignment_id = :assignment_id
+                ORDER BY submitted_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute(['student_id' => $studentId, 'assignment_id' => $assignmentId]);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (\PDOException $e) {
+            error_log("getSubmission failed: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getStudentSchedule(int $studentId, string $semester, string $academicYear): array
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
+                       u.first_name as doctor_first_name, u.last_name as doctor_last_name
+                FROM enrollments e
+                JOIN sections s ON e.section_id = s.section_id
+                JOIN courses c ON s.course_id = c.course_id
+                JOIN doctors d ON s.doctor_id = d.doctor_id
+                JOIN users u ON d.user_id = u.id
+                WHERE e.student_id = :student_id
+                AND e.status = 'enrolled'
+                AND s.semester = :semester
+                AND s.academic_year = :academic_year
+                ORDER BY s.day_of_week, s.start_time
+            ");
+            $stmt->execute([
+                'student_id' => $studentId,
+                'semester' => $semester,
+                'academic_year' => $academicYear
+            ]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log("getStudentSchedule failed: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getAvailableSectionsForEnrollment(string $semester, string $academicYear): array
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT s.*, c.course_code, c.name as course_name, c.credit_hours, c.description,
+                       u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+                       (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.section_id AND e.status = 'enrolled') as current_enrollment,
+                       s.capacity
+                FROM sections s
+                JOIN courses c ON s.course_id = c.course_id
+                JOIN doctors d ON s.doctor_id = d.doctor_id
+                JOIN users u ON d.user_id = u.id
+                WHERE s.semester = :semester
+                AND s.academic_year = :academic_year
+                AND s.status = 'published'
+                AND (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.section_id AND e.status = 'enrolled') < s.capacity
+                ORDER BY c.course_code, s.section_number
+            ");
+            $stmt->execute(['semester' => $semester, 'academic_year' => $academicYear]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log("getAvailableSectionsForEnrollment failed: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getEnrollmentRequests(int $studentId): array
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT er.*, s.section_id, s.section_number, s.semester, s.academic_year, s.room, s.time_slot,
+                       c.course_code, c.name as course_name, c.credit_hours,
+                       u.first_name as doctor_first_name, u.last_name as doctor_last_name
+                FROM enrollment_requests er
+                JOIN sections s ON er.section_id = s.section_id
+                JOIN courses c ON s.course_id = c.course_id
+                JOIN doctors d ON s.doctor_id = d.doctor_id
+                JOIN users u ON d.user_id = u.id
+                WHERE er.student_id = :student_id
+                ORDER BY er.requested_at DESC
+            ");
+            $stmt->execute(['student_id' => $studentId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log("getEnrollmentRequests failed: " . $e->getMessage());
+            return [];
+        }
+    }
 }
 
