@@ -6,7 +6,7 @@ $sections = $sections ?? [];
     <div class="attendance-header">
         <div>
             <h1><i class="fas fa-calendar-check"></i> Attendance Management</h1>
-            <p>Manage and view student attendance for your sections</p>
+            <p>View all your assigned courses with student counts. Only courses assigned to you are shown.</p>
         </div>
     </div>
 
@@ -21,11 +21,14 @@ $sections = $sections ?? [];
                 <div class="card section-card">
                     <div class="section-header">
                         <div>
-                            <h2><?= htmlspecialchars($section['section_name'] ?? 'Section') ?></h2>
+                            <h2><?= htmlspecialchars($section['course_code'] ?? 'N/A') ?> - <?= htmlspecialchars($section['course_name'] ?? 'N/A') ?></h2>
                             <p class="section-meta">
-                                <?= htmlspecialchars($section['course_code'] ?? 'N/A') ?> • 
-                                <?= htmlspecialchars($section['day'] ?? '') ?> 
+                                Section: <?= htmlspecialchars($section['section_name'] ?? $section['section_number'] ?? 'N/A') ?> • 
+                                <?= htmlspecialchars($section['day_of_week'] ?? $section['day'] ?? '') ?> 
                                 <?= htmlspecialchars($section['start_time'] ?? '') ?> - <?= htmlspecialchars($section['end_time'] ?? '') ?>
+                            </p>
+                            <p style="margin: 0.5rem 0 0 0; color: var(--primary-color); font-weight: 600;">
+                                <i class="fas fa-user-graduate"></i> Total Students: <?= $section['student_count'] ?? 0 ?>
                             </p>
                         </div>
                         <a href="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . ($section['section_id'] ?? ''))) ?>" class="btn btn-primary">
@@ -67,7 +70,7 @@ $sections = $sections ?? [];
                                         <i class="fas fa-users"></i>
                                     </div>
                                     <div class="stat-content">
-                                        <h3><?= $section['attendance_stats']['total_students'] ?? 0 ?></h3>
+                                        <h3><?= $section['student_count'] ?? 0 ?></h3>
                                         <p>Total Students</p>
                                     </div>
                                 </div>

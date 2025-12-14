@@ -37,7 +37,7 @@ $messageType = $messageType ?? 'info';
             </a>
         </div>
     <?php else: ?>
-        <form method="POST" action="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . ($section['section_id'] ?? ''))) ?>" id="attendanceForm">
+        <form method="POST" action="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . ($section['section_id'] ?? ''))) ?>" id="attendanceForm" onsubmit="return validateAttendanceForm(event)">
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">
@@ -79,28 +79,28 @@ $messageType = $messageType ?? 'info';
                                         <div class="status-buttons">
                                             <label class="status-option">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
-                                                       value="present" checked>
+                                                       value="present" <?= ($student['attendance_status'] ?? 'present') === 'present' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-present">
                                                     <i class="fas fa-check-circle"></i> Present
                                                 </span>
                                             </label>
                                             <label class="status-option">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
-                                                       value="absent">
+                                                       value="absent" <?= ($student['attendance_status'] ?? '') === 'absent' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-absent">
                                                     <i class="fas fa-times-circle"></i> Absent
                                                 </span>
                                             </label>
                                             <label class="status-option">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
-                                                       value="late">
+                                                       value="late" <?= ($student['attendance_status'] ?? '') === 'late' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-late">
                                                     <i class="fas fa-clock"></i> Late
                                                 </span>
                                             </label>
                                             <label class="status-option">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
-                                                       value="excused">
+                                                       value="excused" <?= ($student['attendance_status'] ?? '') === 'excused' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-excused">
                                                     <i class="fas fa-user-check"></i> Excused
                                                 </span>
@@ -110,7 +110,8 @@ $messageType = $messageType ?? 'info';
                                     <div class="col-notes">
                                         <input type="text" name="notes[<?= $student['student_id'] ?? '' ?>]" 
                                                class="form-input form-input-sm" 
-                                               placeholder="Optional notes...">
+                                               placeholder="Optional notes..."
+                                               value="<?= htmlspecialchars($student['attendance_notes'] ?? '') ?>">
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -396,5 +397,38 @@ function resetForm() {
             }
         });
     }
+}
+
+function validateAttendanceForm(event) {
+    const form = document.getElementById('attendanceForm');
+    const students = form.querySelectorAll('input[type="radio"]');
+    let allMarked = true;
+    
+    // Group radio buttons by student
+    const studentGroups = {};
+    students.forEach(radio => {
+        const name = radio.name;
+        if (!studentGroups[name]) {
+            studentGroups[name] = [];
+        }
+        studentGroups[name].push(radio);
+    });
+    
+    // Check if at least one is checked per student
+    for (const group of Object.values(studentGroups)) {
+        const checked = group.some(r => r.checked);
+        if (!checked) {
+            allMarked = false;
+            break;
+        }
+    }
+    
+    if (!allMarked) {
+        event.preventDefault();
+        alert('Please mark attendance for all students.');
+        return false;
+    }
+    
+    return true;
 }
 </script>

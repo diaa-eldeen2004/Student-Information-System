@@ -67,6 +67,11 @@ class Attendance extends Model
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getByDate(int $sectionId, string $date): array
+    {
+        return $this->getBySection($sectionId, $date);
+    }
+
     public function getStudentAttendance(int $studentId, int $sectionId): array
     {
         $stmt = $this->db->prepare("

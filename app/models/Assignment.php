@@ -66,9 +66,11 @@ class Assignment extends Model
     {
         try {
             $sql = "INSERT INTO {$this->table} 
-                    (course_id, section_id, doctor_id, title, description, due_date, max_points, assignment_type)
+                    (course_id, section_id, doctor_id, title, description, due_date, max_points, assignment_type, 
+                     file_path, file_name, file_size, is_visible, visible_until, semester, academic_year)
                     VALUES 
-                    (:course_id, :section_id, :doctor_id, :title, :description, :due_date, :max_points, :assignment_type)";
+                    (:course_id, :section_id, :doctor_id, :title, :description, :due_date, :max_points, :assignment_type,
+                     :file_path, :file_name, :file_size, :is_visible, :visible_until, :semester, :academic_year)";
             $stmt = $this->db->prepare($sql);
             return $stmt->execute([
                 'course_id' => $data['course_id'],
@@ -79,6 +81,13 @@ class Assignment extends Model
                 'due_date' => $data['due_date'],
                 'max_points' => $data['max_points'] ?? 100,
                 'assignment_type' => $data['assignment_type'] ?? 'homework',
+                'file_path' => $data['file_path'] ?? null,
+                'file_name' => $data['file_name'] ?? null,
+                'file_size' => $data['file_size'] ?? null,
+                'is_visible' => $data['is_visible'] ?? 1,
+                'visible_until' => $data['visible_until'] ?? null,
+                'semester' => $data['semester'] ?? null,
+                'academic_year' => $data['academic_year'] ?? null,
             ]) && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log("Assignment creation failed: " . $e->getMessage());
@@ -92,7 +101,11 @@ class Assignment extends Model
             $fields = [];
             $params = ['assignment_id' => $assignmentId];
             
-            foreach (['title', 'description', 'due_date', 'max_points', 'assignment_type'] as $field) {
+            $allowedFields = ['title', 'description', 'due_date', 'max_points', 'assignment_type', 
+                             'file_path', 'file_name', 'file_size', 'is_visible', 'visible_until', 
+                             'semester', 'academic_year'];
+            
+            foreach ($allowedFields as $field) {
                 if (isset($data[$field])) {
                     $fields[] = "{$field} = :{$field}";
                     $params[$field] = $data[$field];
@@ -108,6 +121,75 @@ class Assignment extends Model
             return $stmt->execute($params) && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log("Assignment update failed: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    public function getBySemester(int $doctorId, string $semester, string $academicYear): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT a.*, c.course_code, c.name as course_name,
+                   s.section_number, s.semester, s.academic_year
+            FROM {$this->table} a
+            JOIN courses c ON a.course_id = c.course_id
+            JOIN sections s ON a.section_id = s.section_id
+            WHERE a.doctor_id = :doctor_id 
+            AND (a.semester = :semester OR s.semester = :semester)
+            AND (a.academic_year = :academic_year OR s.academic_year = :academic_year)
+            ORDER BY a.due_date DESC
+        ");
+        $stmt->execute([
+            'doctor_id' => $doctorId,
+            'semester' => $semester,
+            'academic_year' => $academicYear
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function toggleVisibility(int $assignmentId, bool $isVisible, ?string $visibleUntil = null): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table} SET is_visible = :is_visible, visible_until = :visible_until WHERE assignment_id = :assignment_id";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute([
+                'assignment_id' => $assignmentId,
+                'is_visible' => $isVisible ? 1 : 0,
+                'visible_until' => $visibleUntil
+            ]) && $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log("Toggle visibility failed: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    public function getSubmissionsByAssignment(int $assignmentId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.*, u.first_name, u.last_name, u.email, st.student_number
+            FROM assignment_submissions s
+            JOIN students st ON s.student_id = st.student_id
+            JOIN users u ON st.user_id = u.id
+            WHERE s.assignment_id = :assignment_id
+            ORDER BY s.submitted_at DESC
+        ");
+        $stmt->execute(['assignment_id' => $assignmentId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function updateGrade(int $submissionId, float $grade, ?string $feedback = null): bool
+    {
+        try {
+            $sql = "UPDATE assignment_submissions 
+                    SET grade = :grade, feedback = :feedback, status = 'graded', graded_at = NOW() 
+                    WHERE submission_id = :submission_id";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute([
+                'submission_id' => $submissionId,
+                'grade' => $grade,
+                'feedback' => $feedback
+            ]) && $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log("Update grade failed: " . $e->getMessage());
             return false;
         }
     }

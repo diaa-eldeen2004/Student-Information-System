@@ -57,6 +57,28 @@ class AssignmentBuilder
         return $this;
     }
 
+    public function setFile(string $filePath, string $fileName, ?int $fileSize = null): self
+    {
+        $this->data['file_path'] = $filePath;
+        $this->data['file_name'] = $fileName;
+        $this->data['file_size'] = $fileSize;
+        return $this;
+    }
+
+    public function setVisibility(bool $isVisible, ?string $visibleUntil = null): self
+    {
+        $this->data['is_visible'] = $isVisible;
+        $this->data['visible_until'] = $visibleUntil;
+        return $this;
+    }
+
+    public function setSemester(string $semester, string $academicYear): self
+    {
+        $this->data['semester'] = $semester;
+        $this->data['academic_year'] = $academicYear;
+        return $this;
+    }
+
     public function build(): array
     {
         // Validate required fields
@@ -71,6 +93,10 @@ class AssignmentBuilder
         $this->data['max_points'] = $this->data['max_points'] ?? 100;
         $this->data['assignment_type'] = $this->data['assignment_type'] ?? 'homework';
         $this->data['description'] = $this->data['description'] ?? null;
+        $this->data['is_visible'] = $this->data['is_visible'] ?? 1;
+        $this->data['file_path'] = $this->data['file_path'] ?? null;
+        $this->data['file_name'] = $this->data['file_name'] ?? null;
+        $this->data['file_size'] = $this->data['file_size'] ?? null;
 
         return $this->data;
     }

@@ -32,31 +32,6 @@ abstract class ModelDecorator implements ModelDecoratorInterface
 }
 
 /**
- * Section decorator with additional formatting
- */
-class SectionDecorator extends ModelDecorator
-{
-    public function format(): string
-    {
-        $courseCode = $this->data['course_code'] ?? 'N/A';
-        $sectionNumber = $this->data['section_number'] ?? 'N/A';
-        $timeSlot = $this->data['time_slot'] ?? 'TBA';
-        $room = $this->data['room'] ?? 'TBA';
-        
-        return "{$courseCode} - Section {$sectionNumber} | {$timeSlot} | Room: {$room}";
-    }
-
-    public function getEnrollmentStatus(): string
-    {
-        $current = $this->data['current_enrollment'] ?? 0;
-        $capacity = $this->data['capacity'] ?? 0;
-        $percentage = $capacity > 0 ? round(($current / $capacity) * 100, 1) : 0;
-        
-        return "{$current}/{$capacity} ({$percentage}%)";
-    }
-}
-
-/**
  * Enrollment Request decorator
  */
 class EnrollmentRequestDecorator extends ModelDecorator
@@ -84,38 +59,4 @@ class EnrollmentRequestDecorator extends ModelDecorator
     }
 }
 
-/**
- * Assignment decorator
- */
-class AssignmentDecorator extends ModelDecorator
-{
-    public function format(): string
-    {
-        $title = $this->data['title'] ?? 'Untitled Assignment';
-        $courseCode = $this->data['course_code'] ?? 'N/A';
-        $dueDate = $this->data['due_date'] ?? 'TBA';
-        $points = $this->data['max_points'] ?? 0;
-        
-        return "{$title} - {$courseCode} | Due: {$dueDate} | {$points} points";
-    }
-
-    public function getStatusBadge(): string
-    {
-        $dueDate = $this->data['due_date'] ?? null;
-        if (!$dueDate) {
-            return '<span class="badge badge-info">Draft</span>';
-        }
-        
-        $dueTimestamp = strtotime($dueDate);
-        $now = time();
-        
-        if ($dueTimestamp < $now) {
-            return '<span class="badge badge-success">Completed</span>';
-        } elseif ($dueTimestamp < ($now + 86400)) {
-            return '<span class="badge badge-warning">Due Soon</span>';
-        } else {
-            return '<span class="badge badge-primary">Active</span>';
-        }
-    }
-}
 

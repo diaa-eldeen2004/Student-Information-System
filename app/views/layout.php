@@ -99,9 +99,6 @@
                 <a href="<?= htmlspecialchars($url('doctor/attendance')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/attendance') !== false ? 'active' : '' ?>">
                     <i class="fas fa-calendar-check"></i> Attendance
                 </a>
-                <a href="<?= htmlspecialchars($url('doctor/calendar')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/calendar') !== false ? 'active' : '' ?>">
-                    <i class="fas fa-calendar-alt"></i> Calendar
-                </a>
             <?php else: ?>
                 <a href="<?= htmlspecialchars($url('it/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/it/dashboard') !== false || ($currentPath === '/it' || $currentPath === '/it/')) ? 'active' : '' ?>">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
@@ -117,6 +114,9 @@
                 </a>
                 <a href="<?= htmlspecialchars($url('it/logs')) ?>" class="nav-item <?= strpos($currentPath, '/it/logs') !== false ? 'active' : '' ?>">
                     <i class="fas fa-file-alt"></i> Audit Logs
+                </a>
+                <a href="<?= htmlspecialchars($url('it/send-notification')) ?>" class="nav-item <?= strpos($currentPath, '/it/send-notification') !== false ? 'active' : '' ?>">
+                    <i class="fas fa-bell"></i> Send Notification
                 </a>
             <?php endif; ?>
             <hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--border-color);">

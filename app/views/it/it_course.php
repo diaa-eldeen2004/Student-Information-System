@@ -16,9 +16,17 @@ $statusFilter = $statusFilter ?? '';
                 <h1><i class="fas fa-book"></i> Course Management</h1>
                 <p>Manage course assignments, assign doctors and enroll students to courses.</p>
             </div>
-            <a href="<?= htmlspecialchars($url('it/course')) ?>" class="btn btn-primary">
-                <i class="fas fa-sync"></i> Refresh
-            </a>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn btn-success" onclick="showCreateCourseModal()">
+                    <i class="fas fa-plus"></i> Create Course
+                </button>
+                <a href="<?= htmlspecialchars($url('it/schedule')) ?>" class="btn btn-primary">
+                    <i class="fas fa-calendar-alt"></i> Build Schedule
+                </a>
+                <a href="<?= htmlspecialchars($url('it/course')) ?>" class="btn btn-outline">
+                    <i class="fas fa-sync"></i> Refresh
+                </a>
+            </div>
         </div>
     </div>
 
@@ -179,6 +187,45 @@ $statusFilter = $statusFilter ?? '';
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Pending Enrollment Requests -->
+                            <?php if (!empty($course['pending_requests'])): ?>
+                                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--border-color);">
+                                    <h3 style="margin-bottom: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-clock" style="color: var(--warning-color);"></i>
+                                        Pending Enrollment Requests
+                                        <span class="badge" style="background-color: var(--warning-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; margin-left: 0.5rem;">
+                                            <?= count($course['pending_requests']) ?>
+                                        </span>
+                                    </h3>
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <?php foreach ($course['pending_requests'] as $request): ?>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background-color: var(--surface-color); border-radius: 8px; border-left: 4px solid var(--warning-color);">
+                                                <div>
+                                                    <div style="font-weight: 500; color: var(--text-primary);">
+                                                        <?= htmlspecialchars($request['student_first_name'] ?? '') ?> <?= htmlspecialchars($request['student_last_name'] ?? '') ?>
+                                                    </div>
+                                                    <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                                        Section <?= htmlspecialchars($request['section_number'] ?? 'N/A') ?> • 
+                                                        Requested: <?= date('M d, Y', strtotime($request['requested_at'] ?? 'now')) ?>
+                                                    </div>
+                                                </div>
+                                                <div style="display: flex; gap: 0.5rem;">
+                                                    <form method="POST" action="<?= htmlspecialchars($url('it/enrollments/approve')) ?>" style="display: inline;">
+                                                        <input type="hidden" name="request_id" value="<?= $request['request_id'] ?? '' ?>">
+                                                        <button type="submit" class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="return confirm('Approve this enrollment request?');">
+                                                            <i class="fas fa-check"></i> Approve
+                                                        </button>
+                                                    </form>
+                                                    <button type="button" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="showRejectModal(<?= $request['request_id'] ?? 0 ?>)">
+                                                        <i class="fas fa-times"></i> Reject
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -189,31 +236,100 @@ $statusFilter = $statusFilter ?? '';
 
 <!-- Assign Doctor Modal -->
 <div id="assignDoctorModal" class="modal">
-    <div class="modal-content" style="max-width: 500px; width: 90%;">
+    <div class="modal-content" style="max-width: 600px; width: 90%;">
         <div class="modal-header">
-            <h2 style="margin: 0;">Assign Doctor to Course</h2>
+            <h2 style="margin: 0;"><i class="fas fa-user-md"></i> Assign Doctor(s) to Course</h2>
             <button class="modal-close" onclick="closeAssignDoctorModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="modal-body" style="padding: 1.5rem;">
             <form id="assignDoctorForm" method="POST" action="<?= htmlspecialchars($url('it/course')) ?>">
-                <input type="hidden" name="action" value="assign-doctor">
+                <input type="hidden" name="action" value="assign-doctors">
                 <input type="hidden" id="assignDoctorCourseId" name="course_id">
                 <div class="form-group">
-                    <label class="form-label">Select Doctor <span style="color: var(--error-color);">*</span></label>
-                    <select name="doctor_id" class="form-input" required>
-                        <option value="">Select a doctor...</option>
-                        <?php foreach ($doctors as $doctor): ?>
-                            <option value="<?= $doctor['doctor_id'] ?>">
-                                Dr. <?= htmlspecialchars($doctor['first_name'] . ' ' . $doctor['last_name']) ?> - <?= htmlspecialchars($doctor['department'] ?? 'N/A') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <label class="form-label" style="margin: 0;">Select Doctor(s) <span style="color: var(--error-color);">*</span></label>
+                        <button type="button" class="btn btn-outline" onclick="toggleSelectAllDoctors()" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                            <i class="fas fa-check-square" id="selectAllDoctorIcon"></i> <span id="selectAllDoctorText">Select All</span>
+                        </button>
+                    </div>
+                    <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; max-height: 400px; overflow-y: auto; background-color: var(--surface-color);">
+                        <?php if (empty($doctors)): ?>
+                            <p class="text-center" style="color: var(--text-secondary); padding: 2rem;">No doctors available</p>
+                        <?php else: ?>
+                            <?php foreach ($doctors as $doctor): ?>
+                                <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 
+                                       onmouseover="this.style.backgroundColor='rgba(37, 99, 235, 0.1)'"
+                                       onmouseout="this.style.backgroundColor='transparent'">
+                                    <input type="checkbox" name="doctor_id[]" value="<?= $doctor['doctor_id'] ?>" class="doctor-checkbox" onchange="updateSelectedDoctorCount()" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 500; color: var(--text-primary);">
+                                            Dr. <?= htmlspecialchars($doctor['first_name'] . ' ' . $doctor['last_name']) ?>
+                                        </div>
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                            <?= htmlspecialchars($doctor['department'] ?? 'N/A') ?> • <?= htmlspecialchars($doctor['email'] ?? '') ?>
+                                        </div>
+                                    </div>
+                                </label>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                    <small style="display: block; color: var(--text-secondary); margin-top: 0.5rem;">
+                        <i class="fas fa-info-circle"></i> Selected: <strong id="selectedDoctorCount" style="color: var(--primary-color);">0</strong> doctor(s)
+                    </small>
                 </div>
                 <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-outline" onclick="closeAssignDoctorModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Assign Doctor</button>
+                    <button type="submit" class="btn btn-primary" id="assignDoctorSubmitBtn" disabled>
+                        <i class="fas fa-user-md"></i> Assign Doctor(s)
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Create Course Modal -->
+<div id="createCourseModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px; width: 90%;">
+        <div class="modal-header">
+            <h2 style="margin: 0;"><i class="fas fa-plus-circle"></i> Create New Course</h2>
+            <button class="modal-close" onclick="closeCreateCourseModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="padding: 1.5rem;">
+            <form id="createCourseForm" method="POST" action="<?= htmlspecialchars($url('it/course')) ?>">
+                <input type="hidden" name="action" value="create-course">
+                <div class="form-group">
+                    <label class="form-label">Course Code <span style="color: var(--error-color);">*</span></label>
+                    <input type="text" name="course_code" class="form-input" placeholder="e.g., SWE123" required>
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">Unique identifier for the course</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Course Name <span style="color: var(--error-color);">*</span></label>
+                    <input type="text" name="course_name" class="form-input" placeholder="e.g., Software Engineering" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-input" rows="3" placeholder="Course description..."></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Credit Hours</label>
+                        <input type="number" name="credit_hours" class="form-input" value="3" min="1" max="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Department</label>
+                        <input type="text" name="department" class="form-input" placeholder="e.g., Computer Science">
+                    </div>
+                </div>
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeCreateCourseModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Create Course
+                    </button>
                 </div>
             </form>
         </div>
@@ -323,7 +439,30 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 <?php endif; ?>
 
+// Create Course Modal Functions
+window.showCreateCourseModal = function() {
+    const modal = document.getElementById('createCourseModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+};
+
+window.closeCreateCourseModal = function() {
+    const modal = document.getElementById('createCourseModal');
+    const form = document.getElementById('createCourseForm');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+        if (form) form.reset();
+    }
+};
+
 // Ensure these functions are globally available
+let allDoctorsSelected = false;
+
 window.showAssignDoctorModal = function(courseId) {
     const modal = document.getElementById('assignDoctorModal');
     const courseIdInput = document.getElementById('assignDoctorCourseId');
@@ -332,6 +471,7 @@ window.showAssignDoctorModal = function(courseId) {
         modal.classList.add('active');
         modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+        updateSelectedDoctorCount();
     }
 };
 
@@ -342,9 +482,61 @@ window.closeAssignDoctorModal = function() {
         modal.classList.remove('active');
         modal.style.display = 'none';
         document.body.style.overflow = '';
-        if (form) form.reset();
+        if (form) {
+            form.reset();
+            document.querySelectorAll('.doctor-checkbox').forEach(cb => cb.checked = false);
+            updateSelectedDoctorCount();
+        }
+        allDoctorsSelected = false;
+        updateSelectAllDoctorButton();
     }
 };
+
+function toggleSelectAllDoctors() {
+    const checkboxes = document.querySelectorAll('.doctor-checkbox');
+    allDoctorsSelected = !allDoctorsSelected;
+    
+    checkboxes.forEach(cb => {
+        cb.checked = allDoctorsSelected;
+    });
+    
+    updateSelectedDoctorCount();
+    updateSelectAllDoctorButton();
+}
+
+function updateSelectedDoctorCount() {
+    const checkboxes = document.querySelectorAll('.doctor-checkbox:checked');
+    const count = checkboxes.length;
+    const countElement = document.getElementById('selectedDoctorCount');
+    if (countElement) countElement.textContent = count;
+    
+    // Enable/disable submit button
+    const submitBtn = document.getElementById('assignDoctorSubmitBtn');
+    if (submitBtn) {
+        submitBtn.disabled = count === 0;
+    }
+    
+    // Update select all button state
+    const allCheckboxes = document.querySelectorAll('.doctor-checkbox');
+    if (allCheckboxes.length > 0) {
+        allDoctorsSelected = count === allCheckboxes.length;
+        updateSelectAllDoctorButton();
+    }
+}
+
+function updateSelectAllDoctorButton() {
+    const icon = document.getElementById('selectAllDoctorIcon');
+    const text = document.getElementById('selectAllDoctorText');
+    if (icon && text) {
+        if (allDoctorsSelected) {
+            icon.className = 'fas fa-square';
+            text.textContent = 'Deselect All';
+        } else {
+            icon.className = 'fas fa-check-square';
+            text.textContent = 'Select All';
+        }
+    }
+}
 
 window.showEnrollStudentModal = function(courseId) {
     const modal = document.getElementById('enrollStudentModal');
@@ -454,9 +646,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Reject Modal Function (for course page)
+function showRejectModal(requestId) {
+    const reason = prompt('Enter rejection reason (optional):');
+    if (reason !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '<?= htmlspecialchars($url('it/enrollments/reject')) ?>';
+        
+        const requestIdInput = document.createElement('input');
+        requestIdInput.type = 'hidden';
+        requestIdInput.name = 'request_id';
+        requestIdInput.value = requestId;
+        form.appendChild(requestIdInput);
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
 // Close modals on overlay click
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('modal')) {
+        closeCreateCourseModal();
         closeAssignDoctorModal();
         closeEnrollStudentModal();
     }
@@ -598,5 +816,132 @@ document.addEventListener('click', function(e) {
     background: #dbeafe;
     color: #1e40af;
     border: 1px solid #3b82f6;
+}
+
+/* Enhanced Card Styles */
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(135deg, var(--surface-color) 0%, var(--card-bg) 100%);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* Enhanced Form Styles */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-input, .form-select {
+    transition: all 0.2s ease;
+}
+
+.form-input:focus, .form-select:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+/* Enhanced Grid */
+.grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* Enhanced Badge */
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: transform 0.2s ease;
+}
+
+.badge:hover {
+    transform: scale(1.05);
+}
+
+/* Enhanced Modal */
+.modal {
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Enhanced Table Styles */
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+table tbody tr {
+    transition: all 0.2s ease;
+}
+
+table tbody tr:hover {
+    background: var(--surface-color);
+    transform: scale(1.01);
+}
+
+/* Enhanced Button Hover Effects */
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-outline:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Improvements */
+@media (max-width: 1024px) {
+    .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .course-header {
+        padding: 1rem;
+    }
+    
+    .card-header {
+        padding: 1rem;
+    }
 }
 </style>

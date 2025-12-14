@@ -11,6 +11,7 @@ use models\Notification;
 use models\Student;
 use models\Assignment;
 use models\Attendance;
+use models\Material;
 
 /**
  * Factory Method Pattern - Creational
@@ -41,6 +42,7 @@ class ModelFactory
             'Student' => new Student(),
             'Assignment' => new Assignment(),
             'Attendance' => new Attendance(),
+            'Material' => new Material(),
             default => throw new \InvalidArgumentException("Unknown model type: {$modelType}")
         };
 
