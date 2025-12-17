@@ -142,26 +142,62 @@ class ItOfficer extends Controller
         $error = null;
         $success = null;
 
-        // Handle AJAX request for section numbers
-        if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_sections') {
-            $courseId = (int)($_GET['course_id'] ?? 0);
-            $semester = $_GET['semester'] ?? null;
-            $academicYear = $_GET['year'] ?? null;
+        // Handle AJAX GET requests
+        if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
+            $action = $_GET['action'];
             
-            if ($courseId > 0) {
-                $sections = $this->sectionModel->getSectionNumbersByCourse($courseId, $semester, $academicYear);
+            if ($action === 'get_sections') {
+                $courseId = (int)($_GET['course_id'] ?? 0);
+                $semester = $_GET['semester'] ?? null;
+                $academicYear = $_GET['year'] ?? null;
+                
+                if ($courseId > 0) {
+                    $sections = $this->sectionModel->getSectionNumbersByCourse($courseId, $semester, $academicYear);
+                    header('Content-Type: application/json');
+                    echo json_encode(['sections' => $sections]);
+                    exit;
+                }
+                
                 header('Content-Type: application/json');
-                echo json_encode(['sections' => $sections]);
+                echo json_encode(['sections' => []]);
                 exit;
             }
             
-            header('Content-Type: application/json');
-            echo json_encode(['sections' => []]);
-            exit;
+            if ($action === 'check_database') {
+                $this->checkDatabaseTables();
+                exit;
+            }
+            
+            if ($action === 'run_migration') {
+                $this->runMigration();
+                exit;
+            }
+        }
+        
+        // Handle AJAX POST requests for creating tables
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
+            if ($_GET['action'] === 'create_tables') {
+                $this->createDatabaseTables();
+                exit;
+            }
+            if ($_GET['action'] === 'run_migration') {
+                $this->runMigration();
+                exit;
+            }
         }
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Handle POST requests (form submissions) - but not AJAX actions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_GET['action']) || $_GET['action'] !== 'run_migration')) {
             try {
+                // Check if quick mode (multiple courses for same day)
+                $isQuickMode = !empty($_POST['quick_mode']);
+                
+                if ($isQuickMode) {
+                    // Handle quick schedule creation
+                    $this->handleQuickSchedule();
+                    return;
+                }
+                
                 // Check if bulk mode
                 $isBulkMode = !empty($_POST['bulk_mode']);
                 
@@ -306,44 +342,51 @@ class ItOfficer extends Controller
                                     
                                     if (!$dayError) {
                                         // Create schedule entry (one per day)
-                                        $entrySuccess = $builder->create($this->sectionModel);
-                                        
-                                        if ($entrySuccess) {
-                                            $entriesCreated++;
-                                            $sectionId = $this->sectionModel->getLastInsertId();
+                                        try {
+                                            $entrySuccess = $builder->create($this->sectionModel);
                                             
-                                            // Observer Pattern - Notify observers about schedule entry creation
-                                            $doctor = $this->doctorModel->findById($doctorId);
-                                            if ($doctor) {
-                                                $this->enrollmentSubject->sectionCreated([
-                                                    'user_id' => $doctor['user_id'],
-                                                    'section_id' => $sectionId,
-                                                    'message' => "You have been assigned to section {$sectionNumber} on {$day}",
+                                            if ($entrySuccess) {
+                                                $entriesCreated++;
+                                                $sectionId = $this->sectionModel->getLastInsertId();
+                                                
+                                                // Observer Pattern - Notify observers about schedule entry creation
+                                                $doctor = $this->doctorModel->findById($doctorId);
+                                                if ($doctor) {
+                                                    $this->enrollmentSubject->sectionCreated([
+                                                        'user_id' => $doctor['user_id'],
+                                                        'section_id' => $sectionId,
+                                                        'message' => "You have been assigned to section {$sectionNumber} on {$day}",
+                                                        'entity_type' => 'section',
+                                                        'entity_id' => $sectionId,
+                                                        'details' => json_encode($entryData),
+                                                    ]);
+                                                }
+                                                
+                                                // Log the schedule entry creation
+                                                $userId = $_SESSION['user']['id'] ?? $_SESSION['user_id'] ?? 0;
+                                                $this->auditLogModel->create([
+                                                    'user_id' => $userId,
+                                                    'action' => 'schedule_entry_created',
                                                     'entity_type' => 'section',
                                                     'entity_id' => $sectionId,
-                                                    'details' => json_encode($entryData),
+                                                    'details' => json_encode([
+                                                        'course_id' => $courseId,
+                                                        'doctor_id' => $doctorId,
+                                                        'section_number' => $sectionNumber,
+                                                        'day' => $day,
+                                                        'time' => "{$startTime}-{$endTime}",
+                                                        'room' => $room,
+                                                        'session_type' => $sessionType,
+                                                    ])
                                                 ]);
+                                            } else {
+                                                $entriesFailed++;
+                                                $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: Failed to create schedule entry (database error)";
                                             }
-                                            
-                                            // Log the schedule entry creation
-                                            $this->auditLogModel->create([
-                                                'user_id' => $_SESSION['user']['id'],
-                                                'action' => 'schedule_entry_created',
-                                                'entity_type' => 'section',
-                                                'entity_id' => $sectionId,
-                                                'details' => json_encode([
-                                                    'course_id' => $courseId,
-                                                    'doctor_id' => $doctorId,
-                                                    'section_number' => $sectionNumber,
-                                                    'day' => $day,
-                                                    'time' => "{$startTime}-{$endTime}",
-                                                    'room' => $room,
-                                                    'session_type' => $sessionType,
-                                                ])
-                                            ]);
-                                        } else {
+                                        } catch (\Exception $e) {
                                             $entriesFailed++;
-                                            $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: Failed to create schedule entry";
+                                            $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: " . $e->getMessage();
+                                            error_log("Schedule creation error: " . $e->getMessage());
                                         }
                                     } else {
                                         $entriesFailed++;
@@ -375,8 +418,10 @@ class ItOfficer extends Controller
                 error_log("Schedule creation error: " . $e->getMessage());
             }
             
-            // If AJAX request, return JSON response
-            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            // Check if AJAX request
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+            
+            if ($isAjax) {
                 header('Content-Type: application/json');
                 echo json_encode([
                     'success' => $success,
@@ -471,6 +516,229 @@ class ItOfficer extends Controller
             'historyBySemester' => $historyBySemester,
             'showSidebar' => true,
         ]);
+    }
+    
+    /**
+     * Handle quick schedule creation - multiple courses for same day(s) in a table format
+     */
+    private function handleQuickSchedule(): void
+    {
+        $error = null;
+        $success = null;
+        
+        try {
+            $days = $_POST['quick_days'] ?? [];
+            $semester = trim($_POST['quick_semester'] ?? '');
+            $academicYear = trim($_POST['quick_academic_year'] ?? '');
+            
+            $courses = $_POST['quick_course'] ?? [];
+            $doctors = $_POST['quick_doctor'] ?? [];
+            $sections = $_POST['quick_section'] ?? [];
+            $sessionTypes = $_POST['quick_session_type'] ?? [];
+            $rooms = $_POST['quick_room'] ?? [];
+            $startTimes = $_POST['quick_start_time'] ?? [];
+            $endTimes = $_POST['quick_end_time'] ?? [];
+            $capacities = $_POST['quick_capacity'] ?? [];
+            
+            if (empty($days)) {
+                $error = 'Please select at least one day.';
+            } elseif (empty($semester) || empty($academicYear)) {
+                $error = 'Please specify semester and academic year.';
+            } elseif (empty($courses)) {
+                $error = 'Please add at least one course to schedule.';
+            } else {
+                $entriesCreated = 0;
+                $entriesFailed = 0;
+                $conflictErrors = [];
+                
+                $db = DatabaseConnection::getInstance()->getConnection();
+                
+                // Process each course row
+                foreach ($courses as $rowIndex => $courseId) {
+                    $courseId = (int)$courseId;
+                    $doctorId = (int)($doctors[$rowIndex] ?? 0);
+                    $sectionNumber = trim($sections[$rowIndex] ?? '');
+                    $sessionType = trim($sessionTypes[$rowIndex] ?? 'lecture');
+                    $room = trim($rooms[$rowIndex] ?? '');
+                    $startTime = trim($startTimes[$rowIndex] ?? '');
+                    $endTime = trim($endTimes[$rowIndex] ?? '');
+                    $capacity = (int)($capacities[$rowIndex] ?? 30);
+                    
+                    if (!$courseId || !$doctorId || !$sectionNumber || !$room || !$startTime || !$endTime) {
+                        $entriesFailed++;
+                        $conflictErrors[] = "Row " . ($rowIndex + 1) . ": Missing required fields";
+                        continue;
+                    }
+                    
+                    // Create entry for each selected day
+                    foreach ($days as $day) {
+                        // Builder Pattern - Build schedule entry
+                        $builder = new SectionBuilder();
+                        $builder->setCourse($courseId)
+                                ->setDoctor($doctorId)
+                                ->setSectionNumber($sectionNumber)
+                                ->setSemester($semester)
+                                ->setAcademicYear($academicYear)
+                                ->setRoom($room)
+                                ->setCapacity($capacity)
+                                ->setTimeSlot($day, $startTime, $endTime);
+                        
+                        if (method_exists($builder, 'setSessionType')) {
+                            $builder->setSessionType($sessionType);
+                        }
+                        
+                        $entryData = $builder->build();
+                        
+                        // Conflict Detection
+                        $dayError = null;
+                        
+                        // 1. Check room conflict
+                        if (!empty($entryData['room'])) {
+                            $this->conflictDetector->setStrategy(new RoomConflictStrategy($db));
+                            if ($this->conflictDetector->detectConflict($entryData)) {
+                                $dayError = "Room conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
+                            }
+                        }
+                        
+                        // 2. Check doctor availability
+                        if (!$dayError) {
+                            $this->conflictDetector->setStrategy(new DoctorAvailabilityStrategy($db));
+                            if ($this->conflictDetector->detectConflict($entryData)) {
+                                $dayError = "Doctor conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
+                            }
+                        }
+                        
+                        // 3. Check for exact duplicate
+                        if (!$dayError) {
+                            $fullSectionNumber = $sectionNumber;
+                            if ($sessionType && strpos($sectionNumber, $sessionType) === false) {
+                                $fullSectionNumber = $sectionNumber . '-' . ucfirst($sessionType);
+                            }
+                            
+                            $checkDuplicate = $db->prepare("
+                                SELECT COUNT(*) as count FROM sections
+                                WHERE course_id = :course_id
+                                AND doctor_id = :doctor_id
+                                AND semester = :semester
+                                AND academic_year = :academic_year
+                                AND day_of_week = :day_of_week
+                                AND section_number = :section_number
+                                AND start_time = :start_time
+                                AND end_time = :end_time
+                                AND room = :room
+                            ");
+                            $checkDuplicate->execute([
+                                'course_id' => $courseId,
+                                'doctor_id' => $doctorId,
+                                'semester' => $semester,
+                                'academic_year' => $academicYear,
+                                'day_of_week' => $day,
+                                'section_number' => $fullSectionNumber,
+                                'start_time' => $startTime,
+                                'end_time' => $endTime,
+                                'room' => $room,
+                            ]);
+                            $duplicate = $checkDuplicate->fetch(\PDO::FETCH_ASSOC);
+                            if ((int)$duplicate['count'] > 0) {
+                                $dayError = "Duplicate entry: This exact schedule entry already exists for {$day}";
+                            }
+                        }
+                        
+                        if (!$dayError) {
+                            // Create schedule entry
+                            $entrySuccess = $builder->create($this->sectionModel);
+                            
+                            if ($entrySuccess) {
+                                $entriesCreated++;
+                                $sectionId = $this->sectionModel->getLastInsertId();
+                                
+                                // Observer Pattern - Notify doctor
+                                $doctor = $this->doctorModel->findById($doctorId);
+                                if ($doctor) {
+                                    $this->enrollmentSubject->sectionCreated([
+                                        'user_id' => $doctor['user_id'],
+                                        'section_id' => $sectionId,
+                                        'message' => "You have been assigned to section {$sectionNumber} on {$day}",
+                                        'entity_type' => 'section',
+                                        'entity_id' => $sectionId,
+                                        'details' => json_encode($entryData),
+                                    ]);
+                                }
+                                
+                                // Audit log
+                                $userId = $_SESSION['user']['id'] ?? $_SESSION['user_id'] ?? 0;
+                                $this->auditLogModel->create([
+                                    'user_id' => $userId,
+                                    'action' => 'schedule_entry_created',
+                                    'entity_type' => 'section',
+                                    'entity_id' => $sectionId,
+                                    'details' => json_encode([
+                                        'course_id' => $courseId,
+                                        'doctor_id' => $doctorId,
+                                        'section_number' => $sectionNumber,
+                                        'day' => $day,
+                                        'time' => "{$startTime}-{$endTime}",
+                                        'room' => $room,
+                                        'session_type' => $sessionType,
+                                    ])
+                                ]);
+                            } else {
+                                $entriesFailed++;
+                                $conflictErrors[] = "Row " . ($rowIndex + 1) . " on {$day}: Failed to create schedule entry";
+                            }
+                        } else {
+                            $entriesFailed++;
+                            $conflictErrors[] = "Row " . ($rowIndex + 1) . " on {$day}: {$dayError}";
+                        }
+                    }
+                }
+                
+                // Build success/error message
+                if ($entriesCreated > 0) {
+                    $success = "Successfully created {$entriesCreated} schedule entry(ies).";
+                    if ($entriesFailed > 0) {
+                        $success .= " {$entriesFailed} entry(ies) failed due to conflicts or errors.";
+                        $error = implode('; ', array_slice($conflictErrors, 0, 5));
+                        if (count($conflictErrors) > 5) {
+                            $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
+                        }
+                    }
+                } else {
+                    $error = "Failed to create any schedule entries. " . implode('; ', array_slice($conflictErrors, 0, 5));
+                    if (count($conflictErrors) > 5) {
+                        $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("Quick schedule creation error: " . $e->getMessage());
+            $error = "An error occurred while creating schedule entries: " . $e->getMessage();
+        }
+        
+        // Check if AJAX request
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => $success,
+                'error' => $error
+            ]);
+            exit;
+        }
+        
+        // Redirect back with message
+        $queryParams = [];
+        if ($error) $queryParams['error'] = urlencode($error);
+        if ($success) $queryParams['success'] = urlencode($success);
+        
+        $redirectUrl = $this->url('it/schedule');
+        if (!empty($queryParams)) {
+            $redirectUrl .= '?' . http_build_query($queryParams);
+        }
+        
+        header("Location: {$redirectUrl}");
+        exit;
     }
     
     /**
@@ -1423,6 +1691,176 @@ class ItOfficer extends Controller
         } catch (\Exception $e) {
             error_log("Send notification error: " . $e->getMessage());
             $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to send notification: ' . $e->getMessage()]);
+        }
+    }
+    
+    /**
+     * Check if required database tables exist
+     */
+    private function checkDatabaseTables(): void
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $db = DatabaseConnection::getInstance()->getConnection();
+            $requiredTables = ['sections', 'courses', 'doctors', 'users'];
+            $existingTables = [];
+            $missingTables = [];
+            
+            foreach ($requiredTables as $table) {
+                $stmt = $db->query("SHOW TABLES LIKE '{$table}'");
+                if ($stmt->rowCount() > 0) {
+                    $existingTables[] = $table;
+                } else {
+                    $missingTables[] = $table;
+                }
+            }
+            
+            echo json_encode([
+                'exists' => empty($missingTables),
+                'tables' => $existingTables,
+                'missing' => $missingTables
+            ]);
+        } catch (\Exception $e) {
+            echo json_encode([
+                'exists' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    /**
+     * Create missing database tables
+     */
+    private function createDatabaseTables(): void
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $db = DatabaseConnection::getInstance()->getConnection();
+            
+            // Check if sections table exists
+            $stmt = $db->query("SHOW TABLES LIKE 'sections'");
+            if ($stmt->rowCount() == 0) {
+                // Create sections table
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS `sections` (
+                        `section_id` INT(11) NOT NULL AUTO_INCREMENT,
+                        `course_id` INT(11) NOT NULL,
+                        `doctor_id` INT(11) NOT NULL,
+                        `section_number` VARCHAR(10) NOT NULL,
+                        `semester` VARCHAR(20) NOT NULL,
+                        `academic_year` VARCHAR(10) NOT NULL,
+                        `room` VARCHAR(50) DEFAULT NULL,
+                        `time_slot` VARCHAR(100) DEFAULT NULL,
+                        `day_of_week` VARCHAR(20) DEFAULT NULL,
+                        `start_time` TIME DEFAULT NULL,
+                        `end_time` TIME DEFAULT NULL,
+                        `capacity` INT(11) NOT NULL DEFAULT 30,
+                        `current_enrollment` INT(11) DEFAULT 0,
+                        `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (`section_id`),
+                        INDEX `idx_course_id` (`course_id`),
+                        INDEX `idx_doctor_id` (`doctor_id`),
+                        INDEX `idx_semester` (`semester`, `academic_year`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Database tables created successfully'
+            ]);
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    /**
+     * Run migration for sections table from SQL file
+     */
+    private function runMigration(): void
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $db = DatabaseConnection::getInstance()->getConnection();
+            
+            // Path to migration file
+            $migrationFile = dirname(__DIR__, 2) . '/database/migrations/create_sections_table.sql';
+            
+            if (!file_exists($migrationFile)) {
+                throw new \Exception("Migration file not found: {$migrationFile}");
+            }
+            
+            // Read SQL file
+            $sql = file_get_contents($migrationFile);
+            
+            // Remove comments
+            $sql = preg_replace('/--.*$/m', '', $sql);
+            
+            // Split by semicolon and execute each statement
+            $statements = array_filter(
+                array_map('trim', explode(';', $sql)),
+                function($stmt) {
+                    return !empty($stmt) && !preg_match('/^\s*$/s', $stmt);
+                }
+            );
+            
+            $executed = 0;
+            $errors = [];
+            
+            foreach ($statements as $statement) {
+                try {
+                    $db->exec($statement . ';');
+                    $executed++;
+                } catch (\PDOException $e) {
+                    // If table already exists, that's okay
+                    if (strpos($e->getMessage(), 'already exists') === false && 
+                        strpos($e->getMessage(), 'Duplicate key') === false) {
+                        $errors[] = $e->getMessage();
+                    } else {
+                        $executed++;
+                    }
+                }
+            }
+            
+            // Verify table was created
+            $stmt = $db->query("SHOW TABLES LIKE 'sections'");
+            $tableExists = $stmt->rowCount() > 0;
+            
+            if ($tableExists) {
+                // Check table structure
+                $stmt = $db->query("DESCRIBE sections");
+                $columns = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                $columnNames = array_column($columns, 'Field');
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Migration completed successfully!',
+                    'executed' => $executed,
+                    'table_exists' => true,
+                    'columns' => $columnNames,
+                    'errors' => $errors
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Migration executed but table was not created. Please check database permissions.',
+                    'executed' => $executed,
+                    'errors' => $errors
+                ]);
+            }
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 }

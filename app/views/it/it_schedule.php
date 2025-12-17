@@ -15,7 +15,14 @@ $historyBySemester = $historyBySemester ?? [];
             <h1><i class="fas fa-calendar-alt"></i> Manage Semester Schedule</h1>
             <p>Create and manage semester schedules for courses and sections</p>
         </div>
-        
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline" onclick="checkDatabaseTables()" style="padding: 0.75rem 1.5rem;">
+                <i class="fas fa-database"></i> Check Database
+            </button>
+            <button type="button" class="btn btn-primary" onclick="runMigration()" style="padding: 0.75rem 1.5rem;">
+                <i class="fas fa-sync"></i> Run Migration
+            </button>
+        </div>
     </div>
 
     <?php if ($error): ?>
@@ -50,6 +57,9 @@ $historyBySemester = $historyBySemester ?? [];
                 <button type="button" class="btn btn-mode" id="singleModeBtn" onclick="switchMode('single')">
                     <i class="fas fa-plus"></i> Single Entry
                 </button>
+                <button type="button" class="btn btn-mode" id="quickModeBtn" onclick="switchMode('quick')">
+                    <i class="fas fa-bolt"></i> Quick Schedule
+                </button>
                 <button type="button" class="btn btn-mode active" id="bulkModeBtn" onclick="switchMode('bulk')">
                     <i class="fas fa-layer-group"></i> Bulk Schedule
                 </button>
@@ -64,7 +74,7 @@ $historyBySemester = $historyBySemester ?? [];
         </div>
         
         <!-- Single Entry Form -->
-        <form method="post" action="<?= htmlspecialchars($url('it/schedule')) ?>" class="section-form" id="singleEntryForm" onsubmit="return validateSingleForm(event); return false;">
+        <form method="post" action="<?= htmlspecialchars($url('it/schedule')) ?>" class="section-form" id="singleEntryForm" onsubmit="validateSingleForm(event); return false;">
             <div class="form-grid">
                 <div class="form-group">
                     <label for="course_id" class="form-label">Course *</label>
@@ -88,7 +98,7 @@ $historyBySemester = $historyBySemester ?? [];
                                 <input type="checkbox" name="doctor_ids[]" value="<?= $doctor['doctor_id'] ?>" class="doctor-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
                                 <div>
                                     <div style="font-weight: 500; color: var(--text-primary);">
-                                        <?= htmlspecialchars($doctor['first_name']) ?> <?= htmlspecialchars($doctor['last_name']) ?>
+                                <?= htmlspecialchars($doctor['first_name']) ?> <?= htmlspecialchars($doctor['last_name']) ?>
                                     </div>
                                     <?php if (!empty($doctor['email'])): ?>
                                         <div style="font-size: 0.85rem; color: var(--text-secondary);">
@@ -197,6 +207,93 @@ $historyBySemester = $historyBySemester ?? [];
                     <li><strong>Multiple Sessions:</strong> A course can have multiple sessions - create them separately</li>
                     <li><strong>Same Day Sessions:</strong> Multiple sessions can be on the same day if times don't conflict</li>
                     <li><strong>Conflict Detection:</strong> System checks for room conflicts and doctor availability</li>
+                </ul>
+            </div>
+        </form>
+        
+        <!-- Quick Schedule Form - Multiple courses for same day(s) -->
+        <form method="post" action="<?= htmlspecialchars($url('it/schedule')) ?>" class="section-form" id="quickEntryForm" style="display: none;" onsubmit="return validateQuickForm(event); return false;">
+            <input type="hidden" name="quick_mode" value="1">
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="quick_semester" class="form-label">Semester *</label>
+                    <select id="quick_semester" name="quick_semester" class="form-input" required>
+                        <option value="Fall" <?= $currentSemester === 'Fall' ? 'selected' : '' ?>>Fall</option>
+                        <option value="Spring" <?= $currentSemester === 'Spring' ? 'selected' : '' ?>>Spring</option>
+                        <option value="Summer" <?= $currentSemester === 'Summer' ? 'selected' : '' ?>>Summer</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quick_academic_year" class="form-label">Academic Year *</label>
+                    <input type="text" id="quick_academic_year" name="quick_academic_year" class="form-input" required value="<?= htmlspecialchars($currentYear) ?>">
+                </div>
+                
+                <div class="form-group full-width">
+                    <label class="form-label">Schedule Days *</label>
+                    <div class="days-selector">
+                        <?php 
+                        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                        foreach ($days as $day): ?>
+                            <div class="day-option">
+                                <input type="checkbox" name="quick_days[]" value="<?= $day ?>" id="quick_day_<?= strtolower($day) ?>" class="day-checkbox">
+                                <label for="quick_day_<?= strtolower($day) ?>" class="day-label">
+                                    <span class="day-name"><?= $day ?></span>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <small class="form-hint">Select one or more days. All courses below will be scheduled on the selected day(s).</small>
+                </div>
+            </div>
+            
+            <div class="quick-schedule-table-container" style="margin-top: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0; color: var(--text-primary); font-size: 1.25rem;">
+                        <i class="fas fa-table"></i> Schedule Entries
+                    </h3>
+                    <button type="button" class="btn btn-primary" onclick="addQuickScheduleRow()">
+                        <i class="fas fa-plus"></i> Add Course
+                    </button>
+                </div>
+                
+                <div class="quick-schedule-table-wrapper" style="overflow-x: auto; border: 1px solid var(--border-light); border-radius: 8px;">
+                    <table class="quick-schedule-table" style="width: 100%; border-collapse: collapse; min-width: 1200px;">
+                        <thead>
+                            <tr style="background: var(--bg-tertiary);">
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Course *</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Doctor *</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Section *</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Type</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Room *</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Start Time *</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">End Time *</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color);">Capacity</th>
+                                <th style="padding: 1rem; text-align: center; color: var(--text-primary); font-weight: 600; border-bottom: 2px solid var(--border-color); width: 80px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quickScheduleRows">
+                            <!-- Rows will be added dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <small class="form-hint" style="margin-top: 0.5rem; display: block;">
+                    <i class="fas fa-info-circle"></i> Add multiple courses to schedule them on the same day(s). Each row creates a separate schedule entry.
+                </small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="margin-top: 1.5rem;">
+                <i class="fas fa-save"></i> Create All Schedule Entries
+            </button>
+            
+            <div class="help-box">
+                <h4><i class="fas fa-lightbulb"></i> Quick Schedule Tips:</h4>
+                <ul>
+                    <li><strong>Same Day, Different Times:</strong> Schedule multiple courses on the same day with different time slots</li>
+                    <li><strong>Same Time, Different Rooms:</strong> Schedule courses at the same time in different rooms</li>
+                    <li><strong>Multiple Sections:</strong> Create multiple sections of the same course easily</li>
+                    <li><strong>Conflict Detection:</strong> System automatically checks for room and doctor conflicts</li>
                 </ul>
             </div>
         </form>
@@ -1092,24 +1189,45 @@ function toggleView(view) {
 document.addEventListener('DOMContentLoaded', function() {
     toggleView('timetable');
     switchMode('single');
+    
+    // Initialize quick schedule mode with one row if needed
+    const quickForm = document.getElementById('quickEntryForm');
+    if (quickForm && quickForm.style.display !== 'none' && document.getElementById('quickScheduleRows').children.length === 0) {
+        addQuickScheduleRow();
+    }
 });
 
 function switchMode(mode) {
     const singleForm = document.getElementById('singleEntryForm');
+    const quickForm = document.getElementById('quickEntryForm');
     const bulkForm = document.getElementById('bulkEntryForm');
     const singleBtn = document.getElementById('singleModeBtn');
+    const quickBtn = document.getElementById('quickModeBtn');
     const bulkBtn = document.getElementById('bulkModeBtn');
+    
+    // Hide all forms
+    singleForm.style.display = 'none';
+    quickForm.style.display = 'none';
+    bulkForm.style.display = 'none';
+    
+    // Remove active class from all buttons
+    singleBtn.classList.remove('active');
+    quickBtn.classList.remove('active');
+    bulkBtn.classList.remove('active');
     
     if (mode === 'single') {
         singleForm.style.display = 'block';
-        bulkForm.style.display = 'none';
         singleBtn.classList.add('active');
-        bulkBtn.classList.remove('active');
+    } else if (mode === 'quick') {
+        quickForm.style.display = 'block';
+        quickBtn.classList.add('active');
+        // Initialize with one row if empty
+        if (document.getElementById('quickScheduleRows').children.length === 0) {
+            addQuickScheduleRow();
+        }
     } else {
-        singleForm.style.display = 'none';
         bulkForm.style.display = 'block';
         bulkBtn.classList.add('active');
-        singleBtn.classList.remove('active');
     }
 }
 
@@ -1394,19 +1512,33 @@ function validateSingleForm(event) {
     })
     .then(response => {
         // Check if response is JSON (AJAX) or HTML (redirect)
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            return response.json();
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            return response.json().then(data => {
+                return { success: data.success, error: data.error };
+            });
         } else {
+            // If redirect happened, follow it
+            if (response.redirected || response.status === 302 || response.status === 301) {
+                // Parse URL for success/error params
+                const url = new URL(response.url);
+                return {
+                    success: url.searchParams.get('success') ? decodeURIComponent(url.searchParams.get('success')) : null,
+                    error: url.searchParams.get('error') ? decodeURIComponent(url.searchParams.get('error')) : null
+                };
+            }
+            // Try to parse HTML response
             return response.text().then(html => {
-                // Parse HTML response
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 const alertDiv = doc.querySelector('.alert-success, .alert-error');
-                return {
-                    success: alertDiv?.classList.contains('alert-success') ? alertDiv.textContent.trim() : null,
-                    error: alertDiv?.classList.contains('alert-error') ? alertDiv.textContent.trim() : null
-                };
+                if (alertDiv) {
+                    return {
+                        success: alertDiv.classList.contains('alert-success') ? alertDiv.textContent.trim() : null,
+                        error: alertDiv.classList.contains('alert-error') ? alertDiv.textContent.trim() : null
+                    };
+                }
+                return { success: null, error: null };
             });
         }
     })
@@ -1415,30 +1547,225 @@ function validateSingleForm(event) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
         
+        // Remove existing alerts
+        const existingAlerts = document.querySelectorAll('.schedule-container > .alert, .schedule-form-section .alert');
+        existingAlerts.forEach(alert => alert.remove());
+        
         // Show success/error message
-        const existingAlert = document.querySelector('.schedule-form-section .alert');
-        if (existingAlert) {
-            existingAlert.remove();
+        if (data && (data.success || data.error)) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = data.success ? 'alert alert-success' : 'alert alert-error';
+            const icon = data.success ? 'check-circle' : 'exclamation-circle';
+            const message = data.success || data.error;
+            messageDiv.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
+            messageDiv.style.marginBottom = '1.5rem';
+            
+            // Insert at the top of schedule container
+            const scheduleContainer = document.querySelector('.schedule-container');
+            const firstChild = scheduleContainer.firstElementChild;
+            scheduleContainer.insertBefore(messageDiv, firstChild);
+            
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // If success, reload after 2 seconds to show new entries
+            if (data.success) {
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            }
+        } else {
+            // If no clear response, reload anyway to check
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+        
+        // Show error notification
+        const existingAlerts = document.querySelectorAll('.schedule-container > .alert');
+        existingAlerts.forEach(alert => alert.remove());
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'alert alert-error';
+        messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> An error occurred while saving the schedule. Please check the console for details.`;
+        messageDiv.style.marginBottom = '1.5rem';
+        
+        const scheduleContainer = document.querySelector('.schedule-container');
+        const firstChild = scheduleContainer.firstElementChild;
+        scheduleContainer.insertBefore(messageDiv, firstChild);
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    
+    return false;
+}
+
+// Quick Schedule Functions
+let quickScheduleRowCount = 0;
+const courses = <?= json_encode($courses) ?>;
+const doctors = <?= json_encode($doctors) ?>;
+
+function addQuickScheduleRow() {
+    const tbody = document.getElementById('quickScheduleRows');
+    const rowIndex = quickScheduleRowCount++;
+    
+    const row = document.createElement('tr');
+    row.className = 'quick-schedule-row';
+    row.style.cssText = 'background: var(--bg-primary); border-bottom: 1px solid var(--border-color);';
+    row.innerHTML = `
+        <td style="padding: 0.75rem;">
+            <select name="quick_course[${rowIndex}]" class="form-input quick-course-select" required style="width: 100%;">
+                <option value="">Select Course</option>
+                ${courses.map(c => `<option value="${c.course_id}">${c.course_code} - ${c.name}</option>`).join('')}
+            </select>
+        </td>
+        <td style="padding: 0.75rem;">
+            <select name="quick_doctor[${rowIndex}]" class="form-input" required style="width: 100%;">
+                <option value="">Select Doctor</option>
+                ${doctors.map(d => `<option value="${d.doctor_id}">${d.first_name} ${d.last_name}</option>`).join('')}
+            </select>
+        </td>
+        <td style="padding: 0.75rem;">
+            <input type="text" name="quick_section[${rowIndex}]" class="form-input" required placeholder="e.g., 001" style="width: 100%;">
+        </td>
+        <td style="padding: 0.75rem;">
+            <select name="quick_session_type[${rowIndex}]" class="form-input" style="width: 100%;">
+                <option value="lecture">Lecture</option>
+                <option value="lab">Lab</option>
+                <option value="tutorial">Tutorial</option>
+                <option value="section">Section</option>
+                <option value="seminar">Seminar</option>
+                <option value="workshop">Workshop</option>
+            </select>
+        </td>
+        <td style="padding: 0.75rem;">
+            <input type="text" name="quick_room[${rowIndex}]" class="form-input" required placeholder="e.g., A101" style="width: 100%;">
+        </td>
+        <td style="padding: 0.75rem;">
+            <input type="time" name="quick_start_time[${rowIndex}]" class="form-input" required style="width: 100%;">
+        </td>
+        <td style="padding: 0.75rem;">
+            <input type="time" name="quick_end_time[${rowIndex}]" class="form-input" required style="width: 100%;">
+        </td>
+        <td style="padding: 0.75rem;">
+            <input type="number" name="quick_capacity[${rowIndex}]" class="form-input" value="30" min="1" style="width: 100%;">
+        </td>
+        <td style="padding: 0.75rem; text-align: center;">
+            <button type="button" class="btn btn-outline" onclick="removeQuickScheduleRow(this)" style="padding: 0.5rem; min-width: auto;">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+}
+
+function removeQuickScheduleRow(button) {
+    const row = button.closest('tr');
+    row.remove();
+}
+
+function validateQuickForm(event) {
+        event.preventDefault();
+    
+    const form = document.getElementById('quickEntryForm');
+    const selectedDays = Array.from(form.querySelectorAll('input[name="quick_days[]"]:checked'));
+    const rows = form.querySelectorAll('.quick-schedule-row');
+    
+    if (selectedDays.length === 0) {
+        alert('Please select at least one day for the schedule.');
+        return false;
+    }
+    
+    if (rows.length === 0) {
+        alert('Please add at least one course to schedule.');
+        return false;
+    }
+    
+    // Validate each row
+    let allValid = true;
+    let invalidRows = [];
+    
+    rows.forEach((row, index) => {
+        const course = row.querySelector('select[name^="quick_course"]')?.value;
+        const doctor = row.querySelector('select[name^="quick_doctor"]')?.value;
+        const section = row.querySelector('input[name^="quick_section"]')?.value;
+        const room = row.querySelector('input[name^="quick_room"]')?.value;
+        const startTime = row.querySelector('input[name^="quick_start_time"]')?.value;
+        const endTime = row.querySelector('input[name^="quick_end_time"]')?.value;
+        
+        if (!course || !doctor || !section || !room || !startTime || !endTime) {
+            allValid = false;
+            invalidRows.push(index + 1);
         }
         
-        if (data.success || data.error) {
+        // Validate time
+        if (startTime && endTime && startTime >= endTime) {
+            allValid = false;
+            invalidRows.push(index + 1);
+        }
+    });
+    
+    if (!allValid) {
+        alert(`Please fill in all required fields for all rows. Invalid rows: ${invalidRows.join(', ')}`);
+        return false;
+    }
+    
+    // Submit form via AJAX
+    const formData = new FormData(form);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            const url = new URL(response.url);
+            return {
+                success: url.searchParams.get('success') ? decodeURIComponent(url.searchParams.get('success')) : null,
+                error: url.searchParams.get('error') ? decodeURIComponent(url.searchParams.get('error')) : null
+            };
+        }
+    })
+    .then(data => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+        
+        const existingAlerts = document.querySelectorAll('.schedule-container > .alert');
+        existingAlerts.forEach(alert => alert.remove());
+        
+        if (data && (data.success || data.error)) {
             const messageDiv = document.createElement('div');
             messageDiv.className = data.success ? 'alert alert-success' : 'alert alert-error';
             messageDiv.innerHTML = `<i class="fas fa-${data.success ? 'check-circle' : 'exclamation-circle'}"></i> ${data.success || data.error}`;
             messageDiv.style.marginBottom = '1.5rem';
             
-            const formSection = document.querySelector('.schedule-form-section');
-            formSection.insertBefore(messageDiv, formSection.firstChild);
+            const scheduleContainer = document.querySelector('.schedule-container');
+            scheduleContainer.insertBefore(messageDiv, scheduleContainer.firstElementChild);
             
-            // Scroll to top
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            if (data.success) {
+                setTimeout(() => location.reload(), 2000);
+            }
+        } else {
+            setTimeout(() => location.reload(), 1000);
         }
-        
-        // Reload the schedule table by refreshing the page
-        // This ensures the table shows the latest data
-        setTimeout(() => {
-            location.reload();
-        }, 1500);
     })
     .catch(error => {
         console.error('Error:', error);
@@ -1448,5 +1775,117 @@ function validateSingleForm(event) {
     });
     
     return false;
+}
+
+// Database check function
+function checkDatabaseTables() {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+    
+    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=check_database', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+        if (data.exists) {
+            alert('✓ Database tables are set up correctly!\n\nTables found:\n' + data.tables.join('\n'));
+        } else {
+            const createTables = confirm('⚠ Some database tables are missing!\n\nMissing: ' + data.missing.join(', ') + '\n\nWould you like to create them now?');
+            if (createTables) {
+                createDatabaseTables();
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('Error checking database: ' + error.message);
+    });
+}
+
+function createDatabaseTables() {
+    const btn = document.querySelector('button[onclick="checkDatabaseTables()"]');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    
+    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=create_tables', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+        if (data.success) {
+            alert('✓ Database tables created successfully!');
+            location.reload();
+        } else {
+            alert('✗ Error creating tables: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('Error creating database tables: ' + error.message);
+    });
+}
+
+function runMigration() {
+    if (!confirm('This will run the migration to create/update the sections table. Continue?')) {
+        return;
+    }
+    
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Migration...';
+    
+    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=run_migration', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+        if (data.success) {
+            let message = '✓ Migration completed successfully!\n\n';
+            if (data.table_exists) {
+                message += 'Table: sections\n';
+                message += 'Columns: ' + (data.columns ? data.columns.join(', ') : 'N/A') + '\n';
+                message += 'Statements executed: ' + (data.executed || 0);
+            }
+            if (data.errors && data.errors.length > 0) {
+                message += '\n\nWarnings:\n' + data.errors.join('\n');
+            }
+            alert(message);
+            location.reload();
+        } else {
+            alert('✗ Migration failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('Error running migration: ' + error.message);
+    });
 }
 </script>

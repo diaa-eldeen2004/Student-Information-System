@@ -89,14 +89,15 @@ class Section extends Model
                 $sectionNumber = $sectionNumber . '-' . ucfirst($sessionType);
             }
             
+            // Build SQL with session_type if column exists
             $sql = "INSERT INTO {$this->table} 
                     (course_id, doctor_id, section_number, semester, academic_year, 
-                     room, time_slot, day_of_week, start_time, end_time, capacity)
-                    VALUES 
-                    (:course_id, :doctor_id, :section_number, :semester, :academic_year,
-                     :room, :time_slot, :day_of_week, :start_time, :end_time, :capacity)";
-            $stmt = $this->db->prepare($sql);
-            return $stmt->execute([
+                     room, time_slot, day_of_week, start_time, end_time, capacity";
+            
+            $values = "(:course_id, :doctor_id, :section_number, :semester, :academic_year,
+                     :room, :time_slot, :day_of_week, :start_time, :end_time, :capacity";
+            
+            $params = [
                 'course_id' => $data['course_id'],
                 'doctor_id' => $data['doctor_id'],
                 'section_number' => $sectionNumber,
@@ -108,7 +109,26 @@ class Section extends Model
                 'start_time' => $data['start_time'] ?? null,
                 'end_time' => $data['end_time'] ?? null,
                 'capacity' => $data['capacity'] ?? 30,
-            ]) && $stmt->rowCount() > 0;
+            ];
+            
+            // Add session_type if provided and column exists
+            if (isset($data['session_type']) && !empty($data['session_type'])) {
+                // Check if session_type column exists
+                try {
+                    $checkColumn = $this->db->query("SHOW COLUMNS FROM {$this->table} LIKE 'session_type'");
+                    if ($checkColumn->rowCount() > 0) {
+                        $sql .= ", session_type";
+                        $values .= ", :session_type";
+                        $params['session_type'] = $data['session_type'];
+                    }
+                } catch (\PDOException $e) {
+                    // Column doesn't exist, skip it
+                }
+            }
+            
+            $sql .= ") VALUES " . $values . ")";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute($params) && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log("Section creation failed: " . $e->getMessage());
             return false;
