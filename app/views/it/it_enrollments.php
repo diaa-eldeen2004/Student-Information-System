@@ -149,24 +149,80 @@ $error = $_GET['error'] ?? null;
 </div>
 
 <style>
+/* Dark Mode CSS Variables */
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+}
+
 .enrollments-container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 2rem;
+    background: var(--bg-primary);
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+.enrollments-header {
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border-radius: 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .enrollments-header h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
+    margin: 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     color: var(--text-primary);
-    margin-bottom: 2rem;
+}
+
+.enrollments-header h1 i {
+    font-size: 2rem;
+}
+
+.enrollments-header > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    width: 100%;
 }
 
 .requests-table {
-    background: var(--surface-color);
-    border-radius: 12px;
+    background: var(--bg-secondary);
+    border-radius: 16px;
     padding: 1.5rem;
-    box-shadow: 0 2px 8px var(--shadow-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
+    border: 1px solid var(--border-color);
     overflow-x: auto;
+    transition: all 0.3s ease;
+}
+
+.requests-table:hover {
+    box-shadow: 0 8px 24px var(--shadow-lg);
 }
 
 .requests-table table {
@@ -175,7 +231,7 @@ $error = $_GET['error'] ?? null;
 }
 
 .requests-table th {
-    background: var(--background-color);
+    background: var(--bg-tertiary);
     padding: 1rem;
     text-align: left;
     font-weight: 600;
@@ -338,10 +394,7 @@ $error = $_GET['error'] ?? null;
     border: 1px solid #fecaca;
 }
 
-/* Enhanced Styles */
-.enrollments-container {
-    background: var(--background-color);
-}
+/* Enhanced Styles - Already applied above */
 
 .requests-table {
     transition: box-shadow 0.3s ease;
@@ -381,6 +434,42 @@ $error = $_GET['error'] ?? null;
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
+    }
+}
+
+/* Form inputs matching Doctor pages */
+.form-input, .form-select {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Responsive Design matching Doctor pages */
+@media (max-width: 768px) {
+    .enrollments-container {
+        padding: 1rem;
+    }
+    
+    .enrollments-header {
+        padding: 1.5rem;
+    }
+    
+    .enrollments-header h1 {
+        font-size: 2rem;
+    }
+    
+    .requests-table {
+        padding: 1rem;
     }
 }
 </style>

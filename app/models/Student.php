@@ -193,8 +193,8 @@ class Student extends Model
         }
 
         $sql = "SELECT COUNT(*) as cnt 
-                FROM {$this->table} s 
-                JOIN users u ON s.user_id = u.id 
+                                  FROM {$this->table} s 
+                                  JOIN users u ON s.user_id = u.id 
                 $where";
         
         $stmt = $this->db->prepare($sql);
@@ -595,7 +595,7 @@ class Student extends Model
                 ORDER BY er.requested_at DESC
             ");
             $stmt->execute(['student_id' => $studentId]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             error_log("getEnrollmentRequests failed: " . $e->getMessage());
             return [];

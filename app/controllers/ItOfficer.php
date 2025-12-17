@@ -142,6 +142,24 @@ class ItOfficer extends Controller
         $error = null;
         $success = null;
 
+        // Handle AJAX request for section numbers
+        if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_sections') {
+            $courseId = (int)($_GET['course_id'] ?? 0);
+            $semester = $_GET['semester'] ?? null;
+            $academicYear = $_GET['year'] ?? null;
+            
+            if ($courseId > 0) {
+                $sections = $this->sectionModel->getSectionNumbersByCourse($courseId, $semester, $academicYear);
+                header('Content-Type: application/json');
+                echo json_encode(['sections' => $sections]);
+                exit;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode(['sections' => []]);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Check if bulk mode
@@ -154,7 +172,7 @@ class ItOfficer extends Controller
                 }
                 
                 // Core Concept: Each schedule entry = (Semester + Course + Day + Time + Room)
-                // If multiple days selected, create separate entry for each day
+                // Support multiple doctors, multiple sections, and multiple days
                 $days = $_POST['days'] ?? [];
                 $startTimes = $_POST['start_time'] ?? [];
                 $endTimes = $_POST['end_time'] ?? [];
@@ -175,150 +193,163 @@ class ItOfficer extends Controller
                     $conflictErrors = [];
                     
                     $courseId = (int)($_POST['course_id'] ?? 0);
-                    $doctorId = (int)($_POST['doctor_id'] ?? 0);
-                    $sectionNumber = trim($_POST['section_number'] ?? '');
+                    $doctorIds = $_POST['doctor_ids'] ?? [];
+                    $sectionNumbers = $_POST['section_numbers'] ?? [];
                     $semester = trim($_POST['semester'] ?? '');
                     $academicYear = trim($_POST['academic_year'] ?? '');
                     $room = trim($_POST['room'] ?? '');
                     $capacity = (int)($_POST['capacity'] ?? 30);
                     
-                    if (!$courseId || !$doctorId || !$sectionNumber || !$semester || !$academicYear) {
-                        $error = 'Please fill all required fields.';
+                    // Validate required fields
+                    if (!$courseId || empty($doctorIds) || empty($sectionNumbers) || !$semester || !$academicYear || !$room) {
+                        $error = 'Please fill all required fields (Course, at least one Doctor, at least one Section Number, Room, Semester, and Academic Year).';
                     } else {
-                        // Create one schedule entry per selected day
-                        foreach ($days as $day) {
-                            $startTime = $startTimes[$day] ?? '';
-                            $endTime = $endTimes[$day] ?? '';
-                            
-                            // Validate time for this day
-                            if (empty($startTime) || empty($endTime)) {
-                                $entriesFailed++;
-                                $conflictErrors[] = "{$day}: Start time and end time are required";
-                                continue;
-                            }
-                            
-                            // Builder Pattern - Build schedule entry step by step
-                            $builder = new SectionBuilder();
-                            $builder->setCourse($courseId)
-                                    ->setDoctor($doctorId)
-                                    ->setSectionNumber($sectionNumber)
-                                    ->setSemester($semester)
-                                    ->setAcademicYear($academicYear)
-                                    ->setRoom($room ?: null)
-                                    ->setCapacity($capacity)
-                                    ->setTimeSlot($day, $startTime, $endTime);
-                            
-                            // Add session type if supported
-                            if (method_exists($builder, 'setSessionType')) {
-                                $builder->setSessionType($sessionType);
-                            }
-                            
-                            $entryData = $builder->build();
-                            
-                            // Conflict Detection: Check in order of priority
-                            // Rule: Conflict exists if (Same Semester + Same Day + Same Room + Overlapping Time)
-                            $db = DatabaseConnection::getInstance()->getConnection();
-                            $dayError = null;
-                            
-                            // 1. Check room conflict first (most critical - same room can't be double-booked)
-                            if (!empty($entryData['room'])) {
-                                $this->conflictDetector->setStrategy(new RoomConflictStrategy($db));
-                                if ($this->conflictDetector->detectConflict($entryData)) {
-                                    $dayError = "Room conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
-                                }
-                            }
-                            
-                            // 2. Check doctor availability (doctor can't teach two courses at same time)
-                            if (!$dayError) {
-                                $this->conflictDetector->setStrategy(new DoctorAvailabilityStrategy($db));
-                                if ($this->conflictDetector->detectConflict($entryData)) {
-                                    $dayError = "Doctor conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
-                                }
-                            }
-                            
-                            // 3. Check for exact duplicate entry
-                            // Core Concept: Multiple sessions for the same course ARE ALLOWED on the same day
-                            // as long as they have different:
-                            // - Section numbers (e.g., "001" vs "002"), OR
-                            // - Session types (e.g., "Lecture" vs "Lab"), OR
-                            // - Time slots (non-overlapping times)
-                            // Only block if ALL fields match exactly (true duplicate)
-                            if (!$dayError) {
-                                // Build section number with session type for comparison
-                                $fullSectionNumber = $sectionNumber;
-                                if ($sessionType && strpos($sectionNumber, $sessionType) === false) {
-                                    $fullSectionNumber = $sectionNumber . '-' . ucfirst($sessionType);
-                                }
+                        // Create entries for each combination: doctor × section × day
+                        foreach ($doctorIds as $doctorId) {
+                            $doctorId = (int)$doctorId;
+                            foreach ($sectionNumbers as $sectionNumber) {
+                                $sectionNumber = trim($sectionNumber);
                                 
-                                $checkDuplicate = $db->prepare("
-                                    SELECT COUNT(*) as count FROM sections
-                                    WHERE course_id = :course_id
-                                    AND semester = :semester
-                                    AND academic_year = :academic_year
-                                    AND day_of_week = :day_of_week
-                                    AND section_number = :section_number
-                                    AND start_time = :start_time
-                                    AND end_time = :end_time
-                                    AND room = :room
-                                ");
-                                $checkDuplicate->execute([
-                                    'course_id' => $courseId,
-                                    'semester' => $semester,
-                                    'academic_year' => $academicYear,
-                                    'day_of_week' => $day,
-                                    'section_number' => $fullSectionNumber,
-                                    'start_time' => $startTime,
-                                    'end_time' => $endTime,
-                                    'room' => $room ?: '',
-                                ]);
-                                $duplicate = $checkDuplicate->fetch(PDO::FETCH_ASSOC);
-                                if ((int)$duplicate['count'] > 0) {
-                                    $dayError = "Duplicate entry: This exact schedule entry already exists for {$day}";
-                                }
-                            }
-                            
-                            if (!$dayError) {
-                                // Create schedule entry (one per day)
-                                $entrySuccess = $builder->create($this->sectionModel);
-                                
-                                if ($entrySuccess) {
-                                    $entriesCreated++;
-                                    $sectionId = $this->sectionModel->getLastInsertId();
+                                // Create one schedule entry per selected day
+                                foreach ($days as $day) {
+                                    $startTime = $startTimes[$day] ?? '';
+                                    $endTime = $endTimes[$day] ?? '';
                                     
-                                    // Observer Pattern - Notify observers about schedule entry creation
-                                    $doctor = $this->doctorModel->findById($doctorId);
-                                    if ($doctor) {
-                                        $this->enrollmentSubject->sectionCreated([
-                                            'user_id' => $doctor['user_id'],
-                                            'section_id' => $sectionId,
-                                            'message' => "You have been assigned to section {$sectionNumber} on {$day}",
-                                            'entity_type' => 'section',
-                                            'entity_id' => $sectionId,
-                                            'details' => json_encode($entryData),
-                                        ]);
+                                    // Validate time for this day
+                                    if (empty($startTime) || empty($endTime)) {
+                                        $entriesFailed++;
+                                        $conflictErrors[] = "{$day}: Start time and end time are required";
+                                        continue;
                                     }
                                     
-                                    // Log the schedule entry creation
-                                    $this->auditLogModel->create([
-                                        'user_id' => $_SESSION['user']['id'],
-                                        'action' => 'schedule_entry_created',
-                                        'entity_type' => 'section',
-                                        'entity_id' => $sectionId,
-                                        'details' => json_encode([
+                                    // Builder Pattern - Build schedule entry step by step
+                                    $builder = new SectionBuilder();
+                                    $builder->setCourse($courseId)
+                                            ->setDoctor($doctorId)
+                                            ->setSectionNumber($sectionNumber)
+                                            ->setSemester($semester)
+                                            ->setAcademicYear($academicYear)
+                                            ->setRoom($room ?: null)
+                                            ->setCapacity($capacity)
+                                            ->setTimeSlot($day, $startTime, $endTime);
+                                    
+                                    // Add session type if supported
+                                    if (method_exists($builder, 'setSessionType')) {
+                                        $builder->setSessionType($sessionType);
+                                    }
+                                    
+                                    $entryData = $builder->build();
+                                    
+                                    // Conflict Detection: Check in order of priority
+                                    // Rule: Conflict exists if (Same Semester + Same Day + Same Room + Overlapping Time)
+                                    $db = DatabaseConnection::getInstance()->getConnection();
+                                    $dayError = null;
+                                    
+                                    // 1. Check room conflict first (most critical - same room can't be double-booked)
+                                    if (!empty($entryData['room'])) {
+                                        $this->conflictDetector->setStrategy(new RoomConflictStrategy($db));
+                                        if ($this->conflictDetector->detectConflict($entryData)) {
+                                            $dayError = "Room conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
+                                        }
+                                    }
+                                    
+                                    // 2. Check doctor availability (doctor can't teach two courses at same time)
+                                    if (!$dayError) {
+                                        $this->conflictDetector->setStrategy(new DoctorAvailabilityStrategy($db));
+                                        if ($this->conflictDetector->detectConflict($entryData)) {
+                                            $dayError = "Doctor conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
+                                        }
+                                    }
+                                    
+                                    // 3. Check for exact duplicate entry
+                                    // Core Concept: Multiple sessions for the same course ARE ALLOWED on the same day
+                                    // as long as they have different:
+                                    // - Section numbers (e.g., "001" vs "002"), OR
+                                    // - Session types (e.g., "Lecture" vs "Lab"), OR
+                                    // - Time slots (non-overlapping times)
+                                    // Only block if ALL fields match exactly (true duplicate)
+                                    if (!$dayError) {
+                                        // Build section number with session type for comparison
+                                        $fullSectionNumber = $sectionNumber;
+                                        if ($sessionType && strpos($sectionNumber, $sessionType) === false) {
+                                            $fullSectionNumber = $sectionNumber . '-' . ucfirst($sessionType);
+                                        }
+                                        
+                                        $checkDuplicate = $db->prepare("
+                                            SELECT COUNT(*) as count FROM sections
+                                            WHERE course_id = :course_id
+                                            AND doctor_id = :doctor_id
+                                            AND semester = :semester
+                                            AND academic_year = :academic_year
+                                            AND day_of_week = :day_of_week
+                                            AND section_number = :section_number
+                                            AND start_time = :start_time
+                                            AND end_time = :end_time
+                                            AND room = :room
+                                        ");
+                                        $checkDuplicate->execute([
                                             'course_id' => $courseId,
-                                            'day' => $day,
-                                            'time' => "{$startTime}-{$endTime}",
-                                            'room' => $room,
-                                            'session_type' => $sessionType,
-                                        ])
-                                    ]);
-                                } else {
-                                    $entriesFailed++;
-                                    $conflictErrors[] = "{$day}: Failed to create schedule entry";
+                                            'doctor_id' => $doctorId,
+                                            'semester' => $semester,
+                                            'academic_year' => $academicYear,
+                                            'day_of_week' => $day,
+                                            'section_number' => $fullSectionNumber,
+                                            'start_time' => $startTime,
+                                            'end_time' => $endTime,
+                                            'room' => $room ?: '',
+                                        ]);
+                                        $duplicate = $checkDuplicate->fetch(PDO::FETCH_ASSOC);
+                                        if ((int)$duplicate['count'] > 0) {
+                                            $dayError = "Duplicate entry: This exact schedule entry already exists for {$day}";
+                                        }
+                                    }
+                                    
+                                    if (!$dayError) {
+                                        // Create schedule entry (one per day)
+                                        $entrySuccess = $builder->create($this->sectionModel);
+                                        
+                                        if ($entrySuccess) {
+                                            $entriesCreated++;
+                                            $sectionId = $this->sectionModel->getLastInsertId();
+                                            
+                                            // Observer Pattern - Notify observers about schedule entry creation
+                                            $doctor = $this->doctorModel->findById($doctorId);
+                                            if ($doctor) {
+                                                $this->enrollmentSubject->sectionCreated([
+                                                    'user_id' => $doctor['user_id'],
+                                                    'section_id' => $sectionId,
+                                                    'message' => "You have been assigned to section {$sectionNumber} on {$day}",
+                                                    'entity_type' => 'section',
+                                                    'entity_id' => $sectionId,
+                                                    'details' => json_encode($entryData),
+                                                ]);
+                                            }
+                                            
+                                            // Log the schedule entry creation
+                                            $this->auditLogModel->create([
+                                                'user_id' => $_SESSION['user']['id'],
+                                                'action' => 'schedule_entry_created',
+                                                'entity_type' => 'section',
+                                                'entity_id' => $sectionId,
+                                                'details' => json_encode([
+                                                    'course_id' => $courseId,
+                                                    'doctor_id' => $doctorId,
+                                                    'section_number' => $sectionNumber,
+                                                    'day' => $day,
+                                                    'time' => "{$startTime}-{$endTime}",
+                                                    'room' => $room,
+                                                    'session_type' => $sessionType,
+                                                ])
+                                            ]);
+                                        } else {
+                                            $entriesFailed++;
+                                            $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: Failed to create schedule entry";
+                                        }
+                                    } else {
+                                        $entriesFailed++;
+                                        $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: {$dayError}";
+                                    }
                                 }
-                            } else {
-                                $entriesFailed++;
-                                $conflictErrors[] = $dayError;
                             }
                         }
                         
@@ -326,16 +357,32 @@ class ItOfficer extends Controller
                             $success = "Created {$entriesCreated} schedule entry/entries successfully";
                             if ($entriesFailed > 0) {
                                 $success .= " ({$entriesFailed} failed)";
-                                $error = implode('; ', $conflictErrors);
+                                $error = implode('; ', array_slice($conflictErrors, 0, 5));
+                                if (count($conflictErrors) > 5) {
+                                    $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
+                                }
                             }
                         } else {
-                            $error = $error ?? 'Failed to create schedule entries. ' . implode('; ', $conflictErrors);
+                            $error = $error ?? 'Failed to create schedule entries. ' . implode('; ', array_slice($conflictErrors, 0, 5));
+                            if (count($conflictErrors) > 5) {
+                                $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
+                            }
                         }
                     }
                 }
             } catch (\Exception $e) {
                 $error = 'Error: ' . $e->getMessage();
                 error_log("Schedule creation error: " . $e->getMessage());
+            }
+            
+            // If AJAX request, return JSON response
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => $success,
+                    'error' => $error
+                ]);
+                exit;
             }
             
             // Redirect to avoid resubmission and show messages

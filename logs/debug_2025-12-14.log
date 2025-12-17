@@ -1,0 +1,196 @@
+[2025-12-14 00:56:24] findByEmail called | Context: {
+    "email": "diaaeldeenamin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:56:24] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:56:24] ERROR: {
+    "message": "findByEmail PDOException",
+    "exception": {
+        "message": "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'soft.users' doesn't exist",
+        "code": "42S02",
+        "file": "D:\\xampp\\htdocs\\Student-Information-System\\app\\models\\User.php",
+        "line": 45,
+        "trace": "#0 D:\\xampp\\htdocs\\Student-Information-System\\app\\models\\User.php(45): PDOStatement->execute(Array)\n#1 D:\\xampp\\htdocs\\Student-Information-System\\app\\controllers\\Auth.php(115): models\\User->findByEmail('diaaeldeenamin@...')\n#2 [internal function]: controllers\\Auth->sign()\n#3 D:\\xampp\\htdocs\\Student-Information-System\\app\\core\\App.php(99): call_user_func_array(Array, Array)\n#4 D:\\xampp\\htdocs\\Student-Information-System\\public\\index.php(23): core\\App->run()\n#5 {main}"
+    },
+    "context": {
+        "email": "diaaeldeenamin@gmail.com",
+        "sql_state": "42S02",
+        "error_info": "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'soft.users' doesn't exist"
+    }
+}
+[2025-12-14 00:57:20] findByEmail called | Context: {
+    "email": "diaaeldeenamin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:57:20] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:57:20] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "diaaeldeenamin@gmail.com"
+}
+[2025-12-14 00:57:20] findByEmail called | Context: {
+    "email": "diaaeldeenamin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:57:20] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:57:20] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 1,
+    "found_email": "diaaeldeenamin@gmail.com",
+    "found_role": "user",
+    "searched_email": "diaaeldeenamin@gmail.com",
+    "match": true
+}
+[2025-12-14 00:58:26] findByEmail called | Context: {
+    "email": "diaaeldeenamin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:58:26] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:58:26] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 1,
+    "found_email": "diaaeldeenamin@gmail.com",
+    "found_role": "admin",
+    "searched_email": "diaaeldeenamin@gmail.com",
+    "match": true
+}
+[2025-12-14 00:58:31] findByEmail called | Context: {
+    "email": "diaaeldeenamin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:58:31] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:58:31] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 1,
+    "found_email": "diaaeldeenamin@gmail.com",
+    "found_role": "admin",
+    "searched_email": "diaaeldeenamin@gmail.com",
+    "match": true
+}
+[2025-12-14 00:59:33] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:59:33] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:59:33] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "student@gmail.com"
+}
+[2025-12-14 00:59:44] findByEmail called | Context: {
+    "email": "diaaeldeenaminstudent@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:59:44] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 00:59:44] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "diaaeldeenaminstudent@gmail.com"
+}
+[2025-12-14 01:00:08] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:00:08] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:00:08] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 2,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-14 01:00:31] findByEmail called | Context: {
+    "email": "student2@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:00:31] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:00:31] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "student2@gmail.com"
+}
+[2025-12-14 01:15:27] findByEmail called | Context: {
+    "email": "student111@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:15:27] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:15:27] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "student111@gmail.com"
+}
+[2025-12-14 01:15:39] findByEmail called | Context: {
+    "email": "student222@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:15:39] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:15:39] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "student222@gmail.com"
+}
+[2025-12-14 01:15:53] findByEmail called | Context: {
+    "email": "doctor111@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:15:53] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:15:53] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "doctor111@gmail.com"
+}
+[2025-12-14 01:16:08] findByEmail called | Context: {
+    "email": "docotr222@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:16:08] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:16:08] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "docotr222@gmail.com"
+}
+[2025-12-14 01:16:41] findByEmail called | Context: {
+    "email": "it222@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:16:41] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-14 01:16:41] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "it222@gmail.com"
+}

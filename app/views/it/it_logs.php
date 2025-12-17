@@ -158,7 +158,7 @@ $messageType = $messageType ?? 'info';
                             <span class="log-level <?= $level ?>"><?= strtoupper($level) ?></span>
                             <span class="log-source">[<?= htmlspecialchars($log['action'] ?? 'system') ?>]</span>
                             <?php if (!empty($log['user_role'])): ?>
-                                <span style="color: var(--accent-color); font-size: 0.8rem;">[<?= htmlspecialchars($log['user_role']) ?>]</span>
+                                <span style="color: var(--primary-color); font-size: 0.8rem;">[<?= htmlspecialchars($log['user_role']) ?>]</span>
                             <?php endif; ?>
                             <span style="color: var(--text-primary);">
                                 <?php if ($log['first_name']): ?>
@@ -191,28 +191,86 @@ $messageType = $messageType ?? 'info';
 </div>
 
 <style>
+/* Dark Mode CSS Variables */
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+}
+
 .logs-container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 2rem;
-    background: var(--background-color);
+    background: var(--bg-primary);
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+.logs-header {
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border-radius: 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .logs-header h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     color: var(--text-primary);
-    margin-bottom: 0.5rem;
+}
+
+.logs-header h1 i {
+    font-size: 2rem;
+}
+
+.logs-header > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    width: 100%;
 }
 
 .logs-header p {
+    font-size: 1.1rem;
+    margin: 0;
+    opacity: 0.95;
     color: var(--text-secondary);
 }
 
 .card {
-    background: var(--surface-color);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    box-shadow: 0 4px 12px var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:hover {
+    box-shadow: 0 8px 24px var(--shadow-lg);
+    transform: translateY(-2px);
 }
 
 .log-entry {
@@ -221,13 +279,14 @@ $messageType = $messageType ?? 'info';
     padding: 0.75rem;
     border-left: 3px solid;
     margin-bottom: 0.5rem;
-    background-color: var(--surface-color);
+    background-color: var(--bg-tertiary);
     border-radius: 4px;
     transition: background-color 0.2s;
+    color: var(--text-primary);
 }
 
 .log-entry:hover {
-    background-color: rgba(37, 99, 235, 0.05);
+    background-color: rgba(59, 130, 246, 0.15);
 }
 
 .log-entry.error { 
@@ -248,7 +307,7 @@ $messageType = $messageType ?? 'info';
 
 .log-entry.critical { 
     border-color: var(--error-color); 
-    background-color: rgba(239, 68, 68, 0.1); 
+    background-color: rgba(239, 68, 68, 0.2); 
 }
 
 .log-timestamp {
@@ -295,7 +354,7 @@ $messageType = $messageType ?? 'info';
 }
 
 .log-source {
-    color: var(--accent-color);
+    color: var(--primary-color);
     font-weight: 500;
     margin-right: 0.5rem;
 }
@@ -308,21 +367,22 @@ $messageType = $messageType ?? 'info';
 .form-label {
     margin-bottom: 0.5rem;
     font-weight: 500;
-    color: var(--text-color);
+    color: var(--text-primary);
 }
 
 .form-input {
     padding: 0.75rem;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-light);
     border-radius: 6px;
-    background: var(--card-bg);
-    color: var(--text-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     font-size: 1rem;
 }
 
 .form-input:focus {
     outline: none;
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 .btn {
@@ -345,18 +405,22 @@ $messageType = $messageType ?? 'info';
 }
 
 .btn-primary:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .btn-outline {
     background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
 }
 
 .btn-outline:hover {
-    background: var(--bg-secondary);
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .alert {
@@ -368,21 +432,36 @@ $messageType = $messageType ?? 'info';
 }
 
 .alert-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .alert-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .alert-info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Responsive Design matching Doctor pages */
+@media (max-width: 768px) {
+    .logs-container {
+        padding: 1rem;
+    }
+    
+    .logs-header {
+        padding: 1.5rem;
+    }
+    
+    .logs-header h1 {
+        font-size: 2rem;
+    }
 }
 </style>
 

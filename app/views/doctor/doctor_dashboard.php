@@ -129,35 +129,43 @@ $pendingGradings = $pendingGradings ?? 0;
 </div>
 
 <style>
+/* Dark Mode CSS Variables */
 :root {
-    --primary-color: #2563eb;
-    --secondary-color: #60a5fa;
-    --background-color: #f8fafc;
-    --surface-color: #ffffff;
-    --border-color: #e2e8f0;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --success-color: #22c55e;
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
     --error-color: #ef4444;
     --warning-color: #f59e0b;
-    --shadow-color: rgba(0, 0, 0, 0.08);
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
 }
 
 .dashboard-container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 2rem;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    background: var(--bg-primary);
     min-height: 100vh;
+    color: var(--text-primary);
 }
 
 .dashboard-header {
     margin-bottom: 2.5rem;
     padding: 2rem;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #1d4ed8 100%);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
     border-radius: 16px;
-    color: white;
-    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.2);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .dashboard-header h1 {
@@ -187,15 +195,15 @@ $pendingGradings = $pendingGradings ?? 0;
 }
 
 .stat-card {
-    background: white;
+    background: var(--bg-secondary);
     border-radius: 16px;
     padding: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1.25rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px var(--shadow-md);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
     position: relative;
     overflow: hidden;
 }
@@ -218,8 +226,8 @@ $pendingGradings = $pendingGradings ?? 0;
 
 .stat-card:hover {
     transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-    border-color: rgba(37, 99, 235, 0.2);
+    box-shadow: 0 12px 32px var(--shadow-lg);
+    border-color: var(--primary-color);
 }
 
 .stat-icon {
@@ -252,10 +260,6 @@ $pendingGradings = $pendingGradings ?? 0;
     color: var(--text-primary);
     font-weight: 700;
     line-height: 1;
-    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
 }
 
 .stat-content p {
@@ -278,7 +282,7 @@ $pendingGradings = $pendingGradings ?? 0;
 }
 
 .stat-link:hover {
-    color: #1d4ed8;
+    color: var(--primary-hover);
     gap: 0.5rem;
     text-decoration: none;
 }
@@ -290,16 +294,16 @@ $pendingGradings = $pendingGradings ?? 0;
 }
 
 .dashboard-section {
-    background: white;
+    background: var(--bg-secondary);
     border-radius: 16px;
     padding: 2rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 12px var(--shadow-md);
+    border: 1px solid var(--border-color);
     transition: all 0.3s ease;
 }
 
 .dashboard-section:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 24px var(--shadow-lg);
     transform: translateY(-2px);
 }
 
@@ -333,7 +337,7 @@ $pendingGradings = $pendingGradings ?? 0;
 }
 
 .section-item:hover, .assignment-item:hover {
-    background: var(--background-color);
+    background: var(--bg-tertiary);
     border-radius: 8px;
 }
 
@@ -365,9 +369,10 @@ $pendingGradings = $pendingGradings ?? 0;
 .section-time, .assignment-type {
     margin-left: 1rem;
     padding: 0.25rem 0.5rem;
-    background: var(--background-color);
+    background: var(--bg-tertiary);
     border-radius: 4px;
     font-size: 0.85rem;
+    color: var(--text-secondary);
 }
 
 .btn {
@@ -393,7 +398,7 @@ $pendingGradings = $pendingGradings ?? 0;
     background: var(--primary-color);
     color: white;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 @keyframes fadeInUp {

@@ -682,32 +682,68 @@ document.addEventListener('click', function(e) {
 </script>
 
 <style>
+/* Dark Mode CSS Variables */
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+}
+
 .course-container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 2rem;
-    background-color: var(--background-color);
+    background: var(--bg-primary);
+    min-height: 100vh;
+    color: var(--text-primary);
 }
 
 .course-header {
-    margin-bottom: 2rem;
-    padding: 1.5rem;
-    background-color: var(--surface-color);
-    border-radius: 8px;
-    box-shadow: 0 2px 8px var(--shadow-color);
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border-radius: 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .course-header h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     color: var(--text-primary);
-    margin-bottom: 0.5rem;
-    font-weight: 600;
+}
+
+.course-header h1 i {
+    font-size: 2rem;
+}
+
+.course-header > div {
+    width: 100%;
 }
 
 .course-header p {
-    color: var(--text-secondary);
+    font-size: 1.1rem;
     margin: 0;
-    font-size: 1rem;
+    opacity: 0.95;
+    color: var(--text-secondary);
 }
 
 .course-content {
@@ -722,50 +758,54 @@ document.addEventListener('click', function(e) {
     gap: 2rem;
 }
 
-/* Ensure buttons are styled */
+/* Button styles matching Doctor pages */
 .btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
-    border: none;
     border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
     text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
 }
 
 .btn-primary {
-    background-color: var(--primary-color);
+    background: var(--primary-color);
     color: white;
 }
 
 .btn-primary:hover {
-    background-color: #1d4ed8;
+    background: #1d4ed8;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 .btn-success {
-    background-color: var(--success-color);
+    background: var(--success-color);
     color: white;
 }
 
 .btn-success:hover {
-    background-color: #059669;
+    background: #059669;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .btn-outline {
-    background-color: transparent;
-    color: var(--primary-color);
+    background: transparent;
     border: 2px solid var(--primary-color);
+    color: var(--primary-color);
 }
 
 .btn-outline:hover {
-    background-color: var(--primary-color);
+    background: var(--primary-color);
     color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 @media (max-width: 768px) {
@@ -818,24 +858,24 @@ document.addEventListener('click', function(e) {
     border: 1px solid #3b82f6;
 }
 
-/* Enhanced Card Styles */
+/* Enhanced Card Styles matching Doctor pages */
 .card {
-    background: var(--card-bg);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    transition: box-shadow 0.3s ease, transform 0.2s ease;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px var(--shadow-lg);
     transform: translateY(-2px);
 }
 
 .card-header {
     padding: 1.5rem;
     border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(135deg, var(--surface-color) 0%, var(--card-bg) 100%);
+    background: var(--bg-tertiary);
 }
 
 .card-body {
@@ -915,7 +955,7 @@ table tbody tr {
 }
 
 table tbody tr:hover {
-    background: var(--surface-color);
+    background: var(--bg-tertiary);
     transform: scale(1.01);
 }
 
@@ -930,14 +970,75 @@ table tbody tr:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Responsive Improvements */
-@media (max-width: 1024px) {
+/* Form inputs matching Doctor pages */
+.form-input, .form-select {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Alert styles matching Doctor pages */
+.alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.alert-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.alert-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.alert-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
+}
+
+/* Responsive Design matching Doctor pages */
+@media (max-width: 1200px) {
     .grid-2, .grid-3 {
         grid-template-columns: 1fr;
     }
+}
+
+@media (max-width: 768px) {
+    .course-container {
+        padding: 1rem;
+    }
     
     .course-header {
-        padding: 1rem;
+        padding: 1.5rem;
+    }
+    
+    .course-header h1 {
+        font-size: 2rem;
     }
     
     .card-header {

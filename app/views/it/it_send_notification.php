@@ -50,13 +50,13 @@ $messageType = $messageType ?? 'info';
                 <div class="form-group">
                     <label class="form-label">Recipients *</label>
                     <div style="margin-bottom: 1rem;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: var(--surface-color); border-radius: 6px; margin-bottom: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: var(--bg-tertiary); border-radius: 6px; margin-bottom: 0.5rem;">
                             <input type="checkbox" name="send_to_all" value="1" id="send_to_all" onchange="toggleUserSelection()" style="width: 18px; height: 18px;">
-                            <strong>Send to All Users</strong>
+                            <strong style="color: var(--text-primary);">Send to All Users</strong>
                             <small style="color: var(--text-secondary); margin-left: auto;">(All students, doctors, advisors, and admins)</small>
                         </label>
                     </div>
-                    <div id="userSelection" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; max-height: 400px; overflow-y: auto; background-color: var(--surface-color);">
+                    <div id="userSelection" style="border: 1px solid var(--border-light); border-radius: 8px; padding: 1rem; max-height: 400px; overflow-y: auto; background-color: var(--bg-tertiary);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                             <label class="form-label" style="margin: 0;">Select Users</label>
                             <button type="button" class="btn btn-outline" onclick="toggleSelectAllUsers()" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
@@ -82,7 +82,7 @@ $messageType = $messageType ?? 'info';
                                     </h4>
                                     <?php foreach ($usersByRole[$role] as $user): ?>
                                         <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 
-                                               onmouseover="this.style.backgroundColor='rgba(37, 99, 235, 0.1)'"
+                                               onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'"
                                                onmouseout="this.style.backgroundColor='transparent'">
                                             <input type="checkbox" name="user_ids[]" value="<?= $user['id'] ?>" class="user-checkbox" onchange="updateSelectedUserCount()" style="width: 18px; height: 18px; cursor: pointer;">
                                             <div style="flex: 1;">
@@ -120,20 +120,68 @@ $messageType = $messageType ?? 'info';
 </div>
 
 <style>
+/* Dark Mode CSS Variables */
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+}
+
 .notification-container {
     max-width: 1000px;
     margin: 0 auto;
     padding: 2rem;
+    background: var(--bg-primary);
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+.notification-header {
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border-radius: 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .notification-header h1 {
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: var(--text-primary);
+}
+
+.notification-header h1 i {
     font-size: 2rem;
-    color: var(--text-color);
-    margin-bottom: 0.5rem;
+}
+
+.notification-header > div {
+    width: 100%;
 }
 
 .notification-header p {
-    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin: 0;
+    opacity: 0.95;
+    color: var(--text-secondary);
 }
 
 .alert {
@@ -145,28 +193,35 @@ $messageType = $messageType ?? 'info';
 }
 
 .alert-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .alert-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .alert-info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 .card {
-    background: var(--card-bg);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
+}
+
+.card:hover {
+    box-shadow: 0 8px 24px var(--shadow-lg);
+    transform: translateY(-2px);
 }
 
 .card-header {
@@ -177,7 +232,7 @@ $messageType = $messageType ?? 'info';
 .card-title {
     margin: 0;
     font-size: 1.2rem;
-    color: var(--text-color);
+    color: var(--text-primary);
 }
 
 .form-group {
@@ -189,15 +244,15 @@ $messageType = $messageType ?? 'info';
 .form-label {
     margin-bottom: 0.5rem;
     font-weight: 500;
-    color: var(--text-color);
+    color: var(--text-primary);
 }
 
 .form-input {
     padding: 0.75rem;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-light);
     border-radius: 6px;
-    background: var(--card-bg);
-    color: var(--text-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     font-size: 1rem;
     font-family: inherit;
 }
@@ -205,6 +260,7 @@ $messageType = $messageType ?? 'info';
 .form-input:focus {
     outline: none;
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 textarea.form-input {
@@ -218,14 +274,17 @@ textarea.form-input {
 }
 
 .btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.75rem 1.5rem;
-    border-radius: 6px;
+    border-radius: 8px;
     text-decoration: none;
-    font-weight: 500;
-    transition: all 0.2s;
+    font-weight: 600;
+    transition: all 0.3s ease;
     border: none;
     cursor: pointer;
+    font-size: 0.95rem;
 }
 
 .btn-primary {
@@ -234,22 +293,28 @@ textarea.form-input {
 }
 
 .btn-primary:hover {
-    opacity: 0.9;
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
 }
 
 .btn-outline {
     background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
 }
 
 .btn-outline:hover {
-    background: var(--bg-secondary);
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 </style>
 

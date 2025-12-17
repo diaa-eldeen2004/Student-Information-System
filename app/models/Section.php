@@ -287,5 +287,36 @@ class Section extends Model
         $stmt->execute(['section_id' => $sectionId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Get unique section numbers for a course
+     */
+    public function getSectionNumbersByCourse(int $courseId, string $semester = null, string $academicYear = null): array
+    {
+        $sql = "
+            SELECT DISTINCT section_number
+            FROM {$this->table}
+            WHERE course_id = :course_id
+        ";
+        $params = ['course_id' => $courseId];
+        
+        if ($semester) {
+            $sql .= " AND semester = :semester";
+            $params['semester'] = $semester;
+        }
+        
+        if ($academicYear) {
+            $sql .= " AND academic_year = :academic_year";
+            $params['academic_year'] = $academicYear;
+        }
+        
+        $sql .= " ORDER BY section_number";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        return array_column($results, 'section_number');
+    }
 }
 
