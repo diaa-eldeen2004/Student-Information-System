@@ -237,8 +237,16 @@ class ItOfficer extends Controller
                     $capacity = (int)($_POST['capacity'] ?? 30);
                     
                     // Validate required fields
-                    if (!$courseId || empty($doctorIds) || empty($sectionNumbers) || !$semester || !$academicYear || !$room) {
-                        $error = 'Please fill all required fields (Course, at least one Doctor, at least one Section Number, Room, Semester, and Academic Year).';
+                    if (!$courseId) {
+                        $error = 'Please select a course.';
+                    } elseif (empty($doctorIds)) {
+                        $error = 'Please select at least one doctor.';
+                    } elseif (empty($sectionNumbers)) {
+                        $error = 'Please select at least one section number.';
+                    } elseif (!$semester || !$academicYear) {
+                        $error = 'Please select semester and enter academic year.';
+                    } elseif (!$room) {
+                        $error = 'Please enter a room number.';
                     } else {
                         // Create entries for each combination: doctor × section × day
                         foreach ($doctorIds as $doctorId) {
@@ -416,16 +424,28 @@ class ItOfficer extends Controller
             } catch (\Exception $e) {
                 $error = 'Error: ' . $e->getMessage();
                 error_log("Schedule creation error: " . $e->getMessage());
+                error_log("Schedule creation error trace: " . $e->getTraceAsString());
             }
             
-            // Check if AJAX request
-            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+            // Check if AJAX request - multiple ways to detect
+            $isAjax = (
+                (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') ||
+                (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+            );
+            
+            // Log for debugging
+            error_log("Schedule POST - AJAX: " . ($isAjax ? 'YES' : 'NO'));
+            error_log("Schedule POST - Success: " . ($success ?? 'null'));
+            error_log("Schedule POST - Error: " . ($error ?? 'null'));
+            error_log("Schedule POST - Entries created: " . ($entriesCreated ?? 0));
+            error_log("Schedule POST - POST data keys: " . implode(', ', array_keys($_POST)));
             
             if ($isAjax) {
                 header('Content-Type: application/json');
                 echo json_encode([
                     'success' => $success,
-                    'error' => $error
+                    'error' => $error,
+                    'entries_created' => $entriesCreated ?? 0
                 ]);
                 exit;
             }

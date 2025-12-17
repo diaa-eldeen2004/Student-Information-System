@@ -127,10 +127,26 @@ class Section extends Model
             }
             
             $sql .= ") VALUES " . $values . ")";
+            
+            // Log SQL for debugging
+            error_log("Section INSERT SQL: " . $sql);
+            error_log("Section INSERT Params: " . json_encode($params));
+            
             $stmt = $this->db->prepare($sql);
-            return $stmt->execute($params) && $stmt->rowCount() > 0;
+            $result = $stmt->execute($params);
+            $rowCount = $stmt->rowCount();
+            
+            error_log("Section INSERT Result: " . ($result ? 'SUCCESS' : 'FAILED') . ", Rows affected: " . $rowCount);
+            
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                error_log("Section INSERT Error: " . json_encode($errorInfo));
+            }
+            
+            return $result && $rowCount > 0;
         } catch (\PDOException $e) {
             error_log("Section creation failed: " . $e->getMessage());
+            error_log("Section creation error trace: " . $e->getTraceAsString());
             return false;
         }
     }

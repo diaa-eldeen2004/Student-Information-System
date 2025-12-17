@@ -74,7 +74,7 @@ $historyBySemester = $historyBySemester ?? [];
         </div>
         
         <!-- Single Entry Form -->
-        <form method="post" action="<?= htmlspecialchars($url('it/schedule')) ?>" class="section-form" id="singleEntryForm" onsubmit="validateSingleForm(event); return false;">
+        <form method="post" action="<?= htmlspecialchars($url('it/schedule')) ?>" class="section-form" id="singleEntryForm" onsubmit="return validateSingleForm(event);">
             <div class="form-grid">
                 <div class="form-group">
                     <label for="course_id" class="form-label">Course *</label>
@@ -196,7 +196,7 @@ $historyBySemester = $historyBySemester ?? [];
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" id="submitScheduleBtn">
                 <i class="fas fa-plus"></i> Create Schedule Entry
             </button>
             
@@ -1195,6 +1195,28 @@ document.addEventListener('DOMContentLoaded', function() {
     if (quickForm && quickForm.style.display !== 'none' && document.getElementById('quickScheduleRows').children.length === 0) {
         addQuickScheduleRow();
     }
+    
+    // Add direct event listener to submit button as backup
+    const submitBtn = document.getElementById('submitScheduleBtn');
+    const singleForm = document.getElementById('singleEntryForm');
+    
+    if (submitBtn && singleForm) {
+        submitBtn.addEventListener('click', function(e) {
+            console.log('Submit button clicked directly');
+            // Let the form's onsubmit handle it, but ensure it's called
+            if (!singleForm.onsubmit || singleForm.onsubmit(e) !== false) {
+                validateSingleForm(e);
+            }
+        });
+    }
+    
+    // Also ensure form submission is handled
+    if (singleForm) {
+        singleForm.addEventListener('submit', function(e) {
+            console.log('Form submit event triggered');
+            validateSingleForm(e);
+        });
+    }
 });
 
 function switchMode(mode) {
@@ -1453,13 +1475,57 @@ function addNewSectionNumber() {
 }
 
 function validateSingleForm(event) {
-    const form = document.getElementById('singleEntryForm');
-    if (!form) return true;
+    console.log('=== validateSingleForm called ===');
     
-    event.preventDefault();
+    // CRITICAL: Always prevent default form submission
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+    }
+    
+    const form = document.getElementById('singleEntryForm');
+    if (!form) {
+        console.error('Form not found!');
+        alert('Form not found. Please refresh the page.');
+        return false;
+    }
+    
+    console.log('Form found, validating...');
+    
+    // Validate required fields FIRST
+    const courseId = form.querySelector('#course_id')?.value;
+    if (!courseId) {
+        alert('Please select a course.');
+        return false;
+    }
+    
+    const selectedDoctors = Array.from(form.querySelectorAll('input[name="doctor_ids[]"]:checked'));
+    if (selectedDoctors.length === 0) {
+        alert('Please select at least one doctor.');
+        return false;
+    }
+    
+    const selectedSections = Array.from(form.querySelectorAll('input[name="section_numbers[]"]:checked'));
+    if (selectedSections.length === 0) {
+        alert('Please select at least one section number.');
+        return false;
+    }
+    
+    const room = form.querySelector('#room')?.value?.trim();
+    if (!room) {
+        alert('Please enter a room number.');
+        return false;
+    }
+    
+    const semester = form.querySelector('#semester')?.value;
+    const academicYear = form.querySelector('#academic_year')?.value?.trim();
+    if (!semester || !academicYear) {
+        alert('Please select semester and enter academic year.');
+        return false;
+    }
     
     const selectedDays = Array.from(form.querySelectorAll('input[name="days[]"]:checked'));
-    
     if (selectedDays.length === 0) {
         alert('Please select at least one day for the schedule.');
         return false;
@@ -1476,50 +1542,69 @@ function validateSingleForm(event) {
         if (!startTime || !startTime.value || !endTime || !endTime.value) {
             allTimesValid = false;
             missingTimes.push(day);
+        } else if (startTime.value >= endTime.value) {
+            allTimesValid = false;
+            missingTimes.push(day + ' (end time must be after start time)');
         }
     });
     
     if (!allTimesValid) {
-        alert('Please fill in start time and end time for all selected days: ' + missingTimes.join(', '));
+        alert('Please fill in valid start time and end time for all selected days: ' + missingTimes.join(', '));
         return false;
     }
     
-    const courseId = form.querySelector('#course_id')?.value;
-    const selectedDoctors = Array.from(form.querySelectorAll('input[name="doctor_ids[]"]:checked'));
-    const selectedSections = Array.from(form.querySelectorAll('input[name="section_numbers[]"]:checked'));
-    const room = form.querySelector('#room')?.value;
-    
-    if (!courseId || selectedDoctors.length === 0 || selectedSections.length === 0 || !room) {
-        alert('Please fill in all required fields (Course, at least one Doctor, at least one Section Number, and Room).');
-        return false;
-    }
+    console.log('Validation passed, submitting form...');
+    console.log('Form data:', {
+        courseId: courseId,
+        doctors: selectedDoctors.map(d => d.value),
+        sections: selectedSections.map(s => s.value),
+        days: selectedDays.map(d => d.value),
+        room: room,
+        semester: semester,
+        academicYear: academicYear
+    });
     
     // Submit form via AJAX
     const formData = new FormData(form);
     
     // Show loading state
-    const submitBtn = form.querySelector('button[type="submit"]');
+    const submitBtn = form.querySelector('button[type="submit"]') || document.getElementById('submitScheduleBtn');
+    if (!submitBtn) {
+        console.error('Submit button not found!');
+        alert('Submit button not found. Please refresh the page.');
+        return false;
+    }
+    
     const originalBtnText = submitBtn.innerHTML;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    
+    console.log('Sending AJAX request to:', form.action);
     
     fetch(form.action, {
         method: 'POST',
         body: formData,
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        credentials: 'same-origin'
     })
     .then(response => {
+        console.log('Response received:', response.status, response.statusText);
+        
         // Check if response is JSON (AJAX) or HTML (redirect)
         const contentType = response.headers.get('content-type') || '';
+        console.log('Content-Type:', contentType);
+        
         if (contentType.includes('application/json')) {
             return response.json().then(data => {
+                console.log('JSON response:', data);
                 return { success: data.success, error: data.error };
             });
         } else {
             // If redirect happened, follow it
             if (response.redirected || response.status === 302 || response.status === 301) {
+                console.log('Redirect detected');
                 // Parse URL for success/error params
                 const url = new URL(response.url);
                 return {
@@ -1529,6 +1614,7 @@ function validateSingleForm(event) {
             }
             // Try to parse HTML response
             return response.text().then(html => {
+                console.log('HTML response received, parsing...');
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 const alertDiv = doc.querySelector('.alert-success, .alert-error');
@@ -1582,9 +1668,13 @@ function validateSingleForm(event) {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText;
+        console.error('Fetch Error:', error);
+        console.error('Error details:', error.message, error.stack);
+        
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
         
         // Show error notification
         const existingAlerts = document.querySelectorAll('.schedule-container > .alert');
@@ -1592,12 +1682,14 @@ function validateSingleForm(event) {
         
         const messageDiv = document.createElement('div');
         messageDiv.className = 'alert alert-error';
-        messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> An error occurred while saving the schedule. Please check the console for details.`;
+        messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> An error occurred while saving the schedule: ${error.message}. Please check the browser console for details.`;
         messageDiv.style.marginBottom = '1.5rem';
         
         const scheduleContainer = document.querySelector('.schedule-container');
-        const firstChild = scheduleContainer.firstElementChild;
-        scheduleContainer.insertBefore(messageDiv, firstChild);
+        if (scheduleContainer) {
+            const firstChild = scheduleContainer.firstElementChild;
+            scheduleContainer.insertBefore(messageDiv, firstChild);
+        }
         
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
