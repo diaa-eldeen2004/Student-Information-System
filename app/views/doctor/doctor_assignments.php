@@ -4,14 +4,18 @@ $courses = $courses ?? [];
 $courseFilter = $_GET['course'] ?? '';
 $statusFilter = $_GET['status'] ?? '';
 $typeFilter = $_GET['type'] ?? '';
+$currentSemester = $currentSemester ?? (date('n') <= 6 ? 'Spring' : 'Fall');
+$currentYear = $currentYear ?? date('Y');
+$message = $message ?? null;
+$messageType = $messageType ?? 'info';
 ?>
 
 <div class="assignments-container">
     <div class="assignments-header">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div>
-                <h1><i class="fas fa-tasks"></i> Assignments</h1>
-                <p>Manage and view all your assignments</p>
+                <h1><i class="fas fa-tasks"></i> Assignments & Quizzes</h1>
+                <p>View all assignments and quizzes for the semester. Hide/show them to students.</p>
             </div>
             <a href="<?= htmlspecialchars($url('doctor/create-assignment')) ?>" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Create Assignment
@@ -19,10 +23,29 @@ $typeFilter = $_GET['type'] ?? '';
         </div>
     </div>
 
+    <?php if ($message): ?>
+        <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'error' ? 'error' : 'info') ?>">
+            <i class="fas fa-<?= $messageType === 'success' ? 'check-circle' : ($messageType === 'error' ? 'exclamation-circle' : 'info-circle') ?>"></i>
+            <?= htmlspecialchars($message) ?>
+        </div>
+    <?php endif; ?>
+
     <!-- Filters -->
     <div class="filters-section">
         <div class="card">
             <form method="GET" action="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="filters-form">
+                <div class="form-group">
+                    <label class="form-label">Semester</label>
+                    <select name="semester" class="form-input" onchange="this.form.submit()">
+                        <option value="Fall" <?= $currentSemester === 'Fall' ? 'selected' : '' ?>>Fall</option>
+                        <option value="Spring" <?= $currentSemester === 'Spring' ? 'selected' : '' ?>>Spring</option>
+                        <option value="Summer" <?= $currentSemester === 'Summer' ? 'selected' : '' ?>>Summer</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Year</label>
+                    <input type="text" name="year" class="form-input" value="<?= htmlspecialchars($currentYear) ?>" onchange="this.form.submit()">
+                </div>
                 <div class="form-group">
                     <label class="form-label">Course</label>
                     <select name="course" class="form-input" onchange="this.form.submit()">
@@ -40,7 +63,6 @@ $typeFilter = $_GET['type'] ?? '';
                         <option value="">All Status</option>
                         <option value="active" <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
                         <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : '' ?>>Completed</option>
-                        <option value="draft" <?= $statusFilter === 'draft' ? 'selected' : '' ?>>Draft</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -115,14 +137,41 @@ $typeFilter = $_GET['type'] ?? '';
                         </div>
                     </div>
                     <div class="assignment-footer">
-                        <span class="assignment-date">Created: <?= date('M d, Y', strtotime($assignment['created_at'] ?? 'now')) ?></span>
-                        <div class="assignment-actions">
-                            <a href="#" class="btn btn-sm btn-outline">
-                                <i class="fas fa-eye"></i> View Details
-                            </a>
-                            <a href="#" class="btn btn-sm btn-outline">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                            <div>
+                                <span class="assignment-date">Created: <?= date('M d, Y', strtotime($assignment['created_at'] ?? 'now')) ?></span>
+                                <?php if (!empty($assignment['file_name'])): ?>
+                                    <div style="margin-top: 0.5rem;">
+                                        <i class="fas fa-file"></i> 
+                                        <a href="<?= htmlspecialchars($assignment['file_path'] ?? '#') ?>" target="_blank" style="color: var(--primary-color); text-decoration: none;">
+                                            <?= htmlspecialchars($assignment['file_name']) ?>
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="assignment-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+                                <form method="POST" action="<?= htmlspecialchars($url('doctor/assignments')) ?>" style="display: inline;" onsubmit="return confirm('Are you sure you want to change visibility?')">
+                                    <input type="hidden" name="action" value="toggle_visibility">
+                                    <input type="hidden" name="assignment_id" value="<?= $assignment['assignment_id'] ?>">
+                                    <input type="hidden" name="is_visible" value="<?= $assignment['is_visible'] ? 0 : 1 ?>">
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.9rem;">
+                                            <input type="number" name="duration" value="7" min="1" style="width: 50px; padding: 0.25rem;" required>
+                                            <select name="duration_type" style="padding: 0.25rem;">
+                                                <option value="hours">Hours</option>
+                                                <option value="days" selected>Days</option>
+                                            </select>
+                                        </label>
+                                        <button type="submit" class="btn btn-sm <?= $assignment['is_visible'] ? 'btn-warning' : 'btn-success' ?>" title="<?= $assignment['is_visible'] ? 'Hide from students' : 'Show to students' ?>">
+                                            <i class="fas fa-<?= $assignment['is_visible'] ? 'eye-slash' : 'eye' ?>"></i>
+                                            <?= $assignment['is_visible'] ? 'Hide' : 'Show' ?>
+                                        </button>
+                                    </div>
+                                </form>
+                                <a href="<?= htmlspecialchars($url('doctor/edit-assignment?id=' . $assignment['assignment_id'])) ?>" class="btn btn-sm btn-outline">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -302,6 +351,51 @@ $typeFilter = $_GET['type'] ?? '';
 
 .btn-outline:hover {
     background: var(--bg-secondary);
+}
+
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.alert-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.alert-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
 }
 
 .btn-sm {

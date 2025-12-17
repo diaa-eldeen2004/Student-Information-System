@@ -27,21 +27,68 @@ class Section extends Model
     {
         $stmt = $this->db->prepare("
             SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
-                   u.first_name as doctor_first_name, u.last_name as doctor_last_name
+                   u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+                   (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.section_id) as current_enrollment
             FROM {$this->table} s
             JOIN courses c ON s.course_id = c.course_id
             JOIN doctors d ON s.doctor_id = d.doctor_id
             JOIN users u ON d.user_id = u.id
             WHERE s.semester = :semester AND s.academic_year = :academic_year
-            ORDER BY c.course_code, s.section_number
+            ORDER BY s.day_of_week, s.start_time, c.course_code, s.section_number
         ");
         $stmt->execute(['semester' => $semester, 'academic_year' => $academicYear]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * Get schedule entries organized by day for weekly timetable view
+     */
+    public function getWeeklyTimetable(string $semester, string $academicYear): array
+    {
+        $entries = $this->getBySemester($semester, $academicYear);
+        
+        // Organize by day of week
+        $timetable = [
+            'Monday' => [],
+            'Tuesday' => [],
+            'Wednesday' => [],
+            'Thursday' => [],
+            'Friday' => [],
+            'Saturday' => [],
+            'Sunday' => [],
+        ];
+        
+        foreach ($entries as $entry) {
+            $day = $entry['day_of_week'] ?? '';
+            if ($day && isset($timetable[$day])) {
+                $timetable[$day][] = $entry;
+            }
+        }
+        
+        // Sort each day by start time
+        foreach ($timetable as $day => &$dayEntries) {
+            usort($dayEntries, function($a, $b) {
+                return strcmp($a['start_time'] ?? '', $b['start_time'] ?? '');
+            });
+        }
+        
+        return $timetable;
     }
 
     public function create(array $data): bool
     {
         try {
+            // Note: session_type is stored in section_number or can be added as a separate field
+            // For now, we'll store it in the time_slot field or add it to section_number
+            $sectionNumber = $data['section_number'] ?? '';
+            $sessionType = $data['session_type'] ?? '';
+            
+            // If session type is provided, append it to section number for identification
+            // Format: "001-Lecture" or "L01" (if section number already includes type)
+            if ($sessionType && strpos($sectionNumber, $sessionType) === false) {
+                $sectionNumber = $sectionNumber . '-' . ucfirst($sessionType);
+            }
+            
             $sql = "INSERT INTO {$this->table} 
                     (course_id, doctor_id, section_number, semester, academic_year, 
                      room, time_slot, day_of_week, start_time, end_time, capacity)
@@ -52,7 +99,7 @@ class Section extends Model
             return $stmt->execute([
                 'course_id' => $data['course_id'],
                 'doctor_id' => $data['doctor_id'],
-                'section_number' => $data['section_number'],
+                'section_number' => $sectionNumber,
                 'semester' => $data['semester'],
                 'academic_year' => $data['academic_year'],
                 'room' => $data['room'] ?? null,
@@ -196,15 +243,32 @@ class Section extends Model
         return (int)$this->db->lastInsertId();
     }
 
+    public function getAll(): array
+    {
+        $stmt = $this->db->query("
+            SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
+                   u.first_name as doctor_first_name, u.last_name as doctor_last_name
+            FROM {$this->table} s
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN doctors d ON s.doctor_id = d.doctor_id
+            LEFT JOIN users u ON d.user_id = u.id
+            ORDER BY s.created_at DESC
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function getByDoctor(int $doctorId): array
     {
         $stmt = $this->db->prepare("
-            SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
-                   CONCAT(c.course_code, ' - Section ', s.section_number) as section_name
+            SELECT s.*, 
+                   c.course_code, c.name as course_name, c.credit_hours,
+                   CONCAT(c.course_code, ' - Section ', s.section_number) as section_name,
+                   s.day_of_week, s.start_time, s.end_time, s.room, 
+                   s.semester, s.academic_year, s.section_number
             FROM {$this->table} s
             JOIN courses c ON s.course_id = c.course_id
             WHERE s.doctor_id = :doctor_id
-            ORDER BY s.semester DESC, s.academic_year DESC, c.course_code
+            ORDER BY s.semester DESC, s.academic_year DESC, c.course_code, s.day_of_week, s.start_time
         ");
         $stmt->execute(['doctor_id' => $doctorId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

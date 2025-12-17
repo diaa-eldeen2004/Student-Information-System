@@ -40,7 +40,6 @@ return [
     ['GET', '/doctor/attendance', 'Doctor@attendance'],
     ['GET', '/doctor/take-attendance', 'Doctor@takeAttendance'],
     ['POST', '/doctor/take-attendance', 'Doctor@takeAttendance'],
-    ['GET', '/doctor/calendar', 'Doctor@calendar'],
     ['GET', '/doctor/notifications', 'Doctor@notifications'],
     ['POST', '/doctor/notifications', 'Doctor@notifications'],
     ['GET', '/doctor/send-notification', 'Doctor@sendNotification'],
@@ -49,6 +48,14 @@ return [
     ['POST', '/doctor/profile', 'Doctor@profile'],
     ['GET', '/doctor/create-course', 'Doctor@createCourse'],
     ['POST', '/doctor/create-course', 'Doctor@createCourse'],
+    ['GET', '/doctor/edit-assignment', 'Doctor@editAssignment'],
+    ['POST', '/doctor/edit-assignment', 'Doctor@editAssignment'],
+    ['POST', '/doctor/update-grade', 'Doctor@updateGrade'],
+    ['POST', '/doctor/toggle-visibility', 'Doctor@toggleVisibility'],
+    ['GET', '/doctor/upload-material', 'Doctor@uploadMaterial'],
+    ['POST', '/doctor/upload-material', 'Doctor@uploadMaterial'],
+    ['GET', '/doctor/edit-material', 'Doctor@editMaterial'],
+    ['POST', '/doctor/edit-material', 'Doctor@editMaterial'],
 
     // Advisor routes
     ['GET', '/advisor/dashboard', 'Advisor@dashboard'],
@@ -59,10 +66,14 @@ return [
     ['POST', '/it/schedule', 'ItOfficer@schedule'],
     ['GET', '/it/enrollments', 'ItOfficer@enrollments'],
     ['POST', '/it/enrollments/approve', 'ItOfficer@approveEnrollment'],
+    ['POST', '/it/enrollments/approve-all', 'ItOfficer@approveAllEnrollments'],
     ['POST', '/it/enrollments/reject', 'ItOfficer@rejectEnrollment'],
     ['GET', '/it/course', 'ItOfficer@course'],
     ['POST', '/it/course', 'ItOfficer@course'],
     ['GET', '/it/logs', 'ItOfficer@logs'],
+    ['POST', '/it/logs', 'ItOfficer@logs'],
+    ['GET', '/it/send-notification', 'ItOfficer@sendNotification'],
+    ['POST', '/it/send-notification', 'ItOfficer@sendNotification'],
 
     // Migration (development only - remove in production)
     ['GET', '/migrate', 'Migrate@run'],

@@ -9,7 +9,7 @@ $messageType = $messageType ?? 'info';
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div>
                 <h1><i class="fas fa-paper-plane"></i> Send Notification</h1>
-                <p>Send notifications to your students</p>
+                <p>Send messages to students in your courses</p>
             </div>
             <a href="<?= htmlspecialchars($url('doctor/notifications')) ?>" class="btn btn-outline">
                 <i class="fas fa-arrow-left"></i> Back
@@ -35,21 +35,37 @@ $messageType = $messageType ?? 'info';
             <form method="POST" action="<?= htmlspecialchars($url('doctor/send-notification')) ?>" class="notification-form">
                 <div style="padding: 1.5rem;">
                     <div class="form-group">
-                        <label class="form-label">Recipient *</label>
-                        <select name="user_id" class="form-input" required>
-                            <option value="">Select a student</option>
-                            <?php foreach ($students as $student): ?>
-                                <option value="<?= $student['user_id'] ?? '' ?>">
-                                    <?= htmlspecialchars($student['first_name'] ?? '') ?> <?= htmlspecialchars($student['last_name'] ?? '') ?>
-                                    (<?= htmlspecialchars($student['student_number'] ?? '') ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <?php if (empty($students)): ?>
-                            <small style="color: var(--text-muted); font-size: 0.85rem;">
-                                No students enrolled in your sections yet.
-                            </small>
-                        <?php endif; ?>
+                        <label class="form-label">Recipients *</label>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem;">
+                            <?php if (empty($students)): ?>
+                                <p style="color: var(--text-muted); margin: 0; padding: 1rem; text-align: center;">
+                                    No students enrolled in your sections yet.
+                                </p>
+                            <?php else: ?>
+                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem; border-radius: 4px; transition: background 0.2s;" 
+                                           onmouseover="this.style.background='var(--bg-secondary)'" 
+                                           onmouseout="this.style.background='transparent'">
+                                        <input type="checkbox" id="selectAll" onchange="toggleAllStudents(this)">
+                                        <strong>Select All Students</strong>
+                                    </label>
+                                    <?php foreach ($students as $student): ?>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem; border-radius: 4px; transition: background 0.2s;" 
+                                               onmouseover="this.style.background='var(--bg-secondary)'" 
+                                               onmouseout="this.style.background='transparent'">
+                                            <input type="checkbox" name="user_ids[]" value="<?= $student['user_id'] ?? '' ?>" class="student-checkbox">
+                                            <span>
+                                                <?= htmlspecialchars($student['first_name'] ?? '') ?> <?= htmlspecialchars($student['last_name'] ?? '') ?>
+                                                <small style="color: var(--text-secondary);">(<?= htmlspecialchars($student['student_number'] ?? '') ?>)</small>
+                                            </span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; display: block;">
+                            Select one or more students to send the notification to.
+                        </small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Notification Type *</label>
@@ -83,6 +99,25 @@ $messageType = $messageType ?? 'info';
         </div>
     </div>
 </div>
+
+<script>
+function toggleAllStudents(selectAllCheckbox) {
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+}
+
+// Validate form before submission
+document.querySelector('.notification-form')?.addEventListener('submit', function(e) {
+    const checked = document.querySelectorAll('.student-checkbox:checked');
+    if (checked.length === 0) {
+        e.preventDefault();
+        alert('Please select at least one student to send the notification to.');
+        return false;
+    }
+});
+</script>
 
 <style>
 .notification-container {

@@ -19,6 +19,7 @@ use models\Attendance;
 use models\Student;
 use models\AuditLog;
 use models\Notification;
+use models\Material;
 
 class Doctor extends Controller
 {
@@ -30,6 +31,7 @@ class Doctor extends Controller
     private Student $studentModel;
     private AuditLog $auditLogModel;
     private Notification $notificationModel;
+    private Material $materialModel;
     
     // Observer Pattern
     private AssignmentSubject $assignmentSubject;
@@ -59,6 +61,7 @@ class Doctor extends Controller
         $this->studentModel = ModelFactory::create('Student');
         $this->auditLogModel = ModelFactory::create('AuditLog');
         $this->notificationModel = ModelFactory::create('Notification');
+        $this->materialModel = ModelFactory::create('Material');
 
         // Adapter Pattern - Notification service with database adapter
         $notificationAdapter = new DatabaseNotificationAdapter($this->notificationModel);
@@ -240,16 +243,74 @@ class Doctor extends Controller
             $messageType = 'info';
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Handle file upload
+                $filePath = null;
+                $fileName = null;
+                $fileSize = null;
+                
+                if (isset($_FILES['assignment_file']) && $_FILES['assignment_file']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = dirname(__DIR__, 2) . '/public/uploads/assignments/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    $fileExtension = pathinfo($_FILES['assignment_file']['name'], PATHINFO_EXTENSION);
+                    $fileName = trim($_POST['file_name'] ?? '') ?: $_FILES['assignment_file']['name'];
+                    $fileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
+                    if (!pathinfo($fileName, PATHINFO_EXTENSION)) {
+                        $fileName .= '.' . $fileExtension;
+                    }
+                    
+                    $uniqueFileName = time() . '_' . uniqid() . '_' . $fileName;
+                    $targetPath = $uploadDir . $uniqueFileName;
+                    
+                    if (move_uploaded_file($_FILES['assignment_file']['tmp_name'], $targetPath)) {
+                        $filePath = '/uploads/assignments/' . $uniqueFileName;
+                        $fileSize = $_FILES['assignment_file']['size'];
+                    }
+                }
+                
+                // Get section info for semester/year
+                $sectionId = (int)($_POST['section_id'] ?? 0);
+                $section = $this->sectionModel->findById($sectionId);
+                $semester = $section['semester'] ?? null;
+                $academicYear = $section['academic_year'] ?? null;
+                
                 // Builder Pattern - Build assignment step by step
                 $builder = new AssignmentBuilder();
                 $builder->setCourse((int)($_POST['course_id'] ?? 0))
-                        ->setSection((int)($_POST['section_id'] ?? 0))
+                        ->setSection($sectionId)
                         ->setDoctor($doctor['doctor_id'])
                         ->setTitle(trim($_POST['title'] ?? ''))
                         ->setDescription(trim($_POST['description'] ?? ''))
                         ->setDueDate(trim($_POST['due_date'] ?? ''))
                         ->setMaxPoints((float)($_POST['points'] ?? 100))
                         ->setType(trim($_POST['type'] ?? 'homework'));
+                
+                if ($filePath) {
+                    $builder->setFile($filePath, $fileName, $fileSize);
+                }
+                
+                if ($semester && $academicYear) {
+                    $builder->setSemester($semester, $academicYear);
+                }
+                
+                // Visibility settings
+                $isVisible = isset($_POST['is_visible']) ? (int)$_POST['is_visible'] : 1;
+                $visibleUntil = !empty($_POST['visible_until']) ? trim($_POST['visible_until']) : null;
+                if ($visibleUntil) {
+                    // Convert hours/days to datetime
+                    $durationType = $_POST['duration_type'] ?? 'hours';
+                    $duration = (int)($_POST['duration'] ?? 0);
+                    if ($duration > 0) {
+                        if ($durationType === 'days') {
+                            $visibleUntil = date('Y-m-d H:i:s', strtotime("+{$duration} days"));
+                        } else {
+                            $visibleUntil = date('Y-m-d H:i:s', strtotime("+{$duration} hours"));
+                        }
+                    }
+                }
+                $builder->setVisibility($isVisible, $visibleUntil);
 
                 $assignmentData = $builder->build();
 
@@ -312,14 +373,29 @@ class Doctor extends Controller
                 return;
             }
 
-            // Get doctor's sections
+            // Get doctor's sections - ONLY assigned courses
             $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
             
-            // Get attendance stats for each section
+            // Get attendance stats and student counts for each section
             $sectionsWithStats = [];
             foreach ($sections as $section) {
+                // Verify doctor has access to this section
+                if ($section['doctor_id'] != $doctor['doctor_id']) {
+                    continue; // Skip unassigned courses
+                }
+                
                 $stats = $this->attendanceModel->getAttendanceStats($section['section_id']);
                 $section['attendance_stats'] = $stats;
+                
+                // Get student count
+                $enrollments = $this->sectionModel->getEnrolledStudents($section['section_id']);
+                $section['student_count'] = count($enrollments);
+                
+                // Get course info
+                $course = $this->courseModel->findById($section['course_id']);
+                $section['course_code'] = $course['course_code'] ?? 'N/A';
+                $section['course_name'] = $course['name'] ?? 'N/A';
+                
                 $sectionsWithStats[] = $section;
             }
 
@@ -382,12 +458,22 @@ class Doctor extends Controller
                 }
             }
 
-            // Get enrolled students
+            // Get enrolled students - ONLY students assigned to this course
             $enrollments = $this->sectionModel->getEnrolledStudents($sectionId);
             $students = [];
             foreach ($enrollments as $enrollment) {
                 $student = $this->studentModel->findById($enrollment['student_id']);
                 if ($student) {
+                    // Get existing attendance for this date if any
+                    $existingAttendance = $this->attendanceModel->getByDate($sectionId, $attendanceDate ?? date('Y-m-d'));
+                    $student['attendance_status'] = null;
+                    foreach ($existingAttendance as $att) {
+                        if ($att['student_id'] == $student['student_id']) {
+                            $student['attendance_status'] = $att['status'];
+                            $student['attendance_notes'] = $att['notes'] ?? '';
+                            break;
+                        }
+                    }
                     $students[] = $student;
                 }
             }
@@ -403,33 +489,6 @@ class Doctor extends Controller
         } catch (\Exception $e) {
             error_log("Take attendance error: " . $e->getMessage());
             $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to take attendance: ' . $e->getMessage()]);
-        }
-    }
-
-    public function calendar(): void
-    {
-        try {
-            $userId = $_SESSION['user']['id'];
-            $doctor = $this->doctorModel->findByUserId($userId);
-            
-            if (!$doctor) {
-                $this->view->render('errors/403', ['title' => 'Access Denied']);
-                return;
-            }
-
-            // Get doctor's sections and assignments for calendar
-            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
-            $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id']);
-
-            $this->view->render('doctor/doctor_calendar', [
-                'title' => 'Calendar Management',
-                'sections' => $sections,
-                'assignments' => $assignments,
-                'showSidebar' => true,
-            ]);
-        } catch (\Exception $e) {
-            error_log("Calendar error: " . $e->getMessage());
-            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load calendar: ' . $e->getMessage()]);
         }
     }
 
@@ -532,28 +591,45 @@ class Doctor extends Controller
             $messageType = 'info';
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $targetUserId = (int)($_POST['user_id'] ?? 0);
+                $userIds = $_POST['user_ids'] ?? [];
                 $title = trim($_POST['title'] ?? '');
                 $content = trim($_POST['message'] ?? '');
                 $type = trim($_POST['type'] ?? 'info');
 
-                if ($targetUserId && $title && $content) {
-                    if ($this->notificationModel->create([
-                        'user_id' => $targetUserId,
-                        'title' => $title,
-                        'message' => $content,
-                        'type' => $type,
-                        'related_id' => $doctor['doctor_id'],
-                        'related_type' => 'doctor'
-                    ])) {
-                        $message = 'Notification sent successfully';
+                if (!empty($userIds) && $title && $content) {
+                    $successCount = 0;
+                    $errorCount = 0;
+                    
+                    foreach ($userIds as $userId) {
+                        $userId = (int)$userId;
+                        if ($userId > 0) {
+                            if ($this->notificationModel->create([
+                                'user_id' => $userId,
+                                'title' => $title,
+                                'message' => $content,
+                                'type' => $type,
+                                'related_id' => $doctor['doctor_id'],
+                                'related_type' => 'doctor'
+                            ])) {
+                                $successCount++;
+                            } else {
+                                $errorCount++;
+                            }
+                        }
+                    }
+                    
+                    if ($successCount > 0) {
+                        $message = "Notification sent successfully to {$successCount} student(s)";
+                        if ($errorCount > 0) {
+                            $message .= ". {$errorCount} failed.";
+                        }
                         $messageType = 'success';
                     } else {
-                        $message = 'Error sending notification';
+                        $message = 'Error sending notifications';
                         $messageType = 'error';
                     }
                 } else {
-                    $message = 'Please fill all required fields';
+                    $message = 'Please select at least one student and fill all required fields';
                     $messageType = 'error';
                 }
             }
@@ -660,6 +736,288 @@ class Doctor extends Controller
         } catch (\Exception $e) {
             error_log("Profile error: " . $e->getMessage());
             $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load profile: ' . $e->getMessage()]);
+        }
+    }
+
+    public function editAssignment(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $assignmentId = (int)($_GET['id'] ?? 0);
+            if (!$assignmentId) {
+                $this->redirectTo('doctor/assignments');
+                return;
+            }
+
+            $assignment = $this->assignmentModel->findById($assignmentId);
+            if (!$assignment || $assignment['doctor_id'] != $doctor['doctor_id']) {
+                $this->view->render('errors/403', ['title' => 'Access Denied', 'message' => 'You do not have access to this assignment']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $updateData = [
+                    'title' => trim($_POST['title'] ?? ''),
+                    'description' => trim($_POST['description'] ?? ''),
+                    'due_date' => trim($_POST['due_date'] ?? ''),
+                    'max_points' => (float)($_POST['points'] ?? 100),
+                    'assignment_type' => trim($_POST['type'] ?? 'homework'),
+                ];
+
+                // Handle file upload if new file provided
+                if (isset($_FILES['assignment_file']) && $_FILES['assignment_file']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = dirname(__DIR__, 2) . '/public/uploads/assignments/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    // Delete old file if exists
+                    if ($assignment['file_path']) {
+                        $oldPath = dirname(__DIR__, 2) . '/public' . $assignment['file_path'];
+                        if (file_exists($oldPath)) {
+                            @unlink($oldPath);
+                        }
+                    }
+                    
+                    $fileExtension = pathinfo($_FILES['assignment_file']['name'], PATHINFO_EXTENSION);
+                    $fileName = trim($_POST['file_name'] ?? '') ?: $_FILES['assignment_file']['name'];
+                    $fileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
+                    if (!pathinfo($fileName, PATHINFO_EXTENSION)) {
+                        $fileName .= '.' . $fileExtension;
+                    }
+                    
+                    $uniqueFileName = time() . '_' . uniqid() . '_' . $fileName;
+                    $targetPath = $uploadDir . $uniqueFileName;
+                    
+                    if (move_uploaded_file($_FILES['assignment_file']['tmp_name'], $targetPath)) {
+                        $updateData['file_path'] = '/uploads/assignments/' . $uniqueFileName;
+                        $updateData['file_name'] = $fileName;
+                        $updateData['file_size'] = $_FILES['assignment_file']['size'];
+                    }
+                } elseif (!empty($_POST['file_name']) && $assignment['file_path']) {
+                    // Just rename the file
+                    $updateData['file_name'] = trim($_POST['file_name']);
+                }
+
+                if ($this->assignmentModel->update($assignmentId, $updateData)) {
+                    $message = 'Assignment updated successfully';
+                    $messageType = 'success';
+                    $assignment = $this->assignmentModel->findById($assignmentId); // Reload
+                } else {
+                    $message = 'Error updating assignment';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get doctor's sections for dropdown
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $courses = [];
+            foreach ($sections as $section) {
+                $course = $this->courseModel->findById($section['course_id']);
+                if ($course && !isset($courses[$course['course_id']])) {
+                    $courses[$course['course_id']] = $course;
+                    $courses[$course['course_id']]['sections'] = [];
+                }
+                if ($course) {
+                    $courses[$course['course_id']]['sections'][] = $section;
+                }
+            }
+
+            $this->view->render('doctor/edit_assignment', [
+                'title' => 'Edit Assignment',
+                'assignment' => $assignment,
+                'courses' => array_values($courses),
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Edit assignment error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to edit assignment: ' . $e->getMessage()]);
+        }
+    }
+
+    public function uploadMaterial(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (isset($_FILES['material_file']) && $_FILES['material_file']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = dirname(__DIR__, 2) . '/public/uploads/materials/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    $fileExtension = pathinfo($_FILES['material_file']['name'], PATHINFO_EXTENSION);
+                    $fileName = trim($_POST['file_name'] ?? '') ?: $_FILES['material_file']['name'];
+                    $fileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
+                    
+                    $uniqueFileName = time() . '_' . uniqid() . '_' . $fileName;
+                    $targetPath = $uploadDir . $uniqueFileName;
+                    
+                    if (move_uploaded_file($_FILES['material_file']['tmp_name'], $targetPath)) {
+                        $materialData = [
+                            'course_id' => (int)($_POST['course_id'] ?? 0),
+                            'section_id' => !empty($_POST['section_id']) ? (int)$_POST['section_id'] : null,
+                            'doctor_id' => $doctor['doctor_id'],
+                            'title' => trim($_POST['title'] ?? ''),
+                            'description' => trim($_POST['description'] ?? ''),
+                            'file_path' => '/uploads/materials/' . $uniqueFileName,
+                            'file_name' => $fileName,
+                            'file_type' => $fileExtension,
+                            'file_size' => $_FILES['material_file']['size'],
+                            'material_type' => trim($_POST['material_type'] ?? 'other'),
+                        ];
+
+                        if ($this->materialModel->create($materialData)) {
+                            $message = 'File uploaded successfully';
+                            $messageType = 'success';
+                        } else {
+                            $message = 'Error uploading file';
+                            $messageType = 'error';
+                        }
+                    } else {
+                        $message = 'Error moving uploaded file';
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = 'No file uploaded or upload error';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get doctor's courses
+            $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            $courses = [];
+            foreach ($sections as $section) {
+                $course = $this->courseModel->findById($section['course_id']);
+                if ($course && !isset($courses[$course['course_id']])) {
+                    $courses[$course['course_id']] = $course;
+                    $courses[$course['course_id']]['sections'] = [];
+                }
+                if ($course) {
+                    $courses[$course['course_id']]['sections'][] = $section;
+                }
+            }
+
+            $this->view->render('doctor/upload_material', [
+                'title' => 'Upload Course Material',
+                'courses' => array_values($courses),
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Upload material error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to upload material: ' . $e->getMessage()]);
+        }
+    }
+
+    public function editMaterial(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            $doctor = $this->doctorModel->findByUserId($userId);
+            
+            if (!$doctor) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $materialId = (int)($_GET['id'] ?? 0);
+            if (!$materialId) {
+                $this->redirectTo('doctor/course');
+                return;
+            }
+
+            $material = $this->materialModel->findById($materialId);
+            if (!$material || $material['doctor_id'] != $doctor['doctor_id']) {
+                $this->view->render('errors/403', ['title' => 'Access Denied', 'message' => 'You do not have access to this material']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $updateData = [
+                    'title' => trim($_POST['title'] ?? ''),
+                    'description' => trim($_POST['description'] ?? ''),
+                ];
+
+                // Handle file upload if new file provided
+                if (isset($_FILES['material_file']) && $_FILES['material_file']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = dirname(__DIR__, 2) . '/public/uploads/materials/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    // Delete old file if exists
+                    if ($material['file_path']) {
+                        $oldPath = dirname(__DIR__, 2) . '/public' . $material['file_path'];
+                        if (file_exists($oldPath)) {
+                            @unlink($oldPath);
+                        }
+                    }
+                    
+                    $fileExtension = pathinfo($_FILES['material_file']['name'], PATHINFO_EXTENSION);
+                    $fileName = trim($_POST['file_name'] ?? '') ?: $_FILES['material_file']['name'];
+                    $fileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
+                    
+                    $uniqueFileName = time() . '_' . uniqid() . '_' . $fileName;
+                    $targetPath = $uploadDir . $uniqueFileName;
+                    
+                    if (move_uploaded_file($_FILES['material_file']['tmp_name'], $targetPath)) {
+                        $updateData['file_path'] = '/uploads/materials/' . $uniqueFileName;
+                        $updateData['file_name'] = $fileName;
+                        $updateData['file_type'] = $fileExtension;
+                        $updateData['file_size'] = $_FILES['material_file']['size'];
+                    }
+                } elseif (!empty($_POST['file_name']) && $material['file_path']) {
+                    // Just rename the file
+                    $updateData['file_name'] = trim($_POST['file_name']);
+                }
+
+                if ($this->materialModel->update($materialId, $updateData)) {
+                    $message = 'Material updated successfully';
+                    $messageType = 'success';
+                    $material = $this->materialModel->findById($materialId); // Reload
+                } else {
+                    $message = 'Error updating material';
+                    $messageType = 'error';
+                }
+            }
+
+            $this->view->render('doctor/edit_material', [
+                'title' => 'Edit Material',
+                'material' => $material,
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Edit material error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to edit material: ' . $e->getMessage()]);
         }
     }
 }

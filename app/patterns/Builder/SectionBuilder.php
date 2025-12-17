@@ -62,6 +62,12 @@ class SectionBuilder
         return $this;
     }
 
+    public function setSessionType(string $sessionType): self
+    {
+        $this->data['session_type'] = $sessionType;
+        return $this;
+    }
+
     public function build(): array
     {
         // Validate required fields

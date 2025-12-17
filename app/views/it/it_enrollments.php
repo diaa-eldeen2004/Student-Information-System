@@ -6,12 +6,36 @@ $error = $_GET['error'] ?? null;
 
 <div class="enrollments-container">
     <div class="enrollments-header">
-        <h1><i class="fas fa-user-check"></i> Enrollment Requests</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <h1><i class="fas fa-user-check"></i> Enrollment Requests</h1>
+            <?php 
+            $pendingCount = 0;
+            foreach ($requests as $req) {
+                if ($req['status'] === 'pending') $pendingCount++;
+            }
+            if ($pendingCount > 0): ?>
+                <form method="POST" action="<?= htmlspecialchars($url('it/enrollments/approve-all')) ?>" style="display: inline;" onsubmit="return confirm('Are you sure you want to approve all <?= $pendingCount ?> pending requests?');">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check-double"></i> Accept All (<?= $pendingCount ?>)
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
     </div>
 
     <?php if ($success === 'approved'): ?>
         <div class="alert alert-success">
             <i class="fas fa-check-circle"></i> Enrollment request approved successfully!
+        </div>
+    <?php elseif ($success === 'approved_all'): ?>
+        <div class="alert alert-success">
+            <i class="fas fa-check-double"></i> 
+            <?php 
+            $count = $_GET['count'] ?? 0;
+            $failed = $_GET['failed'] ?? 0;
+            echo "Approved {$count} enrollment request(s)";
+            if ($failed > 0) echo " ({$failed} failed)";
+            ?>
         </div>
     <?php elseif ($success === 'rejected'): ?>
         <div class="alert alert-warning">
@@ -197,6 +221,20 @@ $error = $_GET['error'] ?? null;
     background: #10b981;
     color: white;
     border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-success:hover {
+    background: #059669;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .btn-danger {
@@ -298,6 +336,52 @@ $error = $_GET['error'] ?? null;
     background: #fee2e2;
     color: #991b1b;
     border: 1px solid #fecaca;
+}
+
+/* Enhanced Styles */
+.enrollments-container {
+    background: var(--background-color);
+}
+
+.requests-table {
+    transition: box-shadow 0.3s ease;
+}
+
+.requests-table:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.requests-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.requests-table tbody tr:hover {
+    background: var(--surface-color);
+    transform: scale(1.01);
+}
+
+.btn-sm {
+    transition: all 0.2s ease;
+}
+
+.btn-sm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content {
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 </style>
 

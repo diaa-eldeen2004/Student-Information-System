@@ -49,7 +49,9 @@ class AuditLog extends Model
     public function getByUser(int $userId, int $limit = 50): array
     {
         $stmt = $this->db->prepare("
-            SELECT al.*, u.first_name, u.last_name, u.email
+            SELECT al.log_id, al.user_id, al.action, al.entity_type, al.entity_id, al.details, 
+                   al.ip_address, al.user_agent, al.created_at,
+                   u.first_name, u.last_name, u.email, u.role as user_role
             FROM {$this->table} al
             LEFT JOIN users u ON al.user_id = u.id
             WHERE al.user_id = :user_id
@@ -65,14 +67,16 @@ class AuditLog extends Model
     public function getByAction(string $action, int $limit = 50): array
     {
         $stmt = $this->db->prepare("
-            SELECT al.*, u.first_name, u.last_name, u.email
+            SELECT al.log_id, al.user_id, al.action, al.entity_type, al.entity_id, al.details, 
+                   al.ip_address, al.user_agent, al.created_at,
+                   u.first_name, u.last_name, u.email, u.role as user_role
             FROM {$this->table} al
             LEFT JOIN users u ON al.user_id = u.id
             WHERE al.action = :action
             ORDER BY al.created_at DESC
             LIMIT :limit
         ");
-        $stmt->execute(['action' => $action]);
+        $stmt->bindValue(':action', $action);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -103,6 +107,108 @@ class AuditLog extends Model
             error_log("Audit log creation failed: " . $e->getMessage());
             return false;
         }
+    }
+
+    public function getWithFilters(array $filters = [], int $limit = 100): array
+    {
+        $where = [];
+        $params = [];
+        
+        if (!empty($filters['action'])) {
+            $where[] = "al.action LIKE :action";
+            $params['action'] = '%' . $filters['action'] . '%';
+        }
+        
+        if (!empty($filters['entity_type'])) {
+            $where[] = "al.entity_type = :entity_type";
+            $params['entity_type'] = $filters['entity_type'];
+        }
+        
+        if (!empty($filters['search'])) {
+            $where[] = "(al.action LIKE :search OR al.details LIKE :search OR u.first_name LIKE :search OR u.last_name LIKE :search)";
+            $params['search'] = '%' . $filters['search'] . '%';
+        }
+        
+        if (!empty($filters['dateRange'])) {
+            $dateCondition = $this->getDateRangeCondition($filters['dateRange']);
+            if ($dateCondition) {
+                $where[] = $dateCondition;
+            }
+        }
+        
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+        
+        $sql = "
+            SELECT al.log_id, al.user_id, al.action, al.entity_type, al.entity_id, al.details, 
+                   al.ip_address, al.user_agent, al.created_at,
+                   u.first_name, u.last_name, u.email, u.role as user_role
+            FROM {$this->table} al
+            LEFT JOIN users u ON al.user_id = u.id
+            {$whereClause}
+            ORDER BY al.created_at DESC
+            LIMIT :limit
+        ";
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getStats(string $dateRange = 'month'): array
+    {
+        $dateCondition = $this->getDateRangeCondition($dateRange);
+        $whereClause = $dateCondition ? "WHERE {$dateCondition}" : '';
+        
+        $sql = "
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN al.action LIKE '%error%' OR al.action LIKE '%failed%' THEN 1 ELSE 0 END) as errors,
+                SUM(CASE WHEN al.action LIKE '%warning%' OR al.action LIKE '%reject%' THEN 1 ELSE 0 END) as warnings,
+                SUM(CASE WHEN al.action LIKE '%info%' OR al.action LIKE '%view%' THEN 1 ELSE 0 END) as info,
+                SUM(CASE WHEN al.action LIKE '%success%' OR al.action LIKE '%approve%' OR al.action LIKE '%create%' THEN 1 ELSE 0 END) as success,
+                SUM(CASE WHEN al.action LIKE '%critical%' THEN 1 ELSE 0 END) as critical
+            FROM {$this->table} al
+            {$whereClause}
+        ";
+        
+        $stmt = $this->db->query($sql);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return [
+            'total' => (int)($result['total'] ?? 0),
+            'errors' => (int)($result['errors'] ?? 0),
+            'warnings' => (int)($result['warnings'] ?? 0),
+            'info' => (int)($result['info'] ?? 0),
+            'success' => (int)($result['success'] ?? 0),
+            'critical' => (int)($result['critical'] ?? 0),
+        ];
+    }
+
+    public function clearAll(): bool
+    {
+        try {
+            $sql = "TRUNCATE TABLE {$this->table}";
+            $this->db->exec($sql);
+            return true;
+        } catch (\PDOException $e) {
+            error_log("Clear logs failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function getDateRangeCondition(string $dateRange): ?string
+    {
+        return match($dateRange) {
+            'today' => "DATE(al.created_at) = CURDATE()",
+            'week' => "al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
+            'month' => "al.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)",
+            'all' => null,
+            default => "al.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)",
+        };
     }
 }
 
