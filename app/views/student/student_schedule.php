@@ -24,13 +24,13 @@ $academicYear = $academicYear ?? date('Y');
                     <h3>Weekly Schedule</h3>
                 </div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <form method="GET" action="<?= htmlspecialchars($url('student/schedule')) ?>" style="display: flex; gap: 0.5rem; align-items: center;">
-                        <select name="semester" class="form-input" style="width: auto;">
+                    <form method="GET" action="<?= htmlspecialchars($url('student/schedule')) ?>" id="scheduleFilterForm" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select name="semester" id="filterSemester" class="form-input" style="width: auto;" onchange="document.getElementById('scheduleFilterForm').submit();">
                             <option value="Fall" <?= $semester === 'Fall' ? 'selected' : '' ?>>Fall</option>
                             <option value="Spring" <?= $semester === 'Spring' ? 'selected' : '' ?>>Spring</option>
                             <option value="Summer" <?= $semester === 'Summer' ? 'selected' : '' ?>>Summer</option>
                         </select>
-                        <input type="number" name="year" value="<?= htmlspecialchars($academicYear) ?>" class="form-input" style="width: 100px;" min="2020" max="2030">
+                        <input type="number" name="year" id="filterYear" value="<?= htmlspecialchars($academicYear) ?>" class="form-input" style="width: 100px;" min="2020" max="2030" onchange="document.getElementById('scheduleFilterForm').submit();">
                         <button type="submit" class="btn btn-primary">Filter</button>
                     </form>
                 </div>
@@ -202,9 +202,13 @@ $academicYear = $academicYear ?? date('Y');
                                     </td>
                                     <td>
                                         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                                            <button type="button" class="btn btn-sm btn-outline" onclick="previewTimetable(<?= htmlspecialchars($scheduleId ?? 0) ?>)" title="Preview Timetable">
-                                                <i class="fas fa-calendar-week"></i> Preview
-                                            </button>
+                                            <?php if ($scheduleId): ?>
+                                                <button type="button" class="btn btn-sm btn-outline preview-timetable-btn" data-schedule-id="<?= (int)$scheduleId ?>" title="Preview Timetable">
+                                                    <i class="fas fa-calendar-week"></i> Preview
+                                                </button>
+                                            <?php else: ?>
+                                                <span class="text-muted" style="font-size: 0.875rem;">N/A</span>
+                                            <?php endif; ?>
                                             <?php if ($isEnrolled): ?>
                                                 <span class="badge" style="background-color: var(--success-color, #10b981); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
                                                     <i class="fas fa-check-circle"></i> Enrolled
@@ -365,44 +369,149 @@ $academicYear = $academicYear ?? date('Y');
 </style>
 
 <script>
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Attach event listeners to all preview buttons
+    const previewButtons = document.querySelectorAll('.preview-timetable-btn');
+    console.log('Found preview buttons:', previewButtons.length);
+    
+    previewButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const scheduleId = this.getAttribute('data-schedule-id');
+            console.log('Preview button clicked, schedule ID:', scheduleId);
+            
+            if (!scheduleId || scheduleId === '0') {
+                alert('Invalid schedule ID');
+                return;
+            }
+            
+            previewTimetable(parseInt(scheduleId));
+        });
+    });
+});
+
 function previewTimetable(scheduleId) {
-    if (!scheduleId) {
-        alert('Invalid schedule ID');
+    console.log('previewTimetable called with ID:', scheduleId);
+    
+    if (!scheduleId || scheduleId === 0) {
+        alert('Invalid schedule ID: ' + scheduleId);
         return;
     }
     
     // Show modal
     const modal = document.getElementById('timetablePreviewModal');
     const content = document.getElementById('timetablePreviewContent');
+    
+    if (!modal) {
+        console.error('Modal element not found');
+        alert('Modal element not found');
+        return;
+    }
+    
+    if (!content) {
+        console.error('Content element not found');
+        alert('Content element not found');
+        return;
+    }
+    
+    console.log('Showing modal');
     modal.style.display = 'block';
     content.innerHTML = '<div class="text-center" style="padding: 2rem;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading timetable...</p></div>';
     
-    // Fetch timetable data
-    fetch('<?= htmlspecialchars($url('student/preview-timetable')) ?>?schedule_id=' + scheduleId)
-        .then(response => response.json())
+    // Build URL - use the current window location as base
+    const baseUrl = window.location.origin + window.location.pathname.split('/').slice(0, -1).join('/');
+    const previewUrl = baseUrl.replace(/\/student\/schedule$/, '') + '/student/preview-timetable?schedule_id=' + encodeURIComponent(scheduleId);
+    
+    // Alternative: Use absolute path
+    const altUrl = '<?= htmlspecialchars($url('student/preview-timetable')) ?>?schedule_id=' + encodeURIComponent(scheduleId);
+    
+    console.log('Base URL:', baseUrl);
+    console.log('Preview URL (relative):', previewUrl);
+    console.log('Preview URL (from PHP):', altUrl);
+    
+    // Try the PHP-generated URL first, fallback to constructed URL
+    const url = altUrl || previewUrl;
+    
+    console.log('Fetching timetable from:', url);
+    
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Error response text:', text);
+                    throw new Error('Network response was not ok: ' + response.status + ' - ' + text);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Response data:', data);
             if (data.success) {
                 displayTimetablePreview(data.timetable, data.schedule);
             } else {
-                content.innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Failed to load timetable') + '</div>';
+                content.innerHTML = '<div class="alert" style="background-color: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #dc2626;"><i class="fas fa-exclamation-circle"></i> <strong>Error:</strong> ' + (data.error || 'Failed to load timetable') + '</div>';
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            content.innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> An error occurred while loading the timetable.</div>';
+            console.error('Fetch error:', error);
+            content.innerHTML = '<div class="alert" style="background-color: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #dc2626;"><i class="fas fa-exclamation-circle"></i> <strong>Error:</strong> An error occurred while loading the timetable: ' + error.message + '<br><small>Check the browser console for more details.</small></div>';
         });
 }
 
 function displayTimetablePreview(timetable, schedule) {
     const content = document.getElementById('timetablePreviewContent');
+    if (!content) {
+        console.error('Content element not found');
+        return;
+    }
+    
+    if (!timetable || typeof timetable !== 'object') {
+        timetable = {};
+    }
+    
+    if (!schedule || typeof schedule !== 'object') {
+        schedule = {};
+    }
+    
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const timeSlots = [];
     for (let hour = 8; hour <= 20; hour++) {
         timeSlots.push(String(hour).padStart(2, '0') + ':00');
     }
     
-    let html = '<h3>' + (schedule.course_code || 'Schedule') + ' - ' + (schedule.section_number || '') + '</h3>';
-    html += '<p><strong>Semester:</strong> ' + (schedule.semester || '') + ' ' + (schedule.academic_year || '') + '</p>';
+    let html = '<h3>' + (schedule.course_code || schedule.title || 'Schedule') + ' - ' + (schedule.section_number || '') + '</h3>';
+    if (schedule.semester || schedule.academic_year) {
+        html += '<p><strong>Semester:</strong> ' + (schedule.semester || '') + ' ' + (schedule.academic_year || '') + '</p>';
+    }
+    if (schedule.doctor_first_name || schedule.doctor_last_name) {
+        html += '<p><strong>Instructor:</strong> ' + (schedule.doctor_first_name || '') + ' ' + (schedule.doctor_last_name || '') + '</p>';
+    }
+    
+    // Check if timetable has any entries
+    let hasEntries = false;
+    for (const day of days) {
+        if (timetable[day] && Array.isArray(timetable[day]) && timetable[day].length > 0) {
+            hasEntries = true;
+            break;
+        }
+    }
+    
+    if (!hasEntries) {
+        html += '<div class="alert" style="background-color: #fef3c7; color: #92400e; padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #f59e0b;"><i class="fas fa-info-circle"></i> No schedule entries found for this timetable.</div>';
+        content.innerHTML = html;
+        return;
+    }
+    
     html += '<div class="table-responsive">';
     html += '<table class="timetable-preview-table">';
     html += '<thead><tr><th class="time-col">Time</th>';
@@ -415,22 +524,31 @@ function displayTimetablePreview(timetable, schedule) {
         html += '<tr><td class="time-col"><strong>' + timeSlot + '</strong></td>';
         days.forEach(day => {
             html += '<td class="timetable-preview-cell">';
-            if (timetable[day] && timetable[day].length > 0) {
+            if (timetable[day] && Array.isArray(timetable[day]) && timetable[day].length > 0) {
                 timetable[day].forEach(entry => {
+                    if (!entry || typeof entry !== 'object') return;
+                    
                     const startTime = entry.start_time || '';
                     const endTime = entry.end_time || '';
-                    const slotStart = new Date('1970-01-01T' + timeSlot + ':00').getTime();
-                    const slotEnd = slotStart + 3600000;
-                    const entryStart = new Date('1970-01-01T' + startTime).getTime();
-                    const entryEnd = new Date('1970-01-01T' + endTime).getTime();
                     
-                    if (entryStart < slotEnd && entryEnd > slotStart) {
-                        html += '<div class="timetable-preview-entry">';
-                        html += '<strong>' + (entry.course_code || '') + ' - ' + (entry.section_number || '') + '</strong>';
-                        html += '<div>' + (entry.course_name || '') + '</div>';
-                        html += '<div><i class="fas fa-clock"></i> ' + formatTime(startTime) + ' - ' + formatTime(endTime) + '</div>';
-                        html += '<div><i class="fas fa-door-open"></i> ' + (entry.room || 'TBA') + '</div>';
-                        html += '</div>';
+                    if (!startTime || !endTime) return;
+                    
+                    try {
+                        const slotStart = new Date('1970-01-01T' + timeSlot + ':00').getTime();
+                        const slotEnd = slotStart + 3600000;
+                        const entryStart = new Date('1970-01-01T' + startTime).getTime();
+                        const entryEnd = new Date('1970-01-01T' + endTime).getTime();
+                        
+                        if (entryStart < slotEnd && entryEnd > slotStart) {
+                            html += '<div class="timetable-preview-entry">';
+                            html += '<strong>' + (entry.course_code || '') + (entry.section_number ? ' - ' + entry.section_number : '') + '</strong>';
+                            html += '<div>' + (entry.course_name || '') + '</div>';
+                            html += '<div><i class="fas fa-clock"></i> ' + formatTime(startTime) + ' - ' + formatTime(endTime) + '</div>';
+                            html += '<div><i class="fas fa-door-open"></i> ' + (entry.room || 'TBA') + '</div>';
+                            html += '</div>';
+                        }
+                    } catch (e) {
+                        console.error('Error processing timetable entry:', e, entry);
                     }
                 });
             }

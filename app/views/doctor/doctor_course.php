@@ -129,8 +129,8 @@ $messageType = $messageType ?? 'info';
                                                                             <small style="color: var(--text-secondary);"><?= htmlspecialchars($submission['student_number'] ?? '') ?></small>
                                                                         </td>
                                                                         <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
-                                                                            <?php if (!empty($submission['file_name'])): ?>
-                                                                                <a href="<?= htmlspecialchars($submission['file_path'] ?? '#') ?>" target="_blank" style="color: var(--primary-color); text-decoration: none;">
+                                                                            <?php if (!empty($submission['file_name']) && !empty($submission['file_path'])): ?>
+                                                                                <a href="<?= htmlspecialchars(isset($asset) && is_callable($asset) ? $asset($submission['file_path']) : $submission['file_path']) ?>" target="_blank" style="color: var(--primary-color); text-decoration: none;">
                                                                                     <i class="fas fa-file"></i> <?= htmlspecialchars($submission['file_name']) ?>
                                                                                 </a>
                                                                             <?php else: ?>

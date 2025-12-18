@@ -477,6 +477,24 @@ class Student extends Model
     public function getEnrolledCourses(int $studentId, ?string $semester = null, ?string $academicYear = null): array
     {
         try {
+            // Check if enrollments has schedule_id column
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            // Check if sections table exists, otherwise use schedule table
+            $hasSectionsTable = false;
+            try {
+                $checkStmt = $this->db->query("SHOW TABLES LIKE 'sections'");
+                $hasSectionsTable = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasSectionsTable = false;
+            }
+            
             $where = ["e.student_id = :student_id", "e.status = 'enrolled'"];
             $params = ['student_id' => $studentId];
             
@@ -491,14 +509,43 @@ class Student extends Model
             }
             
             $whereClause = implode(' AND ', $where);
-            $stmt = $this->db->prepare("
-                SELECT DISTINCT c.course_id, c.course_code, c.name as course_name, c.credit_hours, c.description,
-                       s.section_id, s.section_number, s.semester, s.academic_year, s.room, s.time_slot,
+            
+            // Build join based on database structure
+            if ($hasSectionsTable) {
+                // Old structure: sections table exists
+                $scheduleJoin = "JOIN sections s ON e.section_id = s.section_id";
+            } else {
+                // New structure: using schedule table
+                if ($hasScheduleId) {
+                    $scheduleJoin = "JOIN schedule s ON e.schedule_id = s.schedule_id";
+                } else {
+                    $scheduleJoin = "JOIN schedule s ON e.section_id = s.schedule_id";
+                }
+            }
+            
+            // Check if schedule table has course_ids column (for weekly schedules with multiple courses)
+            $hasCourseIds = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+                $hasCourseIds = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasCourseIds = false;
+            }
+            
+            $selectFields = "c.course_id, c.course_code, c.name as course_name, c.credit_hours, c.description,
+                       s.schedule_id as section_id, s.section_number, s.semester, s.academic_year, s.room, s.time_slot,
                        s.day_of_week, s.start_time, s.end_time,
                        u.first_name as doctor_first_name, u.last_name as doctor_last_name,
-                       e.enrollment_date, e.status as enrollment_status
+                       e.enrollment_date, e.status as enrollment_status";
+            
+            if ($hasCourseIds && !$hasSectionsTable) {
+                $selectFields .= ", s.course_ids, s.is_weekly";
+            }
+            
+            $stmt = $this->db->prepare("
+                SELECT {$selectFields}
                 FROM enrollments e
-                JOIN sections s ON e.section_id = s.section_id
+                {$scheduleJoin}
                 JOIN courses c ON s.course_id = c.course_id
                 JOIN doctors d ON s.doctor_id = d.doctor_id
                 JOIN users u ON d.user_id = u.id
@@ -506,9 +553,59 @@ class Student extends Model
                 ORDER BY s.semester DESC, s.academic_year DESC, c.course_code
             ");
             $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Expand courses if schedule has multiple courses in course_ids JSON
+            $expandedResults = [];
+            foreach ($results as $entry) {
+                // Check if this schedule has multiple courses
+                if ($hasCourseIds && !empty($entry['course_ids']) && ($entry['is_weekly'] ?? 0) == 1) {
+                    $courseIds = json_decode($entry['course_ids'], true);
+                    if (is_array($courseIds) && count($courseIds) > 1) {
+                        // Create an entry for each course
+                        foreach ($courseIds as $courseId) {
+                            if ($courseId == $entry['course_id']) {
+                                // Main course already in result, add it
+                                $expandedResults[] = $entry;
+                            } else {
+                                // Get details for additional course
+                                $courseStmt = $this->db->prepare("SELECT course_id, course_code, name as course_name, credit_hours, description FROM courses WHERE course_id = :course_id");
+                                $courseStmt->execute(['course_id' => $courseId]);
+                                $additionalCourse = $courseStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($additionalCourse) {
+                                    $courseEntry = $entry;
+                                    $courseEntry['course_id'] = $additionalCourse['course_id'];
+                                    $courseEntry['course_code'] = $additionalCourse['course_code'];
+                                    $courseEntry['course_name'] = $additionalCourse['course_name'];
+                                    $courseEntry['credit_hours'] = $additionalCourse['credit_hours'];
+                                    $courseEntry['description'] = $additionalCourse['description'];
+                                    $expandedResults[] = $courseEntry;
+                                }
+                            }
+                        }
+                    } else {
+                        // Single course or invalid JSON, add as is
+                        $expandedResults[] = $entry;
+                    }
+                } else {
+                    // No course_ids or not weekly, add as is
+                    $expandedResults[] = $entry;
+                }
+            }
+            
+            // Remove duplicates based on course_id + section_id combination
+            $uniqueCourses = [];
+            foreach ($expandedResults as $course) {
+                $key = $course['course_id'] . '_' . ($course['section_id'] ?? '');
+                if (!isset($uniqueCourses[$key])) {
+                    $uniqueCourses[$key] = $course;
+                }
+            }
+            
+            return array_values($uniqueCourses);
         } catch (\PDOException $e) {
             error_log("getEnrolledCourses failed: " . $e->getMessage());
+            error_log("getEnrolledCourses error trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -516,10 +613,28 @@ class Student extends Model
     public function getAssignmentsForStudent(int $studentId, ?int $courseId = null): array
     {
         try {
+            // Check if enrollments has schedule_id column
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            // Check if sections table exists, otherwise use schedule table
+            $hasSectionsTable = false;
+            try {
+                $checkStmt = $this->db->query("SHOW TABLES LIKE 'sections'");
+                $hasSectionsTable = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasSectionsTable = false;
+            }
+            
             $where = [
                 "e.student_id = :student_id",
                 "e.status = 'enrolled'",
-                "a.is_visible = 1",
+                "(a.is_visible IS NULL OR a.is_visible = 1)",
                 "(a.visible_until IS NULL OR a.visible_until >= NOW())"
             ];
             $params = ['student_id' => $studentId];
@@ -530,15 +645,38 @@ class Student extends Model
             }
             
             $whereClause = implode(' AND ', $where);
+            
+            // Build join conditions based on database structure
+            // Note: assignments.section_id can reference either sections.section_id or schedule.schedule_id
+            if ($hasSectionsTable) {
+                // Old structure: sections table exists
+                $scheduleJoin = "JOIN sections s ON a.section_id = s.section_id";
+                if ($hasScheduleId) {
+                    $enrollmentJoin = "JOIN enrollments e ON (s.section_id = e.section_id OR s.section_id = e.schedule_id)";
+                } else {
+                    $enrollmentJoin = "JOIN enrollments e ON s.section_id = e.section_id";
+                }
+            } else {
+                // New structure: using schedule table
+                // assignments.section_id stores schedule_id values
+                $scheduleJoin = "JOIN schedule s ON a.section_id = s.schedule_id";
+                if ($hasScheduleId) {
+                    $enrollmentJoin = "JOIN enrollments e ON s.schedule_id = e.schedule_id";
+                } else {
+                    // enrollments.section_id actually stores schedule_id values
+                    $enrollmentJoin = "JOIN enrollments e ON s.schedule_id = e.section_id";
+                }
+            }
+            
             $stmt = $this->db->prepare("
                 SELECT DISTINCT a.*, c.course_code, c.name as course_name,
                        s.section_number, s.semester, s.academic_year,
                        sub.submission_id, sub.submitted_at, sub.grade, sub.status as submission_status,
-                       sub.feedback
+                       sub.feedback, sub.file_path, sub.file_name
                 FROM assignments a
                 JOIN courses c ON a.course_id = c.course_id
-                JOIN sections s ON a.section_id = s.section_id
-                JOIN enrollments e ON s.section_id = e.section_id
+                {$scheduleJoin}
+                {$enrollmentJoin}
                 LEFT JOIN assignment_submissions sub ON a.assignment_id = sub.assignment_id AND sub.student_id = :student_id
                 WHERE {$whereClause}
                 ORDER BY a.due_date DESC, c.course_code
@@ -547,6 +685,7 @@ class Student extends Model
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             error_log("getAssignmentsForStudent failed: " . $e->getMessage());
+            error_log("getAssignmentsForStudent error trace: " . $e->getTraceAsString());
             return [];
         }
     }

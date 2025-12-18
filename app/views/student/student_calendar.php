@@ -63,13 +63,49 @@ $year = $year ?? date('Y');
                                                 <?php if (!empty($event['description'])): ?>
                                                     <br><small class="text-muted"><?= htmlspecialchars(substr($event['description'], 0, 100)) ?></small>
                                                 <?php endif; ?>
+                                                <?php if (isset($event['event_type']) && $event['event_type'] === 'assignment' && !empty($event['assignment_id'])): ?>
+                                                    <br><a href="<?= htmlspecialchars($url('student/assignments')) ?>" class="btn btn-sm btn-outline" style="margin-top: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                                        <i class="fas fa-external-link-alt"></i> View Assignment
+                                                    </a>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
-                                                <span class="badge" style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
-                                                    <?= htmlspecialchars($event['event_type'] ?? 'event') ?>
+                                                <?php
+                                                $eventType = $event['event_type'] ?? 'event';
+                                                $badgeColor = 'var(--primary-color)';
+                                                if ($eventType === 'assignment') {
+                                                    $badgeColor = 'var(--warning-color)';
+                                                    if (!empty($event['is_graded'])) {
+                                                        $badgeColor = 'var(--success-color)';
+                                                    } elseif (!empty($event['is_submitted'])) {
+                                                        $badgeColor = 'var(--info-color)';
+                                                    }
+                                                } elseif ($eventType === 'exam') {
+                                                    $badgeColor = 'var(--error-color)';
+                                                }
+                                                ?>
+                                                <span class="badge" style="background-color: <?= $badgeColor ?>; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
+                                                    <?php
+                                                    if ($eventType === 'assignment') {
+                                                        if (!empty($event['is_graded'])) {
+                                                            echo 'Assignment (Graded)';
+                                                        } elseif (!empty($event['is_submitted'])) {
+                                                            echo 'Assignment (Submitted)';
+                                                        } else {
+                                                            echo 'Assignment (Due)';
+                                                        }
+                                                    } else {
+                                                        echo htmlspecialchars(ucfirst($eventType));
+                                                    }
+                                                    ?>
                                                 </span>
                                             </td>
-                                            <td><?= htmlspecialchars($event['location'] ?? 'N/A') ?></td>
+                                            <td>
+                                                <?= htmlspecialchars($event['location'] ?? 'N/A') ?>
+                                                <?php if (isset($event['course_code']) && !empty($event['course_code'])): ?>
+                                                    <br><small class="text-muted"><?= htmlspecialchars($event['course_code']) ?></small>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -91,11 +127,33 @@ $year = $year ?? date('Y');
                     <?php else: ?>
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
                             <?php foreach ($upcomingEvents as $event): ?>
-                                <div style="padding: 1rem; background-color: var(--background-color); border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                                <?php
+                                $eventType = $event['event_type'] ?? 'event';
+                                $borderColor = 'var(--primary-color)';
+                                if ($eventType === 'assignment') {
+                                    $borderColor = 'var(--warning-color)';
+                                    if (!empty($event['is_graded'])) {
+                                        $borderColor = 'var(--success-color)';
+                                    } elseif (!empty($event['is_submitted'])) {
+                                        $borderColor = 'var(--info-color)';
+                                    }
+                                } elseif ($eventType === 'exam') {
+                                    $borderColor = 'var(--error-color)';
+                                }
+                                ?>
+                                <div style="padding: 1rem; background-color: var(--background-color); border-radius: 8px; border-left: 4px solid <?= $borderColor ?>;">
                                     <strong><?= htmlspecialchars($event['title'] ?? '') ?></strong><br>
                                     <small class="text-muted">
                                         <?= !empty($event['start_date']) ? date('M d, Y', strtotime($event['start_date'])) : 'N/A' ?>
+                                        <?php if (isset($event['course_code']) && !empty($event['course_code'])): ?>
+                                            | <?= htmlspecialchars($event['course_code']) ?>
+                                        <?php endif; ?>
                                     </small>
+                                    <?php if (isset($event['event_type']) && $event['event_type'] === 'assignment' && !empty($event['assignment_id'])): ?>
+                                        <br><a href="<?= htmlspecialchars($url('student/assignments')) ?>" style="font-size: 0.75rem; margin-top: 0.25rem; display: inline-block;">
+                                            <i class="fas fa-external-link-alt"></i> View
+                                        </a>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>

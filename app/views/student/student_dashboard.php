@@ -4,7 +4,7 @@ $gpa = $gpa ?? 0.00;
 $enrolledCourses = $enrolledCourses ?? [];
 $notifications = $notifications ?? [];
 $upcomingAssignments = $upcomingAssignments ?? [];
-$attendanceSummary = $attendanceSummary ?? [];
+$recentGrades = $recentGrades ?? [];
 $currentSemester = $currentSemester ?? 'Fall';
 $currentYear = $currentYear ?? date('Y');
 ?>
@@ -62,12 +62,12 @@ $currentYear = $currentYear ?? date('Y');
 
         <div class="stat-card">
             <div class="stat-icon" style="background-color: #ef4444;">
-                <i class="fas fa-calendar-check"></i>
+                <i class="fas fa-book"></i>
             </div>
             <div class="stat-content">
-                <h3><?= count($attendanceSummary) ?></h3>
+                <h3><?= count($enrolledCourses) ?></h3>
                 <p>Active Courses</p>
-                <a href="<?= htmlspecialchars($url('student/attendance')) ?>" class="stat-link">View Attendance →</a>
+                <a href="<?= htmlspecialchars($url('student/course')) ?>" class="stat-link">View All Courses →</a>
             </div>
         </div>
     </div>
@@ -132,27 +132,37 @@ $currentYear = $currentYear ?? date('Y');
         </div>
 
         <div class="dashboard-section">
-            <h2><i class="fas fa-calendar-check"></i> Attendance Summary</h2>
-            <div class="section-list">
-                <?php if (empty($attendanceSummary)): ?>
-                    <p class="text-muted">No attendance data available</p>
+            <h2><i class="fas fa-star"></i> Recent Grades</h2>
+            <div class="assignment-list">
+                <?php if (empty($recentGrades)): ?>
+                    <p class="text-muted">No graded assignments yet</p>
                 <?php else: ?>
-                    <?php foreach ($attendanceSummary as $sectionId => $summary): ?>
-                        <div class="section-item">
-                            <div class="section-icon">
-                                <i class="fas fa-chart-pie"></i>
+                    <?php foreach ($recentGrades as $assignment): ?>
+                        <div class="assignment-item">
+                            <div class="assignment-icon" style="background-color: <?= ($assignment['grade'] ?? 0) >= ($assignment['max_points'] ?? 100) * 0.7 ? '#10b981' : (($assignment['grade'] ?? 0) >= ($assignment['max_points'] ?? 100) * 0.5 ? '#f59e0b' : '#ef4444') ?>;">
+                                <i class="fas fa-check-circle"></i>
                             </div>
-                            <div class="section-content">
-                                <p><strong><?= htmlspecialchars($summary['course_code'] ?? '') ?></strong></p>
+                            <div class="assignment-content">
+                                <p><strong><?= htmlspecialchars($assignment['title'] ?? '') ?></strong></p>
                                 <p class="text-muted">
-                                    Attendance: <strong style="color: var(--primary-color);"><?= number_format($summary['percentage'], 1) ?>%</strong>
+                                    <?= htmlspecialchars($assignment['course_code'] ?? '') ?> | 
+                                    Grade: <strong style="color: var(--primary-color);">
+                                        <?= number_format($assignment['grade'] ?? 0, 1) ?> / <?= htmlspecialchars($assignment['max_points'] ?? 100) ?>
+                                    </strong>
+                                    <?php if (!empty($assignment['feedback'])): ?>
+                                        <span style="display: block; margin-top: 0.25rem; font-style: italic; color: var(--text-secondary);">
+                                            <?= htmlspecialchars(substr($assignment['feedback'], 0, 60)) ?><?= strlen($assignment['feedback']) > 60 ? '...' : '' ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </p>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-            <a href="<?= htmlspecialchars($url('student/attendance')) ?>" class="btn btn-outline">View All Attendance</a>
+            <?php if (count($recentGrades) > 5): ?>
+                <a href="<?= htmlspecialchars($url('student/assignments')) ?>" class="btn btn-outline">View All Grades</a>
+            <?php endif; ?>
         </div>
 
         <div class="dashboard-section">
@@ -184,26 +194,23 @@ $currentYear = $currentYear ?? date('Y');
 </div>
 
 <style>
-:root {
-    --primary-color: #2563eb;
-    --secondary-color: #60a5fa;
-    --background-color: #f8fafc;
-    --surface-color: #ffffff;
-    --border-color: #e2e8f0;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --success-color: #22c55e;
-    --error-color: #ef4444;
-    --warning-color: #f59e0b;
-    --shadow-color: rgba(0, 0, 0, 0.08);
-}
-
+/* Use CSS variables from main style.css - they automatically change with data-theme */
 .dashboard-container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 2rem;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    background: var(--background-color);
     min-height: 100vh;
+    transition: background-color 0.3s ease;
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .dashboard-container {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+}
+
+[data-theme="dark"] .dashboard-container {
+    background: var(--background-color);
 }
 
 .dashboard-header {
@@ -212,7 +219,13 @@ $currentYear = $currentYear ?? date('Y');
     background: linear-gradient(135deg, var(--primary-color) 0%, #1d4ed8 100%);
     border-radius: 16px;
     color: white;
-    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 10px 25px var(--shadow-color);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+[data-theme="dark"] .dashboard-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+    box-shadow: 0 10px 25px var(--shadow-color);
 }
 
 .dashboard-header h1 {
@@ -222,6 +235,7 @@ $currentYear = $currentYear ?? date('Y');
     display: flex;
     align-items: center;
     gap: 1rem;
+    color: white;
 }
 
 .dashboard-header h1 i {
@@ -232,6 +246,7 @@ $currentYear = $currentYear ?? date('Y');
     font-size: 1.1rem;
     margin: 0;
     opacity: 0.95;
+    color: white;
 }
 
 .dashboard-stats {
@@ -242,15 +257,15 @@ $currentYear = $currentYear ?? date('Y');
 }
 
 .stat-card {
-    background: white;
+    background: var(--surface-color);
     border-radius: 16px;
     padding: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1.25rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px var(--shadow-color);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
     position: relative;
     overflow: hidden;
 }
@@ -273,8 +288,8 @@ $currentYear = $currentYear ?? date('Y');
 
 .stat-card:hover {
     transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-    border-color: rgba(37, 99, 235, 0.2);
+    box-shadow: 0 12px 32px var(--shadow-color);
+    border-color: var(--primary-color);
 }
 
 .stat-icon {
@@ -286,14 +301,14 @@ $currentYear = $currentYear ?? date('Y');
     justify-content: center;
     color: white;
     font-size: 1.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--shadow-color);
     transition: all 0.3s ease;
     flex-shrink: 0;
 }
 
 .stat-card:hover .stat-icon {
     transform: rotate(5deg) scale(1.1);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 6px 20px var(--shadow-color);
 }
 
 .stat-content {
@@ -307,10 +322,11 @@ $currentYear = $currentYear ?? date('Y');
     color: var(--text-primary);
     font-weight: 700;
     line-height: 1;
-    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .stat-content h3 {
+    color: var(--text-primary);
 }
 
 .stat-content p {
@@ -318,6 +334,7 @@ $currentYear = $currentYear ?? date('Y');
     color: var(--text-secondary);
     font-size: 0.95rem;
     font-weight: 500;
+    transition: color 0.3s ease;
 }
 
 .stat-link {
@@ -333,7 +350,8 @@ $currentYear = $currentYear ?? date('Y');
 }
 
 .stat-link:hover {
-    color: #1d4ed8;
+    color: var(--primary-color);
+    opacity: 0.8;
     gap: 0.5rem;
     text-decoration: none;
 }
@@ -345,17 +363,18 @@ $currentYear = $currentYear ?? date('Y');
 }
 
 .dashboard-section {
-    background: white;
+    background: var(--surface-color);
     border-radius: 16px;
     padding: 2rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 12px var(--shadow-color);
+    border: 1px solid var(--border-color);
     transition: all 0.3s ease;
 }
 
 .dashboard-section:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 24px var(--shadow-color);
     transform: translateY(-2px);
+    border-color: var(--primary-color);
 }
 
 .dashboard-section h2 {
@@ -392,6 +411,11 @@ $currentYear = $currentYear ?? date('Y');
     border-radius: 8px;
 }
 
+[data-theme="dark"] .section-item:hover, 
+[data-theme="dark"] .assignment-item:hover {
+    background: var(--surface-color);
+}
+
 .section-item:last-child, .assignment-item:last-child {
     border-bottom: none;
 }
@@ -423,6 +447,12 @@ $currentYear = $currentYear ?? date('Y');
     background: var(--background-color);
     border-radius: 4px;
     font-size: 0.85rem;
+    transition: background-color 0.3s ease;
+}
+
+[data-theme="dark"] .section-time, 
+[data-theme="dark"] .assignment-type {
+    background: var(--surface-color);
 }
 
 .activity-list {
@@ -463,6 +493,10 @@ $currentYear = $currentYear ?? date('Y');
     padding-left: 1rem;
     padding-right: 1rem;
     border-radius: 8px;
+}
+
+[data-theme="dark"] .activity-item:hover {
+    background: var(--surface-color);
 }
 
 .activity-item:last-child {
@@ -520,7 +554,7 @@ $currentYear = $currentYear ?? date('Y');
     background: var(--primary-color);
     color: white;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    box-shadow: 0 4px 12px var(--shadow-color);
 }
 
 @keyframes fadeInUp {

@@ -157,7 +157,31 @@ $assignments = $assignments ?? [];
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <a href="<?= htmlspecialchars($url('student/assignments')) ?>" class="btn btn-primary">View</a>
+                                                    <?php if (!empty($assignment['submission_id'])): ?>
+                                                        <?php if (!empty($assignment['grade'])): ?>
+                                                            <!-- Already graded, show download link if file exists -->
+                                                            <?php if (!empty($assignment['file_path'])): ?>
+                                                                <a href="<?= htmlspecialchars(isset($asset) && is_callable($asset) ? $asset($assignment['file_path']) : $assignment['file_path']) ?>" target="_blank" class="btn btn-sm btn-outline" title="Download submitted file">
+                                                                    <i class="fas fa-download"></i> Download
+                                                                </a>
+                                                            <?php endif; ?>
+                                                        <?php else: ?>
+                                                            <!-- Submitted but not graded yet -->
+                                                            <button type="button" class="btn btn-sm btn-primary" onclick="showSubmissionModal(<?= htmlspecialchars($assignment['assignment_id']) ?>)">
+                                                                <i class="fas fa-upload"></i> Resubmit
+                                                            </button>
+                                                            <?php if (!empty($assignment['file_path'])): ?>
+                                                                <a href="<?= htmlspecialchars(isset($asset) && is_callable($asset) ? $asset($assignment['file_path']) : $assignment['file_path']) ?>" target="_blank" class="btn btn-sm btn-outline" title="View submitted file" style="margin-left: 0.5rem;">
+                                                                    <i class="fas fa-eye"></i>
+                                                                </a>
+                                                            <?php endif; ?>
+                                                        <?php endif; ?>
+                                                    <?php else: ?>
+                                                        <!-- Not submitted yet -->
+                                                        <button type="button" class="btn btn-sm btn-primary" onclick="showSubmissionModal(<?= htmlspecialchars($assignment['assignment_id']) ?>)">
+                                                            <i class="fas fa-upload"></i> Submit
+                                                        </button>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -179,4 +203,135 @@ $assignments = $assignments ?? [];
         </div>
     </div>
 </div>
+
+<!-- Submission Modal -->
+<div id="submissionModal" class="modal">
+    <div class="modal-content" style="max-width: 500px; width: 90%;">
+        <div class="modal-header">
+            <h2 style="margin: 0;">Submit Assignment</h2>
+            <button class="modal-close" onclick="hideSubmissionModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div style="padding: 1.5rem;">
+            <form method="POST" action="<?= htmlspecialchars($url('student/assignments/upload')) ?>" enctype="multipart/form-data">
+                <input type="hidden" name="assignment_id" id="modal_assignment_id">
+                <div class="form-group">
+                    <label class="form-label">Select File</label>
+                    <input type="file" name="submission_file" class="form-input" required accept=".pdf,.doc,.docx,.txt,.zip,.rar">
+                    <small style="display: block; color: var(--text-secondary); margin-top: 0.5rem;">Allowed types: PDF, DOC, DOCX, TXT, ZIP, RAR (Max 10MB)</small>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="hideSubmissionModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showSubmissionModal(assignmentId) {
+    document.getElementById('modal_assignment_id').value = assignmentId;
+    const modal = document.getElementById('submissionModal');
+    if (typeof showModal === 'function') {
+        showModal(modal);
+    } else {
+        modal.style.display = 'block';
+    }
+}
+
+function hideSubmissionModal() {
+    const modal = document.getElementById('submissionModal');
+    if (typeof hideModal === 'function') {
+        hideModal(modal);
+    } else {
+        modal.style.display = 'none';
+    }
+}
+
+// Show success/error messages
+<?php if (isset($_SESSION['success'])): ?>
+    if (typeof showNotification === 'function') {
+        showNotification('<?= htmlspecialchars($_SESSION['success']) ?>', 'success');
+    } else {
+        alert('<?= htmlspecialchars($_SESSION['success']) ?>');
+    }
+    <?php unset($_SESSION['success']); ?>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['error'])): ?>
+    if (typeof showNotification === 'function') {
+        showNotification('<?= htmlspecialchars($_SESSION['error']) ?>', 'error');
+    } else {
+        alert('<?= htmlspecialchars($_SESSION['error']) ?>');
+    }
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+</script>
+
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    margin: 5% auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 1rem;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.btn-outline:hover {
+    background: var(--bg-secondary);
+}
+</style>
 

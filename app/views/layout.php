@@ -184,9 +184,6 @@
                 <a href="<?= htmlspecialchars($url('student/assignments')) ?>" class="nav-item <?= strpos($currentPath, '/student/assignments') !== false ? 'active' : '' ?>">
                     <i class="fas fa-tasks"></i> Assignments
                 </a>
-                <a href="<?= htmlspecialchars($url('student/attendance')) ?>" class="nav-item <?= strpos($currentPath, '/student/attendance') !== false ? 'active' : '' ?>">
-                    <i class="fas fa-calendar-check"></i> Attendance
-                </a>
                 <a href="<?= htmlspecialchars($url('student/calendar')) ?>" class="nav-item <?= strpos($currentPath, '/student/calendar') !== false ? 'active' : '' ?>">
                     <i class="fas fa-calendar"></i> Calendar
                 </a>

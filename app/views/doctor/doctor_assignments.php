@@ -156,6 +156,103 @@ $messageType = $messageType ?? 'info';
                                 </div>
                             <?php endif; ?>
                         </div>
+                        
+                        <!-- Student Submissions Section -->
+                        <?php if (!empty($assignment['submissions'])): ?>
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                                <h4 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: var(--text-color); display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-file-upload"></i> Student Submissions (<?= count($assignment['submissions']) ?>)
+                                </h4>
+                                <div class="submissions-table" style="overflow-x: auto;">
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <thead>
+                                            <tr style="background: var(--bg-secondary);">
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Student</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Submission File</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Submitted At</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Submitted At</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Status</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Grade</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Feedback</th>
+                                                <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($assignment['submissions'] as $submission): ?>
+                                                <tr>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                        <?= htmlspecialchars($submission['first_name'] ?? '') ?> <?= htmlspecialchars($submission['last_name'] ?? '') ?><br>
+                                                        <small style="color: var(--text-secondary);"><?= htmlspecialchars($submission['student_number'] ?? '') ?></small>
+                                                    </td>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                        <?php if (!empty($submission['file_name']) && !empty($submission['file_path'])): ?>
+                                                            <a href="<?= htmlspecialchars(isset($asset) && is_callable($asset) ? $asset($submission['file_path']) : $submission['file_path']) ?>" target="_blank" style="color: var(--primary-color); text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                                                <i class="fas fa-file-download"></i> 
+                                                                <span><?= htmlspecialchars($submission['file_name']) ?></span>
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <span style="color: var(--text-secondary); font-style: italic;">No file submitted</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                        <small style="color: var(--text-secondary);">
+                                                            <?= date('M d, Y H:i', strtotime($submission['submitted_at'] ?? 'now')) ?>
+                                                        </small>
+                                                    </td>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                        <?php
+                                                        $status = $submission['status'] ?? 'submitted';
+                                                        $statusClass = 'badge-info';
+                                                        if ($status === 'graded') {
+                                                            $statusClass = 'badge-success';
+                                                        } elseif ($status === 'late') {
+                                                            $statusClass = 'badge-warning';
+                                                        }
+                                                        ?>
+                                                        <span class="badge <?= $statusClass ?>" style="padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem;">
+                                                            <?= htmlspecialchars(ucfirst($status)) ?>
+                                                        </span>
+                                                    </td>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                        <form method="POST" action="<?= htmlspecialchars($url('doctor/assignments')) ?>" style="display: inline;">
+                                                            <input type="hidden" name="action" value="update_grade">
+                                                            <input type="hidden" name="submission_id" value="<?= $submission['submission_id'] ?>">
+                                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                                <input type="number" name="grade" value="<?= htmlspecialchars($submission['grade'] ?? '') ?>" 
+                                                                       min="0" max="<?= htmlspecialchars($assignment['max_points'] ?? 100) ?>" step="0.01" 
+                                                                       style="width: 80px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                                                                <span style="color: var(--text-secondary);">/ <?= htmlspecialchars($assignment['max_points'] ?? 100) ?></span>
+                                                            </div>
+                                                    </td>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                            <textarea name="feedback" rows="2" style="width: 100%; min-width: 200px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9rem;" 
+                                                                      placeholder="Enter feedback..."><?= htmlspecialchars($submission['feedback'] ?? '') ?></textarea>
+                                                    </td>
+                                                    <td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                                            <button type="submit" class="btn btn-sm btn-primary" style="padding: 0.5rem 1rem; white-space: nowrap;">
+                                                                <i class="fas fa-save"></i> Save Grade
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        <?php elseif (isset($assignment['submission_stats']) && $assignment['submission_stats']['total'] > 0): ?>
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                                <p style="color: var(--text-secondary); margin: 0;">
+                                    <i class="fas fa-info-circle"></i> Submissions exist but could not be loaded.
+                                </p>
+                            </div>
+                        <?php else: ?>
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                                <p style="color: var(--text-secondary); margin: 0;">
+                                    <i class="fas fa-info-circle"></i> No submissions yet.
+                                </p>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="assignment-footer">
                         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -419,6 +516,16 @@ $messageType = $messageType ?? 'info';
     background: #dbeafe;
     color: #1e40af;
     border: 1px solid #3b82f6;
+}
+
+.badge-success {
+    background: #10b981;
+    color: white;
+}
+
+.badge-warning {
+    background: #f59e0b;
+    color: white;
 }
 
 .btn-sm {

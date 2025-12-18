@@ -5,6 +5,7 @@ use core\Controller;
 use patterns\Factory\ModelFactory;
 use patterns\Singleton\DatabaseConnection;
 use patterns\Adapter\NotificationService;
+use PDO;
 use patterns\Adapter\DatabaseNotificationAdapter;
 use patterns\Observer\AssignmentSubject;
 use patterns\Observer\NotificationObserver;
@@ -199,6 +200,77 @@ class Doctor extends Controller
                 return;
             }
 
+            $message = null;
+            $messageType = 'info';
+
+            // Handle grade update
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_grade') {
+                $submissionId = isset($_POST['submission_id']) ? (int)$_POST['submission_id'] : 0;
+                $gradeInput = $_POST['grade'] ?? '';
+                $grade = $gradeInput !== '' ? (float)$gradeInput : null;
+                $feedback = trim($_POST['feedback'] ?? '');
+
+                if ($submissionId > 0 && $grade !== null && $grade >= 0) {
+                    // Verify the assignment belongs to this doctor
+                    $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+                    $checkStmt = $db->prepare("
+                        SELECT a.assignment_id, a.doctor_id, a.max_points
+                        FROM assignment_submissions sub
+                        JOIN assignments a ON sub.assignment_id = a.assignment_id
+                        WHERE sub.submission_id = :submission_id
+                    ");
+                    $checkStmt->execute(['submission_id' => $submissionId]);
+                    $assignmentInfo = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($assignmentInfo && $assignmentInfo['doctor_id'] == $doctor['doctor_id']) {
+                        // Validate grade doesn't exceed max points
+                        $maxPoints = (float)($assignmentInfo['max_points'] ?? 100);
+                        if ($grade > $maxPoints) {
+                            $grade = $maxPoints; // Cap at max points
+                        }
+
+                        if ($this->assignmentModel->updateGrade($submissionId, $grade, $feedback ?: null)) {
+                            $message = 'Grade updated successfully';
+                            $messageType = 'success';
+                            
+                            // Notify student about the grade
+                            try {
+                                $studentStmt = $db->prepare("
+                                    SELECT st.user_id, u.first_name, u.last_name, a.title
+                                    FROM assignment_submissions sub
+                                    JOIN students st ON sub.student_id = st.student_id
+                                    JOIN users u ON st.user_id = u.id
+                                    JOIN assignments a ON sub.assignment_id = a.assignment_id
+                                    WHERE sub.submission_id = :submission_id
+                                ");
+                                $studentStmt->execute(['submission_id' => $submissionId]);
+                                $studentInfo = $studentStmt->fetch(PDO::FETCH_ASSOC);
+                                
+                                if ($studentInfo && isset($studentInfo['user_id'])) {
+                                    $this->notificationService->notify(
+                                        "Assignment Graded",
+                                        "Your assignment '{$studentInfo['title']}' has been graded. Grade: {$grade}/{$maxPoints}",
+                                        [$studentInfo['user_id']],
+                                        'assignment'
+                                    );
+                                }
+                            } catch (\Exception $e) {
+                                error_log("Failed to notify student about grade (non-critical): " . $e->getMessage());
+                            }
+                        } else {
+                            $message = 'Failed to update grade';
+                            $messageType = 'error';
+                        }
+                    } else {
+                        $message = 'Access denied or submission not found';
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = 'Invalid grade data';
+                    $messageType = 'error';
+                }
+            }
+
             // Get filter parameters
             $courseFilter = trim($_GET['course'] ?? '');
             $statusFilter = trim($_GET['status'] ?? '');
@@ -248,6 +320,8 @@ class Doctor extends Controller
                 $assignment['status_badge'] = $decorator->getStatusBadge();
                 $submissionStats = $this->assignmentModel->getSubmissionCount($assignment['assignment_id']);
                 $assignment['submission_stats'] = $submissionStats;
+                // Load actual submissions with student details
+                $assignment['submissions'] = $this->assignmentModel->getSubmissionsByAssignment($assignment['assignment_id']);
                 $allDecoratedAssignments[] = $assignment;
             }
             
@@ -259,6 +333,8 @@ class Doctor extends Controller
                 $assignment['status_badge'] = $decorator->getStatusBadge();
                 $submissionStats = $this->assignmentModel->getSubmissionCount($assignment['assignment_id']);
                 $assignment['submission_stats'] = $submissionStats;
+                // Load actual submissions with student details
+                $assignment['submissions'] = $this->assignmentModel->getSubmissionsByAssignment($assignment['assignment_id']);
                 $decoratedAssignments[] = $assignment;
             }
 
@@ -277,6 +353,8 @@ class Doctor extends Controller
                 'assignments' => $decoratedAssignments, // Filtered assignments for main list
                 'allAssignments' => $allDecoratedAssignments, // All assignments for history
                 'courses' => array_values($courses),
+                'message' => $message,
+                'messageType' => $messageType,
                 'showSidebar' => true,
             ]);
         } catch (\Exception $e) {

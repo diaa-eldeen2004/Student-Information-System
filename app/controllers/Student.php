@@ -5,6 +5,7 @@ use core\Controller;
 use patterns\Factory\ModelFactory;
 use patterns\Adapter\NotificationService;
 use patterns\Adapter\DatabaseNotificationAdapter;
+use PDO;
 use patterns\Observer\EnrollmentSubject;
 use patterns\Observer\NotificationObserver;
 use patterns\Observer\AuditLogObserver;
@@ -164,17 +165,20 @@ class Student extends Controller
                 }
             }
             
-            // Get attendance summary
-            $attendanceSummary = [];
-            foreach ($enrolledCourses as $course) {
-                $sectionId = $course['section_id'];
-                $percentage = $this->attendanceModel->getStudentAttendancePercentage($studentId, $sectionId);
-                $attendanceSummary[$sectionId] = [
-                    'course_code' => $course['course_code'],
-                    'course_name' => $course['course_name'],
-                    'percentage' => $percentage
-                ];
+            // Get recently graded assignments (with grades and feedback)
+            $recentGrades = [];
+            foreach ($allAssignments as $assignment) {
+                if (!empty($assignment['grade']) && !empty($assignment['submission_id'])) {
+                    // Assignment has been graded
+                    $recentGrades[] = $assignment;
+                }
             }
+            // Sort by graded_at or submitted_at (most recent first)
+            usort($recentGrades, function($a, $b) {
+                $dateA = $a['graded_at'] ?? $a['submitted_at'] ?? '';
+                $dateB = $b['graded_at'] ?? $b['submitted_at'] ?? '';
+                return strtotime($dateB) - strtotime($dateA);
+            });
             
             $this->view->render('student/student_dashboard', [
                 'title' => 'Student Dashboard',
@@ -183,7 +187,7 @@ class Student extends Controller
                 'enrolledCourses' => $enrolledCourses,
                 'notifications' => $notifications,
                 'upcomingAssignments' => array_slice($upcomingAssignments, 0, 5),
-                'attendanceSummary' => $attendanceSummary,
+                'recentGrades' => array_slice($recentGrades, 0, 5),
                 'currentSemester' => $currentSemester,
                 'currentYear' => $currentYear,
                 'showSidebar' => true,
@@ -385,18 +389,19 @@ class Student extends Controller
     public function previewTimetable(): void
     {
         try {
+            // Set JSON header first
+            header('Content-Type: application/json');
+            
             $userId = $_SESSION['user']['id'] ?? null;
             
             if (!$userId) {
-                header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Access denied']);
                 exit;
             }
             
             $scheduleId = isset($_GET['schedule_id']) ? (int)$_GET['schedule_id'] : 0;
             
-            if (!$scheduleId) {
-                header('Content-Type: application/json');
+            if (!$scheduleId || $scheduleId <= 0) {
                 echo json_encode(['success' => false, 'error' => 'Invalid schedule ID']);
                 exit;
             }
@@ -404,7 +409,6 @@ class Student extends Controller
             // Get the schedule entry
             $schedule = $this->sectionModel->findById($scheduleId);
             if (!$schedule) {
-                header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Schedule not found']);
                 exit;
             }
@@ -412,7 +416,11 @@ class Student extends Controller
             // Get timetable for this specific schedule
             $timetable = $this->sectionModel->getScheduleTimetable($scheduleId);
             
-            header('Content-Type: application/json');
+            // Ensure timetable is an array
+            if (!is_array($timetable)) {
+                $timetable = [];
+            }
+            
             echo json_encode([
                 'success' => true,
                 'timetable' => $timetable,
@@ -421,8 +429,12 @@ class Student extends Controller
             exit;
         } catch (\Exception $e) {
             error_log("Preview timetable error: " . $e->getMessage());
+            error_log("Preview timetable trace: " . $e->getTraceAsString());
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'An error occurred']);
+            echo json_encode([
+                'success' => false, 
+                'error' => 'An error occurred: ' . $e->getMessage()
+            ]);
             exit;
         }
     }
@@ -599,9 +611,11 @@ class Student extends Controller
             // Save submission to database
             $relativePath = '/uploads/assignments/' . $fileName;
             $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
-            $db->beginTransaction();
             
             try {
+                // Begin transaction for data integrity
+                $db->beginTransaction();
+                
                 // Check if submission already exists
                 $existing = $this->studentModel->getSubmission($studentId, $assignmentId);
                 
@@ -612,65 +626,126 @@ class Student extends Controller
                         @unlink($oldPath);
                     }
                     
-                    // Update submission
+                    // Update submission - clear grade if resubmitting
                     $stmt = $db->prepare("
                         UPDATE assignment_submissions 
-                        SET file_path = :file_path, file_name = :file_name, file_size = :file_size,
-                            submitted_at = NOW(), status = 'submitted'
+                        SET file_path = :file_path, file_name = :file_name,
+                            submitted_at = NOW(), status = 'submitted', 
+                            grade = NULL, graded_at = NULL, feedback = NULL
                         WHERE submission_id = :submission_id
                     ");
-                    $stmt->execute([
+                    $result = $stmt->execute([
                         'submission_id' => $existing['submission_id'],
                         'file_path' => $relativePath,
                         'file_name' => $file['name'],
-                        'file_size' => $file['size'],
                     ]);
+                    
+                    if (!$result) {
+                        $errorInfo = $stmt->errorInfo();
+                        error_log("Assignment submission UPDATE failed: " . json_encode($errorInfo));
+                        throw new \Exception("Failed to update submission: " . ($errorInfo[2] ?? 'Unknown error'));
+                    }
+                    
+                    if ($stmt->rowCount() == 0) {
+                        throw new \Exception("No rows were updated. Submission may not exist.");
+                    }
+                    
                     $submissionId = $existing['submission_id'];
+                    error_log("Assignment submission UPDATED: submission_id = {$submissionId}, student_id = {$studentId}, assignment_id = {$assignmentId}");
                 } else {
                     // Create new submission
                     $stmt = $db->prepare("
                         INSERT INTO assignment_submissions 
-                        (student_id, assignment_id, file_path, file_name, file_size, status, submitted_at)
-                        VALUES (:student_id, :assignment_id, :file_path, :file_name, :file_size, 'submitted', NOW())
+                        (student_id, assignment_id, file_path, file_name, status, submitted_at)
+                        VALUES (:student_id, :assignment_id, :file_path, :file_name, 'submitted', NOW())
                     ");
-                    $stmt->execute([
+                    $result = $stmt->execute([
                         'student_id' => $studentId,
                         'assignment_id' => $assignmentId,
                         'file_path' => $relativePath,
                         'file_name' => $file['name'],
-                        'file_size' => $file['size'],
                     ]);
-                    $submissionId = $db->lastInsertId();
+                    
+                    if (!$result) {
+                        $errorInfo = $stmt->errorInfo();
+                        error_log("Assignment submission INSERT failed: " . json_encode($errorInfo));
+                        throw new \Exception("Failed to insert submission: " . ($errorInfo[2] ?? 'Unknown error'));
+                    }
+                    
+                    if ($stmt->rowCount() == 0) {
+                        throw new \Exception("No rows were inserted. Check database constraints.");
+                    }
+                    
+                    $submissionId = (int)$db->lastInsertId();
+                    
+                    if (!$submissionId || $submissionId == 0) {
+                        // Try to get the submission ID another way
+                        $checkStmt = $db->prepare("SELECT submission_id FROM assignment_submissions WHERE student_id = :student_id AND assignment_id = :assignment_id ORDER BY submission_id DESC LIMIT 1");
+                        $checkStmt->execute(['student_id' => $studentId, 'assignment_id' => $assignmentId]);
+                        $checkResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($checkResult && isset($checkResult['submission_id'])) {
+                            $submissionId = (int)$checkResult['submission_id'];
+                        } else {
+                            throw new \Exception("Failed to get submission ID after insert. lastInsertId returned: " . ($db->lastInsertId() ?: '0/false'));
+                        }
+                    }
+                    
+                    error_log("Assignment submission INSERTED: submission_id = {$submissionId}, student_id = {$studentId}, assignment_id = {$assignmentId}");
                 }
                 
+                // Commit transaction before notifications (so submission is saved even if notification fails)
                 $db->commit();
                 
-                // Log action
-                $this->auditLogModel->create([
-                    'user_id' => $userId,
-                    'action' => 'assignment_submitted',
-                    'entity_type' => 'assignment_submission',
-                    'entity_id' => $submissionId,
-                    'description' => "Submitted assignment: {$assignment['title']}"
-                ]);
+                // Log action (non-critical, don't fail if this fails)
+                try {
+                    $this->auditLogModel->create([
+                        'user_id' => $userId,
+                        'action' => 'assignment_submitted',
+                        'entity_type' => 'assignment_submission',
+                        'entity_id' => $submissionId,
+                        'description' => "Submitted assignment: {$assignment['title']}"
+                    ]);
+                } catch (\Exception $e) {
+                    error_log("Failed to log assignment submission (non-critical): " . $e->getMessage());
+                }
                 
-                // Notify doctor
-                $this->notificationService->notify(
-                    "New Assignment Submission",
-                    "Student {$student['first_name']} {$student['last_name']} submitted assignment: {$assignment['title']}",
-                    [$assignment['doctor_id']],
-                    'info'
-                );
+                // Notify doctor (non-critical, don't fail if this fails)
+                try {
+                    // Get doctor's user_id from doctor_id
+                    $doctorUserIdStmt = $db->prepare("SELECT user_id FROM doctors WHERE doctor_id = :doctor_id LIMIT 1");
+                    $doctorUserIdStmt->execute(['doctor_id' => $assignment['doctor_id']]);
+                    $doctorUser = $doctorUserIdStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($doctorUser && isset($doctorUser['user_id'])) {
+                        $this->notificationService->notify(
+                            "New Assignment Submission",
+                            "Student {$student['first_name']} {$student['last_name']} submitted assignment: {$assignment['title']}",
+                            [$doctorUser['user_id']],
+                            'assignment'
+                        );
+                        error_log("Notification sent to doctor user_id: {$doctorUser['user_id']} for assignment_id: {$assignmentId}");
+                    } else {
+                        error_log("Doctor user_id not found for doctor_id: {$assignment['doctor_id']}");
+                    }
+                } catch (\Exception $e) {
+                    error_log("Failed to notify doctor (non-critical): " . $e->getMessage());
+                }
                 
                 $_SESSION['success'] = 'Assignment submitted successfully!';
+                error_log("Assignment submission completed successfully: submission_id = {$submissionId}, student_id = {$studentId}, assignment_id = {$assignmentId}");
             } catch (\Exception $e) {
-                $db->rollBack();
+                // Rollback transaction on error
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                
                 // Delete uploaded file on error
                 if (file_exists($filePath)) {
                     @unlink($filePath);
                 }
                 error_log("Assignment submission error: " . $e->getMessage());
-                $_SESSION['error'] = 'Failed to save submission.';
+                error_log("Assignment submission error trace: " . $e->getTraceAsString());
+                $_SESSION['error'] = 'Failed to save submission: ' . $e->getMessage();
             }
             
             $this->redirectTo('student/assignments');
@@ -678,56 +753,6 @@ class Student extends Controller
             error_log("Upload assignment error: " . $e->getMessage());
             $_SESSION['error'] = 'An error occurred while uploading assignment.';
             $this->redirectTo('student/assignments');
-        }
-    }
-
-    public function attendance(): void
-    {
-        try {
-            $userId = $_SESSION['user']['id'] ?? null;
-            
-            if (!$userId) {
-                $this->view->render('errors/403', ['title' => 'Access Denied']);
-                return;
-            }
-            
-            $student = $this->studentModel->findByUserId($userId);
-            if (!$student) {
-                $this->view->render('errors/404', ['title' => 'Not Found']);
-                return;
-            }
-            
-            $studentId = $student['student_id'];
-            
-            // Get enrolled courses
-            $enrolledCourses = $this->studentModel->getEnrolledCourses($studentId);
-            
-            // Get attendance for each section
-            $attendanceData = [];
-            foreach ($enrolledCourses as $course) {
-                $sectionId = $course['section_id'];
-                $attendance = $this->attendanceModel->getStudentAttendance($studentId, $sectionId);
-                $percentage = $this->attendanceModel->getStudentAttendancePercentage($studentId, $sectionId);
-                
-                $attendanceData[$sectionId] = [
-                    'course' => $course,
-                    'attendance' => $attendance,
-                    'percentage' => $percentage,
-                ];
-            }
-            
-            $this->view->render('student/student_attendance', [
-                'title' => 'My Attendance',
-                'student' => $student,
-                'attendanceData' => $attendanceData,
-                'showSidebar' => true,
-            ]);
-        } catch (\Exception $e) {
-            error_log("Student attendance error: " . $e->getMessage());
-            $this->view->render('errors/500', [
-                'title' => 'Error',
-                'message' => 'An error occurred while loading attendance.'
-            ]);
         }
     }
 
@@ -747,12 +772,106 @@ class Student extends Controller
                 return;
             }
             
+            $studentId = $student['student_id'];
+            
             // Get calendar events
             $month = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
             $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
             
-            $events = $this->calendarEventModel->getEventsForMonth($month, $year);
-            $upcomingEvents = $this->calendarEventModel->getUpcomingEvents(30, 10);
+            $events = [];
+            $upcomingEvents = [];
+            
+            // Get calendar events if table exists
+            if ($this->calendarEventModel->tableExists()) {
+                $calendarEvents = $this->calendarEventModel->getEventsForMonth($month, $year);
+                $upcomingCalendarEvents = $this->calendarEventModel->getUpcomingEvents(30, 10);
+                $events = array_merge($events, $calendarEvents);
+                $upcomingEvents = array_merge($upcomingEvents, $upcomingCalendarEvents);
+            }
+            
+            // Get assignments for this student and convert them to calendar events
+            $assignments = $this->studentModel->getAssignmentsForStudent($studentId);
+            $assignmentEvents = [];
+            $upcomingAssignmentEvents = [];
+            
+            foreach ($assignments as $assignment) {
+                if (empty($assignment['due_date'])) {
+                    continue;
+                }
+                
+                $dueDate = strtotime($assignment['due_date']);
+                $assignmentMonth = (int)date('n', $dueDate);
+                $assignmentYear = (int)date('Y', $dueDate);
+                
+                // Check if assignment is in the selected month
+                if ($assignmentMonth == $month && $assignmentYear == $year) {
+                    $assignmentEvents[] = [
+                        'id' => 'assignment_' . $assignment['assignment_id'],
+                        'title' => 'Assignment: ' . ($assignment['title'] ?? 'Untitled'),
+                        'description' => $assignment['description'] ?? '',
+                        'event_type' => 'assignment',
+                        'status' => 'active',
+                        'start_date' => $assignment['due_date'],
+                        'end_date' => $assignment['due_date'],
+                        'location' => $assignment['course_code'] ?? 'N/A',
+                        'department' => null,
+                        'course_id' => $assignment['course_id'] ?? null,
+                        'course_code' => $assignment['course_code'] ?? '',
+                        'course_name' => $assignment['course_name'] ?? '',
+                        'assignment_id' => $assignment['assignment_id'],
+                        'max_points' => $assignment['max_points'] ?? 0,
+                        'is_submitted' => !empty($assignment['submission_id']),
+                        'is_graded' => !empty($assignment['grade']),
+                    ];
+                }
+                
+                // Check if assignment is upcoming (within 30 days)
+                if ($dueDate >= time() && $dueDate <= strtotime('+30 days')) {
+                    $upcomingAssignmentEvents[] = [
+                        'id' => 'assignment_' . $assignment['assignment_id'],
+                        'title' => 'Assignment: ' . ($assignment['title'] ?? 'Untitled'),
+                        'description' => $assignment['description'] ?? '',
+                        'event_type' => 'assignment',
+                        'status' => 'active',
+                        'start_date' => $assignment['due_date'],
+                        'end_date' => $assignment['due_date'],
+                        'location' => $assignment['course_code'] ?? 'N/A',
+                        'department' => null,
+                        'course_id' => $assignment['course_id'] ?? null,
+                        'course_code' => $assignment['course_code'] ?? '',
+                        'course_name' => $assignment['course_name'] ?? '',
+                        'assignment_id' => $assignment['assignment_id'],
+                        'max_points' => $assignment['max_points'] ?? 0,
+                        'is_submitted' => !empty($assignment['submission_id']),
+                        'is_graded' => !empty($assignment['grade']),
+                    ];
+                }
+            }
+            
+            // Sort assignment events by due date
+            usort($assignmentEvents, function($a, $b) {
+                return strtotime($a['start_date']) - strtotime($b['start_date']);
+            });
+            
+            usort($upcomingAssignmentEvents, function($a, $b) {
+                return strtotime($a['start_date']) - strtotime($b['start_date']);
+            });
+            
+            // Combine calendar events and assignment events
+            $events = array_merge($events, $assignmentEvents);
+            $upcomingEvents = array_merge($upcomingEvents, $upcomingAssignmentEvents);
+            
+            // Sort all events by date
+            usort($events, function($a, $b) {
+                return strtotime($a['start_date']) - strtotime($b['start_date']);
+            });
+            
+            usort($upcomingEvents, function($a, $b) {
+                return strtotime($a['start_date']) - strtotime($b['start_date']);
+            });
+            
+            // Limit upcoming events to 10
+            $upcomingEvents = array_slice($upcomingEvents, 0, 10);
             
             $this->view->render('student/student_calendar', [
                 'title' => 'Calendar',
