@@ -32,7 +32,7 @@ $pendingGradings = $pendingGradings ?? 0;
             </div>
             <div class="stat-content">
                 <h3><?= $totalAssignments ?></h3>
-                <p>Total Assignments</p>
+                <p>Total Assignments/Quizzes</p>
                 <a href="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="stat-link">View All →</a>
             </div>
         </div>
@@ -102,7 +102,7 @@ $pendingGradings = $pendingGradings ?? 0;
         </div>
 
         <div class="dashboard-section">
-            <h2><i class="fas fa-tasks"></i> Recent Assignments</h2>
+            <h2><i class="fas fa-tasks"></i> Recent Assignments/Quizzes</h2>
             <div class="assignment-list">
                 <?php if (empty($assignments)): ?>
                     <p class="text-muted">No assignments created yet</p>
@@ -123,7 +123,7 @@ $pendingGradings = $pendingGradings ?? 0;
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-            <a href="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="btn btn-outline">View All Assignments</a>
+            <a href="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="btn btn-outline">View All Assignments/Quizzes</a>
         </div>
     </div>
 </div>

@@ -290,23 +290,38 @@ class Student extends Controller
             $semester = $_GET['semester'] ?? (date('n') >= 1 && date('n') <= 5 ? 'Spring' : 'Fall');
             $academicYear = $_GET['year'] ?? date('Y');
             
-            // Get student's schedule
+            // Get student's schedule - this now returns all expanded sessions
             $schedule = $this->studentModel->getStudentSchedule($studentId, $semester, $academicYear);
             
             // Get available sections for enrollment
             $availableSections = $this->studentModel->getAvailableSectionsForEnrollment($semester, $academicYear);
             
-            // Get existing enrollment requests
+            // Get existing enrollment requests - only PENDING ones
             $enrollmentRequests = $this->studentModel->getEnrollmentRequests($studentId);
             $requestedSectionIds = [];
             foreach ($enrollmentRequests as $request) {
-                $scheduleId = $request['schedule_id'] ?? $request['section_id'] ?? null;
-                if ($scheduleId) {
-                    $requestedSectionIds[] = $scheduleId;
+                // Only include PENDING requests
+                if (($request['status'] ?? '') === 'pending') {
+                    $scheduleId = $request['schedule_id'] ?? $request['section_id'] ?? null;
+                    if ($scheduleId) {
+                        $requestedSectionIds[] = $scheduleId;
+                    }
                 }
             }
             
-            // Organize by day for weekly view
+            // Get enrolled schedule IDs to exclude them from available sections
+            $enrolledScheduleIds = [];
+            foreach ($schedule as $entry) {
+                $enrolledScheduleId = $entry['schedule_id'] ?? null;
+                if ($enrolledScheduleId) {
+                    $enrolledScheduleIds[] = $enrolledScheduleId;
+                }
+            }
+            
+            // Check if student is already enrolled in any schedule for this semester/year
+            $isEnrolledInAnySchedule = $this->studentModel->isEnrolledInAnySchedule($studentId, $semester, $academicYear);
+            
+            // Organize by day for weekly view - now includes all sessions from all schedules
             $weeklySchedule = [
                 'Monday' => [],
                 'Tuesday' => [],
@@ -317,17 +332,30 @@ class Student extends Controller
                 'Sunday' => [],
             ];
             
+            // Process all schedule entries (now properly expanded with all sessions)
             foreach ($schedule as $entry) {
                 $day = $entry['day_of_week'] ?? '';
-                if ($day && isset($weeklySchedule[$day])) {
-                    $weeklySchedule[$day][] = $entry;
+                // Normalize day name
+                $dayLower = strtolower(trim($day));
+                $dayMap = [
+                    'monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday',
+                    'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday',
+                    'sunday' => 'Sunday', 'mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday',
+                    'thu' => 'Thursday', 'fri' => 'Friday', 'sat' => 'Saturday', 'sun' => 'Sunday',
+                ];
+                $dayCapitalized = $dayMap[$dayLower] ?? ucfirst($dayLower);
+                
+                if ($dayCapitalized && isset($weeklySchedule[$dayCapitalized])) {
+                    $weeklySchedule[$dayCapitalized][] = $entry;
                 }
             }
             
             // Sort each day by start time
             foreach ($weeklySchedule as $day => &$dayEntries) {
                 usort($dayEntries, function($a, $b) {
-                    return strcmp($a['start_time'] ?? '', $b['start_time'] ?? '');
+                    $timeA = $a['start_time'] ?? '';
+                    $timeB = $b['start_time'] ?? '';
+                    return strcmp($timeA, $timeB);
                 });
             }
             
@@ -339,6 +367,8 @@ class Student extends Controller
                 'availableSections' => $availableSections,
                 'enrollmentRequests' => $enrollmentRequests,
                 'requestedSectionIds' => $requestedSectionIds,
+                'enrolledScheduleIds' => $enrolledScheduleIds,
+                'isEnrolledInAnySchedule' => $isEnrolledInAnySchedule,
                 'showSidebar' => true,
                 'semester' => $semester,
                 'academicYear' => $academicYear,
@@ -768,6 +798,7 @@ class Student extends Controller
             // Get all notifications
             $notifications = $this->notificationModel->getByUserId($userId, 100);
             $unread = $this->notificationModel->getUnreadByUserId($userId);
+            $unreadNotificationsCount = count($unread);
             
             // Organize by type
             $byType = [
@@ -791,6 +822,7 @@ class Student extends Controller
                 'student' => $student,
                 'notifications' => $notifications,
                 'unread' => $unread,
+                'unreadNotificationsCount' => $unreadNotificationsCount,
                 'byType' => $byType,
                 'showSidebar' => true,
             ]);
@@ -940,7 +972,16 @@ class Student extends Controller
                 return;
             }
             
-            // Check if already enrolled or has pending request
+            // Check if student is already enrolled in ANY schedule for this semester/year
+            $semester = $schedule['semester'] ?? '';
+            $academicYear = $schedule['academic_year'] ?? '';
+            if ($this->studentModel->isEnrolledInAnySchedule($studentId, $semester, $academicYear)) {
+                $_SESSION['error'] = 'You are already enrolled in a schedule for this semester. You cannot enroll in multiple schedules.';
+                $this->redirectTo('student/schedule');
+                return;
+            }
+            
+            // Check if already enrolled in this specific schedule (redundant check, but kept for safety)
             $enrolledCourses = $this->studentModel->getEnrolledCourses($studentId);
             foreach ($enrolledCourses as $course) {
                 $enrolledScheduleId = $course['schedule_id'] ?? $course['section_id'] ?? null;

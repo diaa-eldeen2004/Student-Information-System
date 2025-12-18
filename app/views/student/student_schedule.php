@@ -5,6 +5,8 @@ $weeklySchedule = $weeklySchedule ?? [];
 $availableSections = $availableSections ?? [];
 $enrollmentRequests = $enrollmentRequests ?? [];
 $requestedSectionIds = $requestedSectionIds ?? [];
+$enrolledScheduleIds = $enrolledScheduleIds ?? [];
+$isEnrolledInAnySchedule = $isEnrolledInAnySchedule ?? false;
 $semester = $semester ?? 'Fall';
 $academicYear = $academicYear ?? date('Y');
 ?>
@@ -152,6 +154,11 @@ $academicYear = $academicYear ?? date('Y');
                 <h3><i class="fas fa-plus-circle"></i> Available Courses for Enrollment</h3>
             </div>
             <div style="padding: 1.5rem;">
+                <?php if ($isEnrolledInAnySchedule): ?>
+                    <div class="alert" style="background-color: #fef3c7; color: #92400e; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #f59e0b;">
+                        <i class="fas fa-info-circle"></i> <strong>Notice:</strong> You are already enrolled in a schedule for <?= htmlspecialchars($semester) ?> <?= htmlspecialchars($academicYear) ?>. You cannot enroll in multiple schedules for the same semester.
+                    </div>
+                <?php endif; ?>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -171,7 +178,8 @@ $academicYear = $academicYear ?? date('Y');
                             <?php 
                             foreach ($availableSections as $section): 
                                 $scheduleId = $section['schedule_id'] ?? $section['section_id'] ?? null;
-                                $isRequested = in_array($scheduleId, $requestedSectionIds);
+                                $isEnrolled = in_array($scheduleId, $enrolledScheduleIds);
+                                $isRequested = !$isEnrolled && in_array($scheduleId, $requestedSectionIds);
                                 $isFull = ($section['current_enrollment'] ?? 0) >= ($section['capacity'] ?? 0);
                             ?>
                                 <tr>
@@ -197,10 +205,22 @@ $academicYear = $academicYear ?? date('Y');
                                             <button type="button" class="btn btn-sm btn-outline" onclick="previewTimetable(<?= htmlspecialchars($scheduleId ?? 0) ?>)" title="Preview Timetable">
                                                 <i class="fas fa-calendar-week"></i> Preview
                                             </button>
-                                            <?php if ($isRequested): ?>
-                                                <span class="badge" style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">Request Pending</span>
+                                            <?php if ($isEnrolled): ?>
+                                                <span class="badge" style="background-color: var(--success-color, #10b981); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
+                                                    <i class="fas fa-check-circle"></i> Enrolled
+                                                </span>
+                                            <?php elseif ($isEnrolledInAnySchedule): ?>
+                                                <span class="badge" style="background-color: var(--warning-color, #f59e0b); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
+                                                    <i class="fas fa-info-circle"></i> Already Enrolled in Another Schedule
+                                                </span>
+                                            <?php elseif ($isRequested): ?>
+                                                <span class="badge" style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
+                                                    <i class="fas fa-clock"></i> Request Pending
+                                                </span>
                                             <?php elseif ($isFull): ?>
-                                                <span class="badge" style="background-color: var(--error-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">Full</span>
+                                                <span class="badge" style="background-color: var(--error-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">
+                                                    <i class="fas fa-times-circle"></i> Full
+                                                </span>
                                             <?php else: ?>
                                                 <form method="POST" action="<?= htmlspecialchars($url('student/enroll')) ?>" style="display: inline;">
                                                     <input type="hidden" name="schedule_id" value="<?= htmlspecialchars($scheduleId ?? $section['schedule_id'] ?? $section['section_id'] ?? '') ?>">

@@ -209,12 +209,51 @@ class Doctor extends Controller
             if (!empty($statusFilter)) $filters['status'] = $statusFilter;
             if (!empty($typeFilter)) $filters['type'] = $typeFilter;
 
-            // Get assignments from database
-            $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id'], $filters);
+            // Get all assignments from database (for history) - use getAllByDoctor to ensure we get everything
+            $allAssignments = $this->assignmentModel->getAllByDoctor($doctor['doctor_id']);
             
-            // Decorator Pattern - Format assignments for display
+            // Apply filters for display
+            $filteredAssignments = $allAssignments;
+            if (!empty($filters)) {
+                $filteredAssignments = [];
+                foreach ($allAssignments as $assignment) {
+                    $match = true;
+                    if (!empty($filters['course_id']) && $assignment['course_id'] != $filters['course_id']) {
+                        $match = false;
+                    }
+                    if (!empty($filters['type']) && ($assignment['assignment_type'] ?? '') != $filters['type']) {
+                        $match = false;
+                    }
+                    // Status filter based on due date
+                    if (!empty($filters['status'])) {
+                        $dueDate = strtotime($assignment['due_date'] ?? '');
+                        $now = time();
+                        if ($filters['status'] === 'active' && $dueDate < $now) {
+                            $match = false;
+                        } elseif ($filters['status'] === 'completed' && $dueDate >= $now) {
+                            $match = false;
+                        }
+                    }
+                    if ($match) {
+                        $filteredAssignments[] = $assignment;
+                    }
+                }
+            }
+            
+            // Decorator Pattern - Format ALL assignments for history display
+            $allDecoratedAssignments = [];
+            foreach ($allAssignments as $assignment) {
+                $decorator = new AssignmentDecorator($assignment);
+                $assignment['formatted'] = $decorator->format();
+                $assignment['status_badge'] = $decorator->getStatusBadge();
+                $submissionStats = $this->assignmentModel->getSubmissionCount($assignment['assignment_id']);
+                $assignment['submission_stats'] = $submissionStats;
+                $allDecoratedAssignments[] = $assignment;
+            }
+            
+            // Decorator Pattern - Format filtered assignments for display
             $decoratedAssignments = [];
-            foreach ($assignments as $assignment) {
+            foreach ($filteredAssignments as $assignment) {
                 $decorator = new AssignmentDecorator($assignment);
                 $assignment['formatted'] = $decorator->format();
                 $assignment['status_badge'] = $decorator->getStatusBadge();
@@ -234,8 +273,9 @@ class Doctor extends Controller
             }
 
             $this->view->render('doctor/doctor_assignments', [
-                'title' => 'Assignments',
-                'assignments' => $decoratedAssignments,
+                'title' => 'Assignments/Quizzes',
+                'assignments' => $decoratedAssignments, // Filtered assignments for main list
+                'allAssignments' => $allDecoratedAssignments, // All assignments for history
                 'courses' => array_values($courses),
                 'showSidebar' => true,
             ]);
@@ -366,7 +406,7 @@ class Doctor extends Controller
             $recentAssignments = array_slice($recentAssignments, 0, 5);
 
             $this->view->render('doctor/create_assignment', [
-                'title' => 'Create Assignment',
+                'title' => 'Create Assignment/Quiz',
                 'courses' => array_values($courses),
                 'recentAssignments' => $recentAssignments,
                 'message' => $message,
@@ -468,26 +508,53 @@ class Doctor extends Controller
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $attendanceDate = trim($_POST['attendance_date'] ?? date('Y-m-d'));
-                $attendanceData = [];
                 
-                foreach ($_POST['attendance'] ?? [] as $studentId => $status) {
-                    $attendanceData[] = [
-                        'student_id' => (int)$studentId,
-                        'date' => $attendanceDate,
-                        'status' => $status,
-                        'notes' => trim($_POST['notes'][$studentId] ?? ''),
-                    ];
-                }
-
-                if ($this->attendanceModel->recordAttendance($scheduleId, $attendanceData, $doctor['doctor_id'])) {
-                    $config = require dirname(__DIR__) . '/config/config.php';
-                    $base = rtrim($config['base_url'] ?? '', '/');
-                    $target = $base . '/doctor/attendance?success=recorded';
-                    header("Location: {$target}");
-                    exit;
-                } else {
-                    $message = 'Error recording attendance';
+                // Validate date
+                if (empty($attendanceDate)) {
+                    $message = 'Please select an attendance date.';
                     $messageType = 'error';
+                } else {
+                    $attendanceData = [];
+                    
+                    // Validate that we have attendance data
+                    if (empty($_POST['attendance']) || !is_array($_POST['attendance'])) {
+                        $message = 'No attendance data provided.';
+                        $messageType = 'error';
+                    } else {
+                        foreach ($_POST['attendance'] as $studentId => $status) {
+                            $studentId = (int)$studentId;
+                            $status = trim($status);
+                            
+                            // Validate status
+                            if (!in_array($status, ['present', 'absent', 'late', 'excused'])) {
+                                error_log("Invalid attendance status: {$status} for student_id: {$studentId}");
+                                continue;
+                            }
+                            
+                            $attendanceData[] = [
+                                'student_id' => $studentId,
+                                'date' => $attendanceDate,
+                                'status' => $status,
+                                'notes' => trim($_POST['notes'][$studentId] ?? ''),
+                            ];
+                        }
+
+                        if (empty($attendanceData)) {
+                            $message = 'No valid attendance records to save.';
+                            $messageType = 'error';
+                        } else {
+                            if ($this->attendanceModel->recordAttendance($scheduleId, $attendanceData, $doctor['doctor_id'])) {
+                                $config = require dirname(__DIR__) . '/config/config.php';
+                                $base = rtrim($config['base_url'] ?? '', '/');
+                                $target = $base . '/doctor/attendance?success=recorded';
+                                header("Location: {$target}");
+                                exit;
+                            } else {
+                                $message = 'Error recording attendance. Please check the error logs for details.';
+                                $messageType = 'error';
+                            }
+                        }
+                    }
                 }
             }
 
@@ -595,12 +662,15 @@ class Doctor extends Controller
 
             // Get notifications for the doctor
             $notifications = $this->notificationModel->getByUserId($userId, 50);
-            $unreadCount = count($this->notificationModel->getUnreadByUserId($userId));
+            $unreadNotifications = $this->notificationModel->getUnreadByUserId($userId);
+            $unreadCount = count($unreadNotifications);
+            $unreadNotificationsCount = $unreadCount;
 
             $this->view->render('doctor/doctor_notifications', [
                 'title' => 'Notifications',
                 'notifications' => $notifications,
                 'unreadCount' => $unreadCount,
+                'unreadNotificationsCount' => $unreadNotificationsCount,
                 'showSidebar' => true,
             ]);
         } catch (\Exception $e) {
@@ -871,7 +941,7 @@ class Doctor extends Controller
             }
 
             $this->view->render('doctor/edit_assignment', [
-                'title' => 'Edit Assignment',
+                'title' => 'Edit Assignment/Quiz',
                 'assignment' => $assignment,
                 'courses' => array_values($courses),
                 'message' => $message,

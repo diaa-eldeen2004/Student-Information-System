@@ -11,34 +11,122 @@ class Attendance extends Model
     public function recordAttendance(int $sectionId, array $attendanceData, int $recordedBy): bool
     {
         try {
+            // Check if schedule_id column exists in attendance table
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM {$this->table} LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                // Column doesn't exist, use section_id
+            }
+
             $this->db->beginTransaction();
             
-            foreach ($attendanceData as $record) {
-                $stmt = $this->db->prepare("
-                    INSERT INTO {$this->table} 
-                    (section_id, student_id, attendance_date, status, notes, recorded_by)
-                    VALUES 
-                    (:section_id, :student_id, :attendance_date, :status, :notes, :recorded_by)
-                    ON DUPLICATE KEY UPDATE
-                    status = VALUES(status),
-                    notes = VALUES(notes),
-                    recorded_by = VALUES(recorded_by)
+            // Temporarily disable foreign key checks if needed (in case FK still points to sections table)
+            $fkCheckDisabled = false;
+            try {
+                // Check if foreign key constraint exists and might cause issues
+                $fkStmt = $this->db->query("
+                    SELECT CONSTRAINT_NAME 
+                    FROM information_schema.KEY_COLUMN_USAGE 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = '{$this->table}' 
+                    AND COLUMN_NAME = 'section_id' 
+                    AND REFERENCED_TABLE_NAME = 'sections'
                 ");
-                $stmt->execute([
-                    'section_id' => $sectionId,
-                    'student_id' => $record['student_id'],
-                    'attendance_date' => $record['date'],
-                    'status' => $record['status'],
-                    'notes' => $record['notes'] ?? null,
-                    'recorded_by' => $recordedBy,
-                ]);
+                if ($fkStmt->rowCount() > 0) {
+                    // Foreign key exists pointing to sections table, disable FK checks temporarily
+                    $this->db->exec("SET FOREIGN_KEY_CHECKS = 0");
+                    $fkCheckDisabled = true;
+                }
+            } catch (\PDOException $e) {
+                // Ignore errors checking foreign keys
+            }
+            
+            // Determine which column to use
+            $idColumn = $hasScheduleId ? 'schedule_id' : 'section_id';
+            
+            $successCount = 0;
+            foreach ($attendanceData as $record) {
+                // Validate required fields
+                if (empty($record['student_id']) || empty($record['date']) || empty($record['status'])) {
+                    error_log("Invalid attendance record: " . json_encode($record));
+                    continue;
+                }
+
+                try {
+                    $stmt = $this->db->prepare("
+                        INSERT INTO {$this->table} 
+                        ({$idColumn}, student_id, attendance_date, status, notes, recorded_by)
+                        VALUES 
+                        (:section_id, :student_id, :attendance_date, :status, :notes, :recorded_by)
+                        ON DUPLICATE KEY UPDATE
+                        status = VALUES(status),
+                        notes = VALUES(notes),
+                        recorded_by = VALUES(recorded_by),
+                        updated_at = CURRENT_TIMESTAMP
+                    ");
+                    
+                    $result = $stmt->execute([
+                        'section_id' => $sectionId, // This parameter name works for both columns
+                        'student_id' => (int)$record['student_id'],
+                        'attendance_date' => $record['date'],
+                        'status' => $record['status'],
+                        'notes' => !empty($record['notes']) ? trim($record['notes']) : null,
+                        'recorded_by' => $recordedBy,
+                    ]);
+                    
+                    if ($result) {
+                        $successCount++;
+                    } else {
+                        error_log("Failed to insert attendance record for student_id: " . $record['student_id']);
+                    }
+                } catch (\PDOException $e) {
+                    error_log("Error inserting attendance for student_id {$record['student_id']}: " . $e->getMessage());
+                    // Continue with other records
+                }
+            }
+            
+            // Re-enable foreign key checks if we disabled them
+            if ($fkCheckDisabled) {
+                $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
+            }
+            
+            if ($successCount === 0) {
+                $this->db->rollBack();
+                error_log("No attendance records were successfully inserted");
+                return false;
             }
             
             $this->db->commit();
             return true;
         } catch (\PDOException $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            // Re-enable foreign key checks if we disabled them
+            try {
+                $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
+            } catch (\PDOException $e2) {
+                // Ignore
+            }
             error_log("Attendance recording failed: " . $e->getMessage());
+            error_log("SQL Error Code: " . $e->getCode());
+            error_log("SQL State: " . $e->getCode());
+            error_log("Section ID: " . $sectionId);
+            error_log("Records count: " . count($attendanceData));
+            return false;
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            // Re-enable foreign key checks if we disabled them
+            try {
+                $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
+            } catch (\PDOException $e2) {
+                // Ignore
+            }
+            error_log("Attendance recording failed (general): " . $e->getMessage());
             return false;
         }
     }

@@ -124,6 +124,7 @@ class ItOfficer extends Controller
                 'title' => 'IT Officer Dashboard',
                 'itOfficer' => $itOfficer,
                 'pendingRequestsCount' => count($pendingRequests),
+                'pendingEnrollmentRequestsCount' => count($pendingRequests), // For sidebar badge
                 'recentLogs' => $recentLogs,
                 'totalCourses' => $totalCourses,
                 'totalSections' => $totalSections,
@@ -928,6 +929,9 @@ class ItOfficer extends Controller
             return $semB - $semA;
         });
 
+        // Get pending requests count for notification badge
+        $pendingRequests = $this->enrollmentRequestModel->getPendingRequests();
+        
         $this->view->render('it/it_schedule', [
             'title' => 'Manage Semester Schedule',
             'sections' => $decoratedSections,
@@ -939,6 +943,7 @@ class ItOfficer extends Controller
             'error' => $error,
             'success' => $success,
             'historyBySemester' => $historyBySemester,
+            'pendingEnrollmentRequestsCount' => count($pendingRequests),
             'showSidebar' => true,
         ]);
     }
@@ -1386,9 +1391,13 @@ class ItOfficer extends Controller
                 $decoratedRequests[] = $request;
             }
             
+            // Get pending requests count for notification badge
+            $pendingRequests = $this->enrollmentRequestModel->getPendingRequests();
+            
             $this->view->render('it/it_enrollments', [
                 'title' => 'Enrollment Requests',
                 'requests' => $decoratedRequests,
+                'pendingEnrollmentRequestsCount' => count($pendingRequests),
                 'showSidebar' => true,
             ]);
         } catch (\Exception $e) {
@@ -1881,6 +1890,9 @@ class ItOfficer extends Controller
         }
         unset($course);
         
+        // Get pending requests count for notification badge
+        $pendingRequests = $this->enrollmentRequestModel->getPendingRequests();
+        
         $this->view->render('it/it_course', [
             'title' => 'Course Management',
             'courses' => $courses,
@@ -1892,6 +1904,7 @@ class ItOfficer extends Controller
             'statusFilter' => $statusFilter,
             'message' => $message ?? $_GET['message'] ?? null,
             'messageType' => $messageType ?? $_GET['type'] ?? 'info',
+            'pendingEnrollmentRequestsCount' => count($pendingRequests),
             'showSidebar' => true,
         ]);
     }

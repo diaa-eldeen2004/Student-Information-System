@@ -44,7 +44,7 @@ $messageType = $messageType ?? 'info';
                                 <strong>Total Students:</strong> <?= $course['student_count'] ?? 0 ?>
                             </div>
                             <div style="flex: 1;">
-                                <strong>Total Assignments:</strong> <?= count($course['assignments'] ?? []) ?>
+                                <strong>Total Assignments/Quizzes:</strong> <?= count($course['assignments'] ?? []) ?>
                             </div>
                             <div style="flex: 1;">
                                 <strong>Course Materials:</strong> <?= count($course['materials'] ?? []) ?>
@@ -85,7 +85,7 @@ $messageType = $messageType ?? 'info';
                         <!-- Student Assignments & Grading -->
                         <?php if (!empty($course['assignments'])): ?>
                             <div class="assignments-section" style="margin-bottom: 2rem;">
-                                <h3><i class="fas fa-tasks"></i> Assignments & Student Submissions</h3>
+                                <h3><i class="fas fa-tasks"></i> Assignments/Quizzes & Student Submissions</h3>
                                 <div class="assignments-list" style="margin-top: 1rem;">
                                     <?php foreach ($course['assignments'] as $assignment): ?>
                                         <div class="assignment-card" style="margin-bottom: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">

@@ -44,6 +44,52 @@
     $isItPage = strpos($currentPath, '/it/') !== false;
     $isAdminPage = strpos($currentPath, '/admin/') !== false;
     $isStudentPage = strpos($currentPath, '/student/') !== false;
+    
+    // Get pending enrollment requests count for IT pages
+    $pendingEnrollmentRequestsCount = 0;
+    if ($isItPage) {
+        // Try to get from view data first (passed from controller)
+        // Check for both possible variable names
+        if (isset($pendingEnrollmentRequestsCount) && $pendingEnrollmentRequestsCount > 0) {
+            // Already set from controller
+        } elseif (isset($pendingRequestsCount) && $pendingRequestsCount > 0) {
+            $pendingEnrollmentRequestsCount = $pendingRequestsCount;
+        } else {
+            // Fetch directly if not passed
+            try {
+                if (class_exists('patterns\Factory\ModelFactory')) {
+                    $enrollmentRequestModel = \patterns\Factory\ModelFactory::create('EnrollmentRequest');
+                    $pendingRequests = $enrollmentRequestModel->getPendingRequests();
+                    $pendingEnrollmentRequestsCount = count($pendingRequests);
+                }
+            } catch (\Exception $e) {
+                // Silently fail if model not available
+                $pendingEnrollmentRequestsCount = 0;
+            }
+        }
+    }
+    
+    // Get unread notifications count for all user types
+    $unreadNotificationsCount = 0;
+    if ($showSidebar && isset($_SESSION['user']['id'])) {
+        $userId = $_SESSION['user']['id'];
+        // Try to get from view data first (passed from controller)
+        if (isset($unreadNotificationsCount) && $unreadNotificationsCount > 0) {
+            // Already set from controller
+        } else {
+            // Fetch directly if not passed
+            try {
+                if (class_exists('patterns\Factory\ModelFactory')) {
+                    $notificationModel = \patterns\Factory\ModelFactory::create('Notification');
+                    $unreadNotifications = $notificationModel->getUnreadByUserId($userId);
+                    $unreadNotificationsCount = count($unreadNotifications);
+                }
+            } catch (\Exception $e) {
+                // Silently fail if model not available
+                $unreadNotificationsCount = 0;
+            }
+        }
+    }
     ?>
     
     <?php if ($showSidebar): ?>
@@ -95,10 +141,35 @@
                     <i class="fas fa-book"></i> Courses
                 </a>
                 <a href="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/assignments') !== false ? 'active' : '' ?>">
-                    <i class="fas fa-tasks"></i> Assignments
+                    <i class="fas fa-tasks"></i> Assignments/Quizzes
                 </a>
                 <a href="<?= htmlspecialchars($url('doctor/attendance')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/attendance') !== false ? 'active' : '' ?>">
                     <i class="fas fa-calendar-check"></i> Attendance
+                </a>
+                <a href="<?= htmlspecialchars($url('doctor/notifications')) ?>" class="nav-item <?= strpos($currentPath, '/doctor/notifications') !== false ? 'active' : '' ?>" style="position: relative;">
+                    <i class="fas fa-bell"></i> Notifications
+                    <?php if ($unreadNotificationsCount > 0): ?>
+                        <span class="notification-badge" style="
+                            position: absolute;
+                            top: 50%;
+                            right: 1rem;
+                            transform: translateY(-50%);
+                            background-color: #ef4444;
+                            color: white;
+                            border-radius: 50%;
+                            min-width: 20px;
+                            height: 20px;
+                            padding: 0 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 11px;
+                            font-weight: bold;
+                            line-height: 1;
+                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                            z-index: 10;
+                        "><?= $unreadNotificationsCount > 99 ? '99+' : $unreadNotificationsCount ?></span>
+                    <?php endif; ?>
                 </a>
             <?php elseif ($isStudentPage): ?>
                 <a href="<?= htmlspecialchars($url('student/dashboard')) ?>" class="nav-item <?= (strpos($currentPath, '/student/dashboard') !== false || ($currentPath === '/student' || $currentPath === '/student/')) ? 'active' : '' ?>">
@@ -119,8 +190,30 @@
                 <a href="<?= htmlspecialchars($url('student/calendar')) ?>" class="nav-item <?= strpos($currentPath, '/student/calendar') !== false ? 'active' : '' ?>">
                     <i class="fas fa-calendar"></i> Calendar
                 </a>
-                <a href="<?= htmlspecialchars($url('student/notifications')) ?>" class="nav-item <?= strpos($currentPath, '/student/notifications') !== false ? 'active' : '' ?>">
+                <a href="<?= htmlspecialchars($url('student/notifications')) ?>" class="nav-item <?= strpos($currentPath, '/student/notifications') !== false ? 'active' : '' ?>" style="position: relative;">
                     <i class="fas fa-bell"></i> Notifications
+                    <?php if ($unreadNotificationsCount > 0): ?>
+                        <span class="notification-badge" style="
+                            position: absolute;
+                            top: 50%;
+                            right: 1rem;
+                            transform: translateY(-50%);
+                            background-color: #ef4444;
+                            color: white;
+                            border-radius: 50%;
+                            min-width: 20px;
+                            height: 20px;
+                            padding: 0 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 11px;
+                            font-weight: bold;
+                            line-height: 1;
+                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                            z-index: 10;
+                        "><?= $unreadNotificationsCount > 99 ? '99+' : $unreadNotificationsCount ?></span>
+                    <?php endif; ?>
                 </a>
                 <a href="<?= htmlspecialchars($url('student/profile')) ?>" class="nav-item <?= strpos($currentPath, '/student/profile') !== false ? 'active' : '' ?>">
                     <i class="fas fa-user"></i> Profile
@@ -135,8 +228,30 @@
                 <a href="<?= htmlspecialchars($url('it/course')) ?>" class="nav-item <?= strpos($currentPath, '/it/course') !== false ? 'active' : '' ?>">
                     <i class="fas fa-book"></i> Courses
                 </a>
-                <a href="<?= htmlspecialchars($url('it/enrollments')) ?>" class="nav-item <?= strpos($currentPath, '/it/enrollments') !== false ? 'active' : '' ?>">
+                <a href="<?= htmlspecialchars($url('it/enrollments')) ?>" class="nav-item <?= strpos($currentPath, '/it/enrollments') !== false ? 'active' : '' ?>" style="position: relative;">
                     <i class="fas fa-user-check"></i> Enrollments
+                    <?php if ($pendingEnrollmentRequestsCount > 0): ?>
+                        <span class="notification-badge" style="
+                            position: absolute;
+                            top: 50%;
+                            right: 1rem;
+                            transform: translateY(-50%);
+                            background-color: #ef4444;
+                            color: white;
+                            border-radius: 50%;
+                            min-width: 20px;
+                            height: 20px;
+                            padding: 0 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 11px;
+                            font-weight: bold;
+                            line-height: 1;
+                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                            z-index: 10;
+                        "><?= $pendingEnrollmentRequestsCount > 99 ? '99+' : $pendingEnrollmentRequestsCount ?></span>
+                    <?php endif; ?>
                 </a>
                 <a href="<?= htmlspecialchars($url('it/logs')) ?>" class="nav-item <?= strpos($currentPath, '/it/logs') !== false ? 'active' : '' ?>">
                     <i class="fas fa-file-alt"></i> Audit Logs

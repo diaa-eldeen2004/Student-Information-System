@@ -53,9 +53,25 @@ $messageType = $messageType ?? 'info';
                     </div>
 
                     <div class="students-list">
-                        <h3 style="margin-bottom: 1rem; color: var(--text-color);">
-                            <i class="fas fa-user-graduate"></i> Students (<?= count($students) ?>)
-                        </h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                            <h3 style="margin: 0; color: var(--text-color);">
+                                <i class="fas fa-user-graduate"></i> Students (<?= count($students) ?>)
+                            </h3>
+                            <div class="quick-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button type="button" class="btn btn-sm btn-success" onclick="markAllPresent()" title="Mark all students as present">
+                                    <i class="fas fa-check-double"></i> All Present
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger" onclick="markAllAbsent()" title="Mark all students as absent">
+                                    <i class="fas fa-times"></i> All Absent
+                                </button>
+                                <button type="button" class="btn btn-sm btn-warning" onclick="markAllLate()" title="Mark all students as late">
+                                    <i class="fas fa-clock"></i> All Late
+                                </button>
+                                <button type="button" class="btn btn-sm btn-info" onclick="clearAll()" title="Clear all selections">
+                                    <i class="fas fa-eraser"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
                         <div class="attendance-table">
                             <div class="table-header">
                                 <div class="col-student">Student</div>
@@ -76,29 +92,29 @@ $messageType = $messageType ?? 'info';
                                         </div>
                                     </div>
                                     <div class="col-status">
-                                        <div class="status-buttons">
-                                            <label class="status-option">
+                                        <div class="status-buttons" data-student-id="<?= $student['student_id'] ?? '' ?>">
+                                            <label class="status-option" data-status="present">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
                                                        value="present" <?= ($student['attendance_status'] ?? 'present') === 'present' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-present">
                                                     <i class="fas fa-check-circle"></i> Present
                                                 </span>
                                             </label>
-                                            <label class="status-option">
+                                            <label class="status-option" data-status="absent">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
                                                        value="absent" <?= ($student['attendance_status'] ?? '') === 'absent' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-absent">
                                                     <i class="fas fa-times-circle"></i> Absent
                                                 </span>
                                             </label>
-                                            <label class="status-option">
+                                            <label class="status-option" data-status="late">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
                                                        value="late" <?= ($student['attendance_status'] ?? '') === 'late' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-late">
                                                     <i class="fas fa-clock"></i> Late
                                                 </span>
                                             </label>
-                                            <label class="status-option">
+                                            <label class="status-option" data-status="excused">
                                                 <input type="radio" name="attendance[<?= $student['student_id'] ?? '' ?>]" 
                                                        value="excused" <?= ($student['attendance_status'] ?? '') === 'excused' ? 'checked' : '' ?>>
                                                 <span class="status-badge status-excused">
@@ -279,22 +295,47 @@ $messageType = $messageType ?? 'info';
 .status-option {
     cursor: pointer;
     margin: 0;
+    position: relative;
+    user-select: none;
 }
 
 .status-option input[type="radio"] {
-    display: none;
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
 }
 
 .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
     border: 2px solid transparent;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 0.9rem;
-    font-weight: 500;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+}
+
+.status-badge::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s;
+}
+
+.status-option:active .status-badge::before {
+    width: 300px;
+    height: 300px;
 }
 
 .status-present {
@@ -322,33 +363,129 @@ $messageType = $messageType ?? 'info';
 }
 
 .status-option input[type="radio"]:checked + .status-badge {
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-width: 3px;
+    font-weight: 700;
 }
 
 .status-option input[type="radio"]:checked + .status-present {
     background: #10b981;
     color: white;
+    border-color: #059669;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
 }
 
 .status-option input[type="radio"]:checked + .status-absent {
     background: #ef4444;
     color: white;
+    border-color: #dc2626;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
 .status-option input[type="radio"]:checked + .status-late {
     background: #f59e0b;
     color: white;
+    border-color: #d97706;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
 
 .status-option input[type="radio"]:checked + .status-excused {
     background: #6366f1;
     color: white;
+    border-color: #4f46e5;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.status-option:hover .status-badge {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.status-option:hover .status-present {
+    background: #d1fae5;
+    border-color: #10b981;
+}
+
+.status-option:hover .status-absent {
+    background: #fee2e2;
+    border-color: #ef4444;
+}
+
+.status-option:hover .status-late {
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+
+.status-option:hover .status-excused {
+    background: #e0e7ff;
+    border-color: #6366f1;
+}
+
+/* Disable hover effect when checked */
+.status-option input[type="radio"]:checked + .status-badge:hover {
+    transform: scale(1.08);
 }
 
 .form-actions {
     display: flex;
     gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.btn-info {
+    background: #6366f1;
+    color: white;
+}
+
+.btn-info:hover {
+    background: #4f46e5;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.quick-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .btn {
@@ -396,6 +533,10 @@ function resetForm() {
                 radio.checked = true;
             }
         });
+        // Clear all notes
+        document.querySelectorAll('input[name^="notes"]').forEach(input => {
+            input.value = '';
+        });
     }
 }
 
@@ -429,6 +570,227 @@ function validateAttendanceForm(event) {
         return false;
     }
     
+    // Validate date
+    const dateInput = form.querySelector('input[name="attendance_date"]');
+    if (!dateInput || !dateInput.value) {
+        event.preventDefault();
+        alert('Please select an attendance date.');
+        return false;
+    }
+    
     return true;
 }
+
+function markAllPresent() {
+    document.querySelectorAll('input[type="radio"][value="present"]').forEach(radio => {
+        radio.checked = true;
+        // Trigger change event to update visual state
+        radio.dispatchEvent(new Event('change'));
+    });
+    showToast('All students marked as Present', 'success');
+}
+
+function markAllAbsent() {
+    document.querySelectorAll('input[type="radio"][value="absent"]').forEach(radio => {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change'));
+    });
+    showToast('All students marked as Absent', 'error');
+}
+
+function markAllLate() {
+    document.querySelectorAll('input[type="radio"][value="late"]').forEach(radio => {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change'));
+    });
+    showToast('All students marked as Late', 'warning');
+}
+
+function clearAll() {
+    if (confirm('Clear all attendance selections?')) {
+        document.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.checked = false;
+        });
+        document.querySelectorAll('input[name^="notes"]').forEach(input => {
+            input.value = '';
+        });
+        showToast('All selections cleared', 'info');
+    }
+}
+
+function showToast(message, type = 'info') {
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        border-radius: 6px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        animation: slideIn 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    `;
+    
+    const colors = {
+        success: '#10b981',
+        error: '#ef4444',
+        warning: '#f59e0b',
+        info: '#3b82f6'
+    };
+    
+    toast.style.background = colors[type] || colors.info;
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, 3000);
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    @keyframes ripple {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+    .status-option.selected {
+        z-index: 1;
+    }
+    .status-option.selected .status-badge {
+        animation: pulse 0.3s ease-out;
+    }
+    @keyframes pulse {
+        0%, 100% {
+            transform: scale(1.08);
+        }
+        50% {
+            transform: scale(1.12);
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// Add visual feedback when radio buttons change
+document.addEventListener('DOMContentLoaded', function() {
+    // Enhanced button click handling
+    document.querySelectorAll('.status-option').forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+        const badge = option.querySelector('.status-badge');
+        
+        // Add click animation
+        option.addEventListener('click', function(e) {
+            // Prevent double-triggering
+            if (radio.checked) return;
+            
+            // Add ripple effect
+            const ripple = document.createElement('span');
+            ripple.style.cssText = `
+                position: absolute;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.6);
+                transform: scale(0);
+                animation: ripple 0.6s ease-out;
+                pointer-events: none;
+            `;
+            
+            const rect = badge.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+            ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+            
+            badge.style.position = 'relative';
+            badge.appendChild(ripple);
+            
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+            
+            // Play sound effect (optional - can be removed if not needed)
+            // const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURAJR6Hh8sBrJAUwgM/z1oQ4CBxrvO3knlEQCEWf4fLDbCIFMIfR89OCMwYebsDv45lREAlHoOHywGskBTCAz/PWhDgIHGu87eSeURAIRZ/h8sNsIgUwh9Hz04IzBh5uwO/jmVEQCUeg4fLAayQF');
+            // audio.play().catch(() => {}); // Ignore errors
+        });
+        
+        // Add change event listener
+        radio.addEventListener('change', function() {
+            // Update visual state
+            const statusButtons = this.closest('.status-buttons');
+            if (statusButtons) {
+                // Remove checked class from all options in this group
+                statusButtons.querySelectorAll('.status-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                // Add selected class to current option
+                option.classList.add('selected');
+            }
+            
+            // Show confirmation for certain statuses
+            const status = this.value;
+            const studentId = this.name.match(/\[(\d+)\]/)?.[1];
+            
+            if (status === 'absent' || status === 'excused') {
+                // Optional: Show a brief confirmation
+                const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+                // You can add a toast notification here if needed
+            }
+        });
+    });
+    
+    // Initialize selected states
+    document.querySelectorAll('input[type="radio"]:checked').forEach(radio => {
+        const option = radio.closest('.status-option');
+        if (option) {
+            option.classList.add('selected');
+        }
+    });
+    
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + P: Mark all present
+        if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            e.preventDefault();
+            markAllPresent();
+        }
+        // Ctrl/Cmd + A: Mark all absent
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+            e.preventDefault();
+            markAllAbsent();
+        }
+        // Ctrl/Cmd + L: Mark all late
+        if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+            e.preventDefault();
+            markAllLate();
+        }
+    });
+});
 </script>

@@ -49,16 +49,42 @@ class Assignment extends Model
         }
         
         $whereClause = implode(' AND ', $where);
+        
+        // Use LEFT JOIN to ensure we get all assignments even if schedule doesn't exist
         $stmt = $this->db->prepare("
-            SELECT a.*, c.course_code, c.name as course_name,
-                   s.section_number, s.semester, s.academic_year
+            SELECT a.*, 
+                   c.course_code, c.name as course_name,
+                   COALESCE(s.section_number, 'N/A') as section_number, 
+                   COALESCE(s.semester, a.semester) as semester, 
+                   COALESCE(s.academic_year, a.academic_year) as academic_year
             FROM {$this->table} a
-            JOIN courses c ON a.course_id = c.course_id
-            JOIN schedule s ON a.section_id = s.schedule_id
+            LEFT JOIN courses c ON a.course_id = c.course_id
+            LEFT JOIN schedule s ON a.section_id = s.schedule_id
             WHERE {$whereClause}
-            ORDER BY a.due_date DESC
+            ORDER BY a.created_at DESC, a.due_date DESC
         ");
         $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * Get all assignments for a doctor (for history) - no filters applied
+     */
+    public function getAllByDoctor(int $doctorId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT a.*, 
+                   c.course_code, c.name as course_name,
+                   COALESCE(s.section_number, 'N/A') as section_number, 
+                   COALESCE(s.semester, a.semester) as semester, 
+                   COALESCE(s.academic_year, a.academic_year) as academic_year
+            FROM {$this->table} a
+            LEFT JOIN courses c ON a.course_id = c.course_id
+            LEFT JOIN schedule s ON a.section_id = s.schedule_id
+            WHERE a.doctor_id = :doctor_id
+            ORDER BY a.created_at DESC, a.due_date DESC
+        ");
+        $stmt->execute(['doctor_id' => $doctorId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 

@@ -430,6 +430,50 @@ class Student extends Model
         }
     }
 
+    /**
+     * Check if student is enrolled in any schedule for the given semester/year
+     */
+    public function isEnrolledInAnySchedule(int $studentId, string $semester, string $academicYear): bool
+    {
+        try {
+            // Check if enrollments has schedule_id column
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            // Build JOIN condition based on available columns
+            if ($hasScheduleId) {
+                $joinCondition = "e.schedule_id = s.schedule_id";
+            } else {
+                $joinCondition = "e.section_id = s.schedule_id";
+            }
+            
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as count
+                FROM enrollments e
+                JOIN schedule s ON {$joinCondition}
+                WHERE e.student_id = :student_id
+                AND e.status = 'enrolled'
+                AND s.semester = :semester
+                AND s.academic_year = :academic_year
+            ");
+            $stmt->execute([
+                'student_id' => $studentId,
+                'semester' => $semester,
+                'academic_year' => $academicYear
+            ]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($result['count'] ?? 0) > 0;
+        } catch (\PDOException $e) {
+            error_log("isEnrolledInAnySchedule failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function getEnrolledCourses(int $studentId, ?string $semester = null, ?string $academicYear = null): array
     {
         try {
@@ -543,10 +587,24 @@ class Student extends Model
                 $joinCondition = "e.section_id = s.schedule_id";
             }
             
-            $stmt = $this->db->prepare("
-                SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
+            // Check if course_ids column exists
+            $hasCourseIds = false;
+            try {
+                $checkCourseIds = $this->db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+                $hasCourseIds = $checkCourseIds->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasCourseIds = false;
+            }
+            
+            $selectFields = "s.*, c.course_code, c.name as course_name, c.credit_hours,
                        u.first_name as doctor_first_name, u.last_name as doctor_last_name,
-                       s.weekly_schedule, s.is_weekly
+                       s.weekly_schedule, s.is_weekly";
+            if ($hasCourseIds) {
+                $selectFields .= ", s.course_ids";
+            }
+            
+            $stmt = $this->db->prepare("
+                SELECT {$selectFields}
                 FROM enrollments e
                 JOIN schedule s ON {$joinCondition}
                 JOIN courses c ON s.course_id = c.course_id
@@ -565,29 +623,136 @@ class Student extends Model
             ]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Expand weekly schedules into individual day entries
+            // Expand weekly schedules into individual session entries
             $expandedResults = [];
             foreach ($results as $entry) {
                 $isWeekly = !empty($entry['is_weekly']) && (int)$entry['is_weekly'] === 1;
                 $weeklySchedule = !empty($entry['weekly_schedule']) ? json_decode($entry['weekly_schedule'], true) : null;
                 
                 if ($isWeekly && $weeklySchedule && is_array($weeklySchedule)) {
-                    // Expand weekly schedule into multiple entries (one per day)
-                    foreach ($weeklySchedule as $day => $dayData) {
-                        $dayEntry = $entry;
-                        $dayEntry['day_of_week'] = $day;
-                        $dayEntry['start_time'] = $dayData['start_time'] ?? $entry['start_time'] ?? '';
-                        $dayEntry['end_time'] = $dayData['end_time'] ?? $entry['end_time'] ?? '';
-                        // Remove weekly schedule fields from individual entries
-                        unset($dayEntry['weekly_schedule']);
-                        unset($dayEntry['is_weekly']);
-                        $expandedResults[] = $dayEntry;
+                    // Expand weekly schedule - each day can have multiple sessions
+                    foreach ($weeklySchedule as $day => $sessions) {
+                        // Normalize day name
+                        $dayLower = strtolower(trim($day));
+                        $dayMap = [
+                            'monday' => 'Monday', 'tuesday' => 'Tuesday', 'wednesday' => 'Wednesday',
+                            'thursday' => 'Thursday', 'friday' => 'Friday', 'saturday' => 'Saturday',
+                            'sunday' => 'Sunday', 'mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday',
+                            'thu' => 'Thursday', 'fri' => 'Friday', 'sat' => 'Saturday', 'sun' => 'Sunday',
+                        ];
+                        $dayCapitalized = $dayMap[$dayLower] ?? ucfirst($dayLower);
+                        
+                        // Check if sessions is an array of sessions or a single session object
+                        if (is_array($sessions) && isset($sessions[0]) && is_array($sessions[0])) {
+                            // Multiple sessions per day
+                            foreach ($sessions as $session) {
+                                if (is_array($session) && !empty($session['start_time']) && !empty($session['end_time'])) {
+                                    $sessionEntry = $entry;
+                                    $sessionEntry['day_of_week'] = $dayCapitalized;
+                                    $sessionEntry['start_time'] = $session['start_time'] ?? $entry['start_time'] ?? '';
+                                    $sessionEntry['end_time'] = $session['end_time'] ?? $entry['end_time'] ?? '';
+                                    $sessionEntry['room'] = $session['room'] ?? $entry['room'] ?? '';
+                                    $sessionEntry['session_type'] = $session['session_type'] ?? $entry['session_type'] ?? 'lecture';
+                                    
+                                    // Ensure time format is consistent (HH:MM:SS)
+                                    if (!empty($sessionEntry['start_time']) && strlen($sessionEntry['start_time']) == 5) {
+                                        $sessionEntry['start_time'] .= ':00';
+                                    }
+                                    if (!empty($sessionEntry['end_time']) && strlen($sessionEntry['end_time']) == 5) {
+                                        $sessionEntry['end_time'] .= ':00';
+                                    }
+                                    
+                                    // If session has a different course_id, fetch its details
+                                    if (!empty($session['course_id']) && $session['course_id'] != $entry['course_id']) {
+                                        $courseStmt = $this->db->prepare("SELECT course_code, name as course_name, credit_hours FROM courses WHERE course_id = :course_id");
+                                        $courseStmt->execute(['course_id' => $session['course_id']]);
+                                        $course = $courseStmt->fetch(PDO::FETCH_ASSOC);
+                                        if ($course) {
+                                            $sessionEntry['course_id'] = $session['course_id'];
+                                            $sessionEntry['course_code'] = $course['course_code'];
+                                            $sessionEntry['course_name'] = $course['course_name'];
+                                            $sessionEntry['credit_hours'] = $course['credit_hours'];
+                                        }
+                                    }
+                                    
+                                    if (!empty($session['section_number'])) {
+                                        $sessionEntry['section_number'] = $session['section_number'];
+                                    }
+                                    
+                                    // Remove weekly schedule fields
+                                    unset($sessionEntry['weekly_schedule']);
+                                    unset($sessionEntry['is_weekly']);
+                                    unset($sessionEntry['course_ids']);
+                                    
+                                    $expandedResults[] = $sessionEntry;
+                                }
+                            }
+                        } else {
+                            // Single session object for this day (legacy format)
+                            if (is_array($sessions) && !empty($sessions['start_time']) && !empty($sessions['end_time'])) {
+                                $dayEntry = $entry;
+                                $dayEntry['day_of_week'] = $dayCapitalized;
+                                $dayEntry['start_time'] = $sessions['start_time'] ?? $entry['start_time'] ?? '';
+                                $dayEntry['end_time'] = $sessions['end_time'] ?? $entry['end_time'] ?? '';
+                                $dayEntry['room'] = $sessions['room'] ?? $entry['room'] ?? '';
+                                $dayEntry['session_type'] = $sessions['session_type'] ?? $entry['session_type'] ?? 'lecture';
+                                
+                                // Ensure time format
+                                if (!empty($dayEntry['start_time']) && strlen($dayEntry['start_time']) == 5) {
+                                    $dayEntry['start_time'] .= ':00';
+                                }
+                                if (!empty($dayEntry['end_time']) && strlen($dayEntry['end_time']) == 5) {
+                                    $dayEntry['end_time'] .= ':00';
+                                }
+                                
+                                unset($dayEntry['weekly_schedule']);
+                                unset($dayEntry['is_weekly']);
+                                unset($dayEntry['course_ids']);
+                                
+                                $expandedResults[] = $dayEntry;
+                            }
+                        }
                     }
                 } else {
-                    // Regular single-day entry
-                    unset($entry['weekly_schedule']);
-                    unset($entry['is_weekly']);
-                    $expandedResults[] = $entry;
+                    // Regular single-day entry or non-weekly schedule
+                    // Check if it has multiple courses in course_ids
+                    if ($hasCourseIds && !empty($entry['course_ids'])) {
+                        $courseIds = json_decode($entry['course_ids'], true);
+                        if (is_array($courseIds) && count($courseIds) > 1) {
+                            // Expand for each course
+                            foreach ($courseIds as $courseId) {
+                                $courseEntry = $entry;
+                                $courseEntry['course_id'] = $courseId;
+                                // Get course details
+                                $courseStmt = $this->db->prepare("SELECT course_code, name as course_name, credit_hours FROM courses WHERE course_id = :course_id");
+                                $courseStmt->execute(['course_id' => $courseId]);
+                                $course = $courseStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($course) {
+                                    $courseEntry['course_code'] = $course['course_code'];
+                                    $courseEntry['course_name'] = $course['course_name'];
+                                    $courseEntry['credit_hours'] = $course['credit_hours'];
+                                }
+                                unset($courseEntry['weekly_schedule']);
+                                unset($courseEntry['is_weekly']);
+                                unset($courseEntry['course_ids']);
+                                $expandedResults[] = $courseEntry;
+                            }
+                        } else {
+                            // Single course, add as is
+                            unset($entry['weekly_schedule']);
+                            unset($entry['is_weekly']);
+                            unset($entry['course_ids']);
+                            $expandedResults[] = $entry;
+                        }
+                    } else {
+                        // No course_ids, add as is
+                        unset($entry['weekly_schedule']);
+                        unset($entry['is_weekly']);
+                        if (isset($entry['course_ids'])) {
+                            unset($entry['course_ids']);
+                        }
+                        $expandedResults[] = $entry;
+                    }
                 }
             }
             
@@ -629,7 +794,7 @@ class Student extends Model
                 WHERE s.semester = :semester
                 AND s.academic_year = :academic_year
                 AND (s.status = 'published' OR s.status = 'scheduled')
-                AND {$enrollmentSubquery} < s.capacity
+                AND (s.capacity IS NULL OR (s.capacity > 0 AND {$enrollmentSubquery} < s.capacity))
                 ORDER BY c.course_code, s.section_number
             ");
             $stmt->execute(['semester' => $semester, 'academic_year' => $academicYear]);

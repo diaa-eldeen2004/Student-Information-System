@@ -1,5 +1,6 @@
 <?php
 $assignments = $assignments ?? [];
+$allAssignments = $allAssignments ?? $assignments; // All assignments for history
 $courses = $courses ?? [];
 $courseFilter = $_GET['course'] ?? '';
 $statusFilter = $_GET['status'] ?? '';
@@ -14,7 +15,7 @@ $messageType = $messageType ?? 'info';
     <div class="assignments-header">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div>
-                <h1><i class="fas fa-tasks"></i> Assignments & Quizzes</h1>
+                <h1><i class="fas fa-tasks"></i> Assignments/Quizzes</h1>
                 <p>View all assignments and quizzes for the semester. Hide/show them to students.</p>
             </div>
             <a href="<?= htmlspecialchars($url('doctor/create-assignment')) ?>" class="btn btn-primary">
@@ -60,7 +61,7 @@ $messageType = $messageType ?? 'info';
                 <div class="form-group">
                     <label class="form-label">Status</label>
                     <select name="status" class="form-input" onchange="this.form.submit()">
-                        <option value="">All Status</option>
+                        <option value="">All Status (History)</option>
                         <option value="active" <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
                         <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : '' ?>>Completed</option>
                     </select>
@@ -87,13 +88,33 @@ $messageType = $messageType ?? 'info';
         <?php if (empty($assignments)): ?>
             <div class="card text-center" style="padding: 3rem;">
                 <i class="fas fa-tasks" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
-                <p style="color: var(--text-secondary);">No assignments found.</p>
+                <p style="color: var(--text-secondary);">No assignments/quizzes found.</p>
                 <a href="<?= htmlspecialchars($url('doctor/create-assignment')) ?>" class="btn btn-primary" style="margin-top: 1rem;">
-                    <i class="fas fa-plus"></i> Create Your First Assignment
+                    <i class="fas fa-plus"></i> Create Your First Assignment/Quiz
                 </a>
             </div>
         <?php else: ?>
-            <?php foreach ($assignments as $assignment): ?>
+            <!-- History Section -->
+            <div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0; color: var(--text-color); display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-history" style="color: var(--primary-color);"></i>
+                        History of Assignments/Quizzes
+                    </h2>
+                    <span class="badge badge-info" style="background: var(--primary-color); color: white; padding: 0.5rem 1rem; border-radius: 6px;">
+                        Total: <?= count($allAssignments) ?>
+                    </span>
+                </div>
+                <p style="color: var(--text-muted); margin: 0;">All uploaded assignments and quizzes, including past and current ones.</p>
+            </div>
+            
+            <!-- Show all assignments in history -->
+            <?php if (!empty($allAssignments)): ?>
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="color: var(--text-color); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-list"></i> All Assignments/Quizzes (<?= count($allAssignments) ?>)
+                    </h3>
+                    <?php foreach ($allAssignments as $assignment): ?>
                 <div class="card assignment-card">
                     <div class="assignment-header">
                         <div>
@@ -175,7 +196,9 @@ $messageType = $messageType ?? 'info';
                         </div>
                     </div>
                 </div>
-            <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>

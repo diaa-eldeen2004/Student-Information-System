@@ -10,7 +10,7 @@ $messageType = $messageType ?? 'info';
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div>
                 <h1><i class="fas fa-plus-circle"></i> Create Assignment</h1>
-                <p>Create and publish new assignments for your students.</p>
+                <p>Create and publish new assignments/quizzes for your students.</p>
             </div>
             <div style="display: flex; gap: 1rem;">
                 <a href="<?= htmlspecialchars($url('doctor/assignments')) ?>" class="btn btn-outline">
@@ -148,7 +148,7 @@ $messageType = $messageType ?? 'info';
                 <div class="card-header">
                     <h2 class="card-title">
                         <i class="fas fa-history" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
-                        Recent Assignments
+                        Recent Assignments/Quizzes
                     </h2>
                 </div>
                 <div class="assignments-list">
