@@ -3,7 +3,7 @@ namespace controllers;
 
 use core\Controller;
 use patterns\Factory\ModelFactory;
-use patterns\Builder\SectionBuilder;
+use patterns\Builder\ScheduleBuilder;
 use patterns\Singleton\DatabaseConnection;
 use patterns\Strategy\ConflictDetector;
 use patterns\Strategy\TimeSlotConflictStrategy;
@@ -14,21 +14,23 @@ use patterns\Adapter\DatabaseNotificationAdapter;
 use patterns\Observer\EnrollmentSubject;
 use patterns\Observer\NotificationObserver;
 use patterns\Observer\AuditLogObserver;
-use patterns\Decorator\SectionDecorator;
+use patterns\Decorator\ScheduleDecorator;
 use patterns\Decorator\EnrollmentRequestDecorator;
 use models\ItOfficer as ItOfficerModel;
-use models\Section;
+use models\Schedule;
 use models\Course;
 use models\Doctor;
 use models\EnrollmentRequest;
 use models\AuditLog;
 use models\Notification;
 use models\Student;
+use PDO;
+use PDOException;
 
 class ItOfficer extends Controller
 {
     private ItOfficerModel $itOfficerModel;
-    private Section $sectionModel;
+    private Schedule $scheduleModel;
     private Course $courseModel;
     private Doctor $doctorModel;
     private EnrollmentRequest $enrollmentRequestModel;
@@ -60,7 +62,7 @@ class ItOfficer extends Controller
 
         // Factory Method Pattern - Create all models
         $this->itOfficerModel = ModelFactory::create('ItOfficer');
-        $this->sectionModel = ModelFactory::create('Section');
+        $this->scheduleModel = ModelFactory::create('Schedule');
         $this->courseModel = ModelFactory::create('Course');
         $this->doctorModel = ModelFactory::create('Doctor');
         $this->enrollmentRequestModel = ModelFactory::create('EnrollmentRequest');
@@ -111,7 +113,7 @@ class ItOfficer extends Controller
             
             // Get additional statistics from database
             $totalCourses = count($this->courseModel->getAll());
-            $totalSections = count($this->sectionModel->getAll());
+            $totalSections = count($this->scheduleModel->getAll());
             $totalDoctors = count($this->doctorModel->getAll());
             $totalStudents = count($this->studentModel->getAllStudents());
             $totalEnrollments = $this->enrollmentRequestModel->getAllRequests();
@@ -152,7 +154,7 @@ class ItOfficer extends Controller
                 $academicYear = $_GET['year'] ?? null;
                 
                 if ($courseId > 0) {
-                    $sections = $this->sectionModel->getSectionNumbersByCourse($courseId, $semester, $academicYear);
+                    $sections = $this->scheduleModel->getSectionNumbersByCourse($courseId, $semester, $academicYear);
                     header('Content-Type: application/json');
                     echo json_encode(['sections' => $sections]);
                     exit;
@@ -169,7 +171,32 @@ class ItOfficer extends Controller
             }
             
             if ($action === 'run_migration') {
-                $this->runMigration();
+                try {
+                    $this->runMigration();
+                } catch (\Throwable $e) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Fatal error: ' . $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ]);
+                }
+                exit;
+            }
+            
+            if ($action === 'clear_all_schedules') {
+                try {
+                    $this->clearAllSchedules();
+                } catch (\Throwable $e) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Fatal error: ' . $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ]);
+                }
                 exit;
             }
         }
@@ -181,13 +208,32 @@ class ItOfficer extends Controller
                 exit;
             }
             if ($_GET['action'] === 'run_migration') {
-                $this->runMigration();
+                try {
+                    $this->runMigration();
+                } catch (\Throwable $e) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Fatal error: ' . $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ]);
+                }
                 exit;
             }
         }
 
         // Handle POST requests (form submissions) - but not AJAX actions
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_GET['action']) || $_GET['action'] !== 'run_migration')) {
+            // Start output buffering to catch any PHP errors/warnings
+            ob_start();
+            
+            // Check if AJAX request early
+            $isAjax = (
+                (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') ||
+                (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+            );
+            
             try {
                 // Check if quick mode (multiple courses for same day)
                 $isQuickMode = !empty($_POST['quick_mode']);
@@ -207,217 +253,381 @@ class ItOfficer extends Controller
                     return;
                 }
                 
-                // Core Concept: Each schedule entry = (Semester + Course + Day + Time + Room)
-                // Support multiple doctors, multiple sections, and multiple days
-                $days = $_POST['days'] ?? [];
-                $startTimes = $_POST['start_time'] ?? [];
-                $endTimes = $_POST['end_time'] ?? [];
-                $sessionType = trim($_POST['session_type'] ?? 'lecture');
+                // Core Concept: Support multiple courses, each with their own configuration
+                // Each course can have multiple doctors, sections, rooms, and sessions per day
+                $courses = $_POST['courses'] ?? [];
+                $semester = trim($_POST['semester'] ?? '');
+                $academicYear = trim($_POST['academic_year'] ?? '');
                 
-                // If no days selected, check for single day (backward compatibility)
-                if (empty($days) && !empty($_POST['day_of_week'])) {
-                    $days = [$_POST['day_of_week']];
-                    $startTimes[$_POST['day_of_week']] = $_POST['start_time'] ?? '';
-                    $endTimes[$_POST['day_of_week']] = $_POST['end_time'] ?? '';
-                }
-                
-                if (empty($days)) {
-                    $error = 'Please select at least one day for the schedule entry.';
+                // Validate semester and academic year
+                if (!$semester || !$academicYear) {
+                    $error = 'Please select semester and enter academic year.';
+                } elseif (empty($courses)) {
+                    $error = 'Please add at least one course entry.';
                 } else {
                     $entriesCreated = 0;
                     $entriesFailed = 0;
                     $conflictErrors = [];
                     
-                    $courseId = (int)($_POST['course_id'] ?? 0);
-                    $doctorIds = $_POST['doctor_ids'] ?? [];
-                    $sectionNumbers = $_POST['section_numbers'] ?? [];
-                    $semester = trim($_POST['semester'] ?? '');
-                    $academicYear = trim($_POST['academic_year'] ?? '');
-                    $room = trim($_POST['room'] ?? '');
-                    $capacity = (int)($_POST['capacity'] ?? 30);
+                    // Collect all courses data first
+                    $allCoursesData = [];
+                    $allCourseIds = [];
+                    $combinedWeeklySchedule = [];
+                    $firstCourseId = null;
+                    $firstDoctorId = null;
+                    $firstSectionNumber = null;
+                    $firstRoom = null;
+                    $firstCapacity = 30;
                     
-                    // Validate required fields
-                    if (!$courseId) {
-                        $error = 'Please select a course.';
-                    } elseif (empty($doctorIds)) {
-                        $error = 'Please select at least one doctor.';
-                    } elseif (empty($sectionNumbers)) {
-                        $error = 'Please select at least one section number.';
-                    } elseif (!$semester || !$academicYear) {
-                        $error = 'Please select semester and enter academic year.';
-                    } elseif (!$room) {
-                        $error = 'Please enter a room number.';
-                    } else {
-                        // Create entries for each combination: doctor × section × day
-                        foreach ($doctorIds as $doctorId) {
-                            $doctorId = (int)$doctorId;
-                            foreach ($sectionNumbers as $sectionNumber) {
-                                $sectionNumber = trim($sectionNumber);
+                    // Validate and collect all course entries
+                    foreach ($courses as $courseIndex => $courseData) {
+                        $courseId = (int)($courseData['course_id'] ?? 0);
+                        $doctorIds = $courseData['doctor_ids'] ?? [];
+                        $sectionNumbers = $courseData['section_numbers'] ?? [];
+                        $room = trim($courseData['room'] ?? '');
+                        $capacity = (int)($courseData['capacity'] ?? 30);
+                        $days = $courseData['days'] ?? [];
+                        $startTimes = $courseData['start_time'] ?? [];
+                        $endTimes = $courseData['end_time'] ?? [];
+                        $sessionTypes = $courseData['session_type'] ?? [];
+                        
+                        // Validate course entry
+                        if (!$courseId) {
+                            $entriesFailed++;
+                            $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . ": Please select a course.";
+                            continue;
+                        }
+                        
+                        if (empty($doctorIds)) {
+                            $entriesFailed++;
+                            $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . ": Please select at least one doctor.";
+                            continue;
+                        }
+                        
+                        if (empty($sectionNumbers)) {
+                            $entriesFailed++;
+                            $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . ": Please select at least one section number.";
+                            continue;
+                        }
+                        
+                        if (!$room) {
+                            $entriesFailed++;
+                            $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . ": Please enter a room number.";
+                            continue;
+                        }
+                        
+                        if (empty($days)) {
+                            $entriesFailed++;
+                            $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . ": Please select at least one day.";
+                            continue;
+                        }
+                        
+                        // Store first course data for backward compatibility
+                        if ($firstCourseId === null) {
+                            $firstCourseId = $courseId;
+                            $firstDoctorId = (int)$doctorIds[0];
+                            $firstSectionNumber = trim($sectionNumbers[0]);
+                            $firstRoom = $room;
+                            $firstCapacity = $capacity;
+                        }
+                        
+                        $allCourseIds[] = $courseId;
+                        
+                        // Build weekly schedule for this course - process ALL sections
+                        foreach ($sectionNumbers as $sectionIndex => $sectionNumber) {
+                            $sectionNumber = trim($sectionNumber);
+                            
+                            foreach ($days as $day) {
+                                $dayLower = strtolower($day);
+                                $daySessions = [];
                                 
-                                // Create one schedule entry per selected day
-                                foreach ($days as $day) {
-                                    $startTime = $startTimes[$day] ?? '';
-                                    $endTime = $endTimes[$day] ?? '';
+                                $dayStartTimes = $startTimes[$dayLower] ?? [];
+                                $dayEndTimes = $endTimes[$dayLower] ?? [];
+                                $daySessionTypes = $sessionTypes[$dayLower] ?? [];
+                                
+                                $sessionCount = max(count($dayStartTimes), count($dayEndTimes), count($daySessionTypes));
+                                
+                                if ($sessionCount === 0) {
+                                    $entriesFailed++;
+                                    $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . " - {$day}: At least one session is required";
+                                    continue;
+                                }
+                                
+                                for ($i = 0; $i < $sessionCount; $i++) {
+                                    $startTime = $dayStartTimes[$i] ?? '';
+                                    $endTime = $dayEndTimes[$i] ?? '';
+                                    $sessionType = trim($daySessionTypes[$i] ?? 'lecture');
                                     
-                                    // Validate time for this day
                                     if (empty($startTime) || empty($endTime)) {
                                         $entriesFailed++;
-                                        $conflictErrors[] = "{$day}: Start time and end time are required";
+                                        $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . " - {$day} - Session " . ($i + 1) . ": Start time and end time are required";
                                         continue;
                                     }
                                     
-                                    // Builder Pattern - Build schedule entry step by step
-                                    $builder = new SectionBuilder();
-                                    $builder->setCourse($courseId)
-                                            ->setDoctor($doctorId)
-                                            ->setSectionNumber($sectionNumber)
-                                            ->setSemester($semester)
-                                            ->setAcademicYear($academicYear)
-                                            ->setRoom($room ?: null)
-                                            ->setCapacity($capacity)
-                                            ->setTimeSlot($day, $startTime, $endTime);
-                                    
-                                    // Add session type if supported
-                                    if (method_exists($builder, 'setSessionType')) {
-                                        $builder->setSessionType($sessionType);
-                                    }
-                                    
-                                    $entryData = $builder->build();
-                                    
-                                    // Conflict Detection: Check in order of priority
-                                    // Rule: Conflict exists if (Same Semester + Same Day + Same Room + Overlapping Time)
-                                    $db = DatabaseConnection::getInstance()->getConnection();
-                                    $dayError = null;
-                                    
-                                    // 1. Check room conflict first (most critical - same room can't be double-booked)
-                                    if (!empty($entryData['room'])) {
-                                        $this->conflictDetector->setStrategy(new RoomConflictStrategy($db));
-                                        if ($this->conflictDetector->detectConflict($entryData)) {
-                                            $dayError = "Room conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
-                                        }
-                                    }
-                                    
-                                    // 2. Check doctor availability (doctor can't teach two courses at same time)
-                                    if (!$dayError) {
-                                        $this->conflictDetector->setStrategy(new DoctorAvailabilityStrategy($db));
-                                        if ($this->conflictDetector->detectConflict($entryData)) {
-                                            $dayError = "Doctor conflict on {$day}: " . $this->conflictDetector->getErrorMessage();
-                                        }
-                                    }
-                                    
-                                    // 3. Check for exact duplicate entry
-                                    // Core Concept: Multiple sessions for the same course ARE ALLOWED on the same day
-                                    // as long as they have different:
-                                    // - Section numbers (e.g., "001" vs "002"), OR
-                                    // - Session types (e.g., "Lecture" vs "Lab"), OR
-                                    // - Time slots (non-overlapping times)
-                                    // Only block if ALL fields match exactly (true duplicate)
-                                    if (!$dayError) {
-                                        // Build section number with session type for comparison
-                                        $fullSectionNumber = $sectionNumber;
-                                        if ($sessionType && strpos($sectionNumber, $sessionType) === false) {
-                                            $fullSectionNumber = $sectionNumber . '-' . ucfirst($sessionType);
-                                        }
-                                        
-                                        $checkDuplicate = $db->prepare("
-                                            SELECT COUNT(*) as count FROM sections
-                                            WHERE course_id = :course_id
-                                            AND doctor_id = :doctor_id
-                                            AND semester = :semester
-                                            AND academic_year = :academic_year
-                                            AND day_of_week = :day_of_week
-                                            AND section_number = :section_number
-                                            AND start_time = :start_time
-                                            AND end_time = :end_time
-                                            AND room = :room
-                                        ");
-                                        $checkDuplicate->execute([
-                                            'course_id' => $courseId,
-                                            'doctor_id' => $doctorId,
-                                            'semester' => $semester,
-                                            'academic_year' => $academicYear,
-                                            'day_of_week' => $day,
-                                            'section_number' => $fullSectionNumber,
-                                            'start_time' => $startTime,
-                                            'end_time' => $endTime,
-                                            'room' => $room ?: '',
-                                        ]);
-                                        $duplicate = $checkDuplicate->fetch(PDO::FETCH_ASSOC);
-                                        if ((int)$duplicate['count'] > 0) {
-                                            $dayError = "Duplicate entry: This exact schedule entry already exists for {$day}";
-                                        }
-                                    }
-                                    
-                                    if (!$dayError) {
-                                        // Create schedule entry (one per day)
-                                        try {
-                                            $entrySuccess = $builder->create($this->sectionModel);
-                                            
-                                            if ($entrySuccess) {
-                                                $entriesCreated++;
-                                                $sectionId = $this->sectionModel->getLastInsertId();
-                                                
-                                                // Observer Pattern - Notify observers about schedule entry creation
-                                                $doctor = $this->doctorModel->findById($doctorId);
-                                                if ($doctor) {
-                                                    $this->enrollmentSubject->sectionCreated([
-                                                        'user_id' => $doctor['user_id'],
-                                                        'section_id' => $sectionId,
-                                                        'message' => "You have been assigned to section {$sectionNumber} on {$day}",
-                                                        'entity_type' => 'section',
-                                                        'entity_id' => $sectionId,
-                                                        'details' => json_encode($entryData),
-                                                    ]);
-                                                }
-                                                
-                                                // Log the schedule entry creation
-                                                $userId = $_SESSION['user']['id'] ?? $_SESSION['user_id'] ?? 0;
-                                                $this->auditLogModel->create([
-                                                    'user_id' => $userId,
-                                                    'action' => 'schedule_entry_created',
-                                                    'entity_type' => 'section',
-                                                    'entity_id' => $sectionId,
-                                                    'details' => json_encode([
-                                                        'course_id' => $courseId,
-                                                        'doctor_id' => $doctorId,
-                                                        'section_number' => $sectionNumber,
-                                                        'day' => $day,
-                                                        'time' => "{$startTime}-{$endTime}",
-                                                        'room' => $room,
-                                                        'session_type' => $sessionType,
-                                                    ])
-                                                ]);
-                                            } else {
-                                                $entriesFailed++;
-                                                $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: Failed to create schedule entry (database error)";
-                                            }
-                                        } catch (\Exception $e) {
-                                            $entriesFailed++;
-                                            $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: " . $e->getMessage();
-                                            error_log("Schedule creation error: " . $e->getMessage());
-                                        }
-                                    } else {
+                                    if ($startTime >= $endTime) {
                                         $entriesFailed++;
-                                        $conflictErrors[] = "Doctor {$doctorId}, Section {$sectionNumber}, {$day}: {$dayError}";
+                                        $conflictErrors[] = "Course Entry " . ($courseIndex + 1) . " - {$day} - Session " . ($i + 1) . ": End time must be after start time";
+                                        continue;
                                     }
+                                    
+                                    // Store session with course-specific info for EACH section
+                                    $daySessions[] = [
+                                        'course_id' => $courseId,
+                                        'section_number' => $sectionNumber,
+                                        'room' => $room,
+                                        'capacity' => $capacity,
+                                        'start_time' => $startTime,
+                                        'end_time' => $endTime,
+                                        'session_type' => $sessionType
+                                    ];
+                                }
+                                
+                                if (!empty($daySessions)) {
+                                    if (!isset($combinedWeeklySchedule[$day])) {
+                                        $combinedWeeklySchedule[$day] = [];
+                                    }
+                                    $combinedWeeklySchedule[$day] = array_merge($combinedWeeklySchedule[$day], $daySessions);
                                 }
                             }
                         }
                         
-                        if ($entriesCreated > 0) {
-                            $success = "Created {$entriesCreated} schedule entry/entries successfully";
-                            if ($entriesFailed > 0) {
-                                $success .= " ({$entriesFailed} failed)";
-                                $error = implode('; ', array_slice($conflictErrors, 0, 5));
-                                if (count($conflictErrors) > 5) {
-                                    $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
+                        $allCoursesData[] = [
+                            'course_id' => $courseId,
+                            'doctor_ids' => $doctorIds,
+                            'section_numbers' => $sectionNumbers,
+                            'room' => $room,
+                            'capacity' => $capacity,
+                            'weekly_schedule' => $courseWeeklySchedule
+                        ];
+                    }
+                    
+                    // If validation passed, create ONE schedule entry for all courses
+                    if (empty($conflictErrors) && !empty($allCourseIds) && !empty($combinedWeeklySchedule)) {
+                        // Use first course's first doctor and section for backward compatibility
+                        $firstDay = array_key_first($combinedWeeklySchedule);
+                        $firstDaySessions = $combinedWeeklySchedule[$firstDay];
+                        $firstSession = $firstDaySessions[0] ?? null;
+                        
+                        if ($firstSession) {
+                            // Builder Pattern - Build ONE schedule entry for all courses
+                            $builder = new ScheduleBuilder();
+                            $builder->setCourse($firstCourseId)
+                                    ->setDoctor($firstDoctorId)
+                                    ->setSectionNumber($firstSectionNumber)
+                                    ->setSemester($semester)
+                                    ->setAcademicYear($academicYear)
+                                    ->setRoom($firstRoom ?: null)
+                                    ->setCapacity($firstCapacity)
+                                    ->setTimeSlot($firstDay, $firstSession['start_time'], $firstSession['end_time']);
+                            
+                            if (method_exists($builder, 'setSessionType')) {
+                                $builder->setSessionType($firstSession['session_type'] ?? 'lecture');
+                            }
+                            
+                            $entryData = $builder->build();
+                            
+                            // Add course_ids and combined weekly schedule
+                            $entryData['course_ids'] = array_values(array_unique($allCourseIds)); // Ensure it's a proper array
+                            $entryData['weekly_schedule'] = $combinedWeeklySchedule;
+                            $entryData['is_weekly'] = true;
+                            
+                            // Debug logging
+                            error_log("Creating schedule with course_ids: " . json_encode($entryData['course_ids']));
+                            error_log("Total courses: " . count($entryData['course_ids']));
+                            error_log("Weekly schedule days: " . count($combinedWeeklySchedule));
+                            
+                            // Conflict Detection: Check conflicts for each session in each day
+                            $db = DatabaseConnection::getInstance()->getConnection();
+                            $weeklyError = null;
+                            
+                            // Check conflicts for each day and each session
+                            foreach ($combinedWeeklySchedule as $day => $daySessions) {
+                                foreach ($daySessions as $sessionIndex => $sessionData) {
+                                    $dayEntryData = $entryData;
+                                    $dayEntryData['day_of_week'] = $day;
+                                    $dayEntryData['start_time'] = $sessionData['start_time'];
+                                    $dayEntryData['end_time'] = $sessionData['end_time'];
+                                    $dayEntryData['room'] = $sessionData['room'] ?? $firstRoom;
+                                    $dayEntryData['course_id'] = $sessionData['course_id'] ?? $firstCourseId;
+                                    
+                                    // 1. Check room conflict
+                                    if (!empty($dayEntryData['room'])) {
+                                        $this->conflictDetector->setStrategy(new RoomConflictStrategy($db));
+                                        if ($this->conflictDetector->detectConflict($dayEntryData)) {
+                                            $weeklyError = "Room conflict on {$day} - Session " . ($sessionIndex + 1) . ": " . $this->conflictDetector->getErrorMessage();
+                                            break 2; // Break both loops
+                                        }
+                                    }
+                                    
+                                    // 2. Check doctor availability (check for first doctor)
+                                    if (!$weeklyError) {
+                                        $this->conflictDetector->setStrategy(new DoctorAvailabilityStrategy($db));
+                                        if ($this->conflictDetector->detectConflict($dayEntryData)) {
+                                            $weeklyError = "Doctor conflict on {$day} - Session " . ($sessionIndex + 1) . ": " . $this->conflictDetector->getErrorMessage();
+                                            break 2; // Break both loops
+                                        }
+                                    }
                                 }
                             }
-                        } else {
-                            $error = $error ?? 'Failed to create schedule entries. ' . implode('; ', array_slice($conflictErrors, 0, 5));
+                            
+                            // 3. Check for duplicate schedule (check by course_ids combination)
+                            if (!$weeklyError) {
+                                $courseIdsJson = json_encode(array_unique($allCourseIds));
+                                
+                                // Check if columns exist
+                                $hasCourseIds = false;
+                                $hasIsWeekly = false;
+                                try {
+                                    $checkColumn = $db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+                                    $hasCourseIds = $checkColumn->rowCount() > 0;
+                                } catch (\PDOException $e) {
+                                    $hasCourseIds = false;
+                                }
+                                
+                                try {
+                                    $checkIsWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'is_weekly'");
+                                    $hasIsWeekly = $checkIsWeekly->rowCount() > 0;
+                                } catch (\PDOException $e) {
+                                    $hasIsWeekly = false;
+                                }
+                                
+                                // Build duplicate check query
+                                if ($hasCourseIds) {
+                                    $duplicateQuery = "
+                                        SELECT COUNT(*) as count FROM schedule
+                                        WHERE course_ids = :course_ids
+                                        AND doctor_id = :doctor_id
+                                        AND semester = :semester
+                                        AND academic_year = :academic_year
+                                    ";
+                                    if ($hasIsWeekly) {
+                                        $duplicateQuery .= " AND is_weekly = 1";
+                                    }
+                                    $checkDuplicate = $db->prepare($duplicateQuery);
+                                    $checkDuplicate->execute([
+                                        'course_ids' => $courseIdsJson,
+                                        'doctor_id' => $firstDoctorId,
+                                        'semester' => $semester,
+                                        'academic_year' => $academicYear,
+                                    ]);
+                                } else {
+                                    // Fallback: check by first course_id
+                                    $duplicateQuery = "
+                                        SELECT COUNT(*) as count FROM schedule
+                                        WHERE course_id = :course_id
+                                        AND doctor_id = :doctor_id
+                                        AND semester = :semester
+                                        AND academic_year = :academic_year
+                                    ";
+                                    if ($hasIsWeekly) {
+                                        $duplicateQuery .= " AND is_weekly = 1";
+                                    }
+                                    $checkDuplicate = $db->prepare($duplicateQuery);
+                                    $checkDuplicate->execute([
+                                        'course_id' => $firstCourseId,
+                                        'doctor_id' => $firstDoctorId,
+                                        'semester' => $semester,
+                                        'academic_year' => $academicYear,
+                                    ]);
+                                }
+                                
+                                $duplicate = $checkDuplicate->fetch(PDO::FETCH_ASSOC);
+                                if ((int)$duplicate['count'] > 0) {
+                                    $weeklyError = "Duplicate entry: A schedule already exists for these courses, doctor, and semester combination";
+                                }
+                            }
+                            
+                            if (!$weeklyError) {
+                                // Create ONE schedule entry for all courses
+                                try {
+                                    $entrySuccess = $this->scheduleModel->create($entryData);
+                                    
+                                    if ($entrySuccess) {
+                                        $entriesCreated++;
+                                        $scheduleId = $this->scheduleModel->getLastInsertId();
+                                        
+                                        // Notify all doctors for all courses
+                                        $allDoctorIds = [];
+                                        foreach ($allCoursesData as $courseData) {
+                                            foreach ($courseData['doctor_ids'] as $docId) {
+                                                $allDoctorIds[] = (int)$docId;
+                                            }
+                                        }
+                                        $allDoctorIds = array_unique($allDoctorIds);
+                                        
+                                        $daysList = implode(', ', array_keys($combinedWeeklySchedule));
+                                        $totalSessions = 0;
+                                        foreach ($combinedWeeklySchedule as $daySessions) {
+                                            $totalSessions += count($daySessions);
+                                        }
+                                        
+                                        foreach ($allDoctorIds as $docId) {
+                                            $doctor = $this->doctorModel->findById($docId);
+                                            if ($doctor) {
+                                                $courseNames = [];
+                                                foreach ($allCourseIds as $cid) {
+                                                    $course = $this->courseModel->findById($cid);
+                                                    if ($course) {
+                                                        $courseNames[] = $course['course_code'];
+                                                    }
+                                                }
+                                                $coursesList = implode(', ', $courseNames);
+                                                
+                                                $this->enrollmentSubject->sectionCreated([
+                                                    'user_id' => $doctor['user_id'],
+                                                    'schedule_id' => $scheduleId,
+                                                    'message' => "You have been assigned to weekly schedule for courses: {$coursesList} on {$daysList} ({$totalSessions} session(s))",
+                                                    'entity_type' => 'schedule',
+                                                    'entity_id' => $scheduleId,
+                                                    'details' => json_encode($entryData),
+                                                ]);
+                                            }
+                                        }
+                                        
+                                        // Log the schedule entry creation
+                                        $userId = $_SESSION['user']['id'] ?? $_SESSION['user_id'] ?? 0;
+                                        $this->auditLogModel->create([
+                                            'user_id' => $userId,
+                                            'action' => 'multi_course_schedule_created',
+                                            'entity_type' => 'schedule',
+                                            'entity_id' => $scheduleId,
+                                            'details' => json_encode([
+                                                'course_ids' => $allCourseIds,
+                                                'doctor_ids' => $allDoctorIds,
+                                                'days' => array_keys($combinedWeeklySchedule),
+                                                'weekly_schedule' => $combinedWeeklySchedule,
+                                            ])
+                                        ]);
+                                    } else {
+                                        $entriesFailed++;
+                                        $conflictErrors[] = "Failed to create schedule entry (database error)";
+                                    }
+                                } catch (\Exception $e) {
+                                    $entriesFailed++;
+                                    $conflictErrors[] = "Failed to create schedule entry: " . $e->getMessage();
+                                    error_log("Multi-course schedule creation error: " . $e->getMessage());
+                                }
+                            } else {
+                                $entriesFailed++;
+                                $conflictErrors[] = $weeklyError;
+                            }
+                        }
+                    }
+                    
+                    // Summary for all courses
+                    if ($entriesCreated > 0) {
+                        $success = "Created {$entriesCreated} weekly schedule(s) successfully";
+                        if ($entriesFailed > 0) {
+                            $success .= " ({$entriesFailed} failed)";
+                            $error = implode('; ', array_slice($conflictErrors, 0, 5));
                             if (count($conflictErrors) > 5) {
                                 $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
                             }
+                        }
+                    } else {
+                        $error = $error ?? 'Failed to create schedule entries. ' . implode('; ', array_slice($conflictErrors, 0, 5));
+                        if (count($conflictErrors) > 5) {
+                            $error .= ' (and ' . (count($conflictErrors) - 5) . ' more errors)';
                         }
                     }
                 }
@@ -425,13 +635,22 @@ class ItOfficer extends Controller
                 $error = 'Error: ' . $e->getMessage();
                 error_log("Schedule creation error: " . $e->getMessage());
                 error_log("Schedule creation error trace: " . $e->getTraceAsString());
+            } catch (\Error $e) {
+                // Catch PHP 7+ errors (fatal errors, etc.)
+                $error = 'Fatal Error: ' . $e->getMessage();
+                error_log("Schedule creation fatal error: " . $e->getMessage());
+                error_log("Schedule creation fatal error trace: " . $e->getTraceAsString());
             }
             
-            // Check if AJAX request - multiple ways to detect
-            $isAjax = (
-                (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') ||
-                (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-            );
+            // Clear any output that might have been generated (errors, warnings, etc.)
+            $output = ob_get_clean();
+            if (!empty($output) && $isAjax) {
+                // If there was output and it's AJAX, log it and include in error
+                error_log("Unexpected output before JSON response: " . substr($output, 0, 500));
+                if (empty($error)) {
+                    $error = 'Server error occurred. Please check the logs.';
+                }
+            }
             
             // Log for debugging
             error_log("Schedule POST - AJAX: " . ($isAjax ? 'YES' : 'NO'));
@@ -441,12 +660,17 @@ class ItOfficer extends Controller
             error_log("Schedule POST - POST data keys: " . implode(', ', array_keys($_POST)));
             
             if ($isAjax) {
-                header('Content-Type: application/json');
+                // Ensure no output before this
+                if (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
+                
+                header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
-                    'success' => $success,
-                    'error' => $error,
+                    'success' => $success ?? null,
+                    'error' => $error ?? null,
                     'entries_created' => $entriesCreated ?? 0
-                ]);
+                ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
             
@@ -471,19 +695,192 @@ class ItOfficer extends Controller
         }
 
         // Get current semester/year (default to current)
-        $currentSemester = $_GET['semester'] ?? date('n') <= 6 ? 'Spring' : 'Fall';
+        $currentSemester = $_GET['semester'] ?? (date('n') <= 6 ? 'Spring' : 'Fall');
         $currentYear = $_GET['year'] ?? date('Y');
 
+        // Check if schedule table exists, if not, try to create it automatically
+        try {
+            $db = DatabaseConnection::getInstance()->getConnection();
+            $stmt = $db->query("SHOW TABLES LIKE 'schedule'");
+            if ($stmt->rowCount() == 0) {
+                // Table doesn't exist, try to create it automatically
+                try {
+                    $db->exec("
+                        CREATE TABLE IF NOT EXISTS `schedule` (
+                            `schedule_id` INT(11) NOT NULL AUTO_INCREMENT,
+                            `course_id` INT(11) NOT NULL,
+                            `course_ids` JSON NULL,
+                            `doctor_id` INT(11) NOT NULL,
+                            `section_number` VARCHAR(10) NOT NULL,
+                            `semester` VARCHAR(20) NOT NULL,
+                            `academic_year` VARCHAR(10) NOT NULL,
+                            `room` VARCHAR(50) DEFAULT NULL,
+                            `time_slot` VARCHAR(100) DEFAULT NULL,
+                            `day_of_week` VARCHAR(20) DEFAULT NULL,
+                            `start_time` TIME DEFAULT NULL,
+                            `end_time` TIME DEFAULT NULL,
+                            `weekly_schedule` JSON NULL,
+                            `is_weekly` TINYINT(1) DEFAULT 0,
+                            `capacity` INT(11) NOT NULL DEFAULT 30,
+                            `current_enrollment` INT(11) DEFAULT 0,
+                            `session_type` VARCHAR(20) DEFAULT 'lecture',
+                            `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            PRIMARY KEY (`schedule_id`),
+                            FOREIGN KEY (`course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE,
+                            FOREIGN KEY (`doctor_id`) REFERENCES `doctors`(`doctor_id`) ON DELETE CASCADE,
+                            INDEX `idx_course_id` (`course_id`),
+                            INDEX `idx_doctor_id` (`doctor_id`),
+                            INDEX `idx_semester` (`semester`, `academic_year`),
+                            INDEX `idx_day_time` (`day_of_week`, `start_time`, `end_time`),
+                            INDEX `idx_is_weekly` (`is_weekly`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    ");
+                    
+                    // Ensure columns exist (in case table was created without them)
+                    try {
+                        $checkWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'weekly_schedule'");
+                        if ($checkWeekly->rowCount() == 0) {
+                            $db->exec("ALTER TABLE `schedule` ADD COLUMN `weekly_schedule` JSON NULL AFTER `day_of_week`");
+                        }
+                    } catch (\PDOException $e) {}
+                    
+                    try {
+                        $checkIsWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'is_weekly'");
+                        if ($checkIsWeekly->rowCount() == 0) {
+                            $db->exec("ALTER TABLE `schedule` ADD COLUMN `is_weekly` TINYINT(1) DEFAULT 0 AFTER `weekly_schedule`");
+                        }
+                    } catch (\PDOException $e) {}
+                    
+                    try {
+                        $checkCourseIds = $db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+                        if ($checkCourseIds->rowCount() == 0) {
+                            $db->exec("ALTER TABLE `schedule` ADD COLUMN `course_ids` JSON NULL AFTER `course_id`");
+                            error_log("Added course_ids column to schedule table");
+                        }
+                    } catch (\PDOException $e) {
+                        error_log("Error adding course_ids column: " . $e->getMessage());
+                    }
+                    
+                    $success = "Schedule table created successfully!";
+                } catch (\PDOException $e) {
+                    // If foreign key constraints fail, try without them
+                    if (strpos($e->getMessage(), 'foreign key') !== false) {
+                        try {
+                            $db->exec("
+                                CREATE TABLE IF NOT EXISTS `schedule` (
+                                    `schedule_id` INT(11) NOT NULL AUTO_INCREMENT,
+                                    `course_id` INT(11) NOT NULL,
+                                    `doctor_id` INT(11) NOT NULL,
+                                    `section_number` VARCHAR(10) NOT NULL,
+                                    `semester` VARCHAR(20) NOT NULL,
+                                    `academic_year` VARCHAR(10) NOT NULL,
+                                    `room` VARCHAR(50) DEFAULT NULL,
+                                    `time_slot` VARCHAR(100) DEFAULT NULL,
+                                    `day_of_week` VARCHAR(20) DEFAULT NULL,
+                                    `start_time` TIME DEFAULT NULL,
+                                    `end_time` TIME DEFAULT NULL,
+                                    `weekly_schedule` JSON NULL,
+                                    `is_weekly` TINYINT(1) DEFAULT 0,
+                                    `capacity` INT(11) NOT NULL DEFAULT 30,
+                                    `current_enrollment` INT(11) DEFAULT 0,
+                                    `session_type` VARCHAR(20) DEFAULT 'lecture',
+                                    `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
+                                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                    PRIMARY KEY (`schedule_id`),
+                                    INDEX `idx_course_id` (`course_id`),
+                                    INDEX `idx_doctor_id` (`doctor_id`),
+                                    INDEX `idx_semester` (`semester`, `academic_year`),
+                                    INDEX `idx_day_time` (`day_of_week`, `start_time`, `end_time`),
+                                    INDEX `idx_is_weekly` (`is_weekly`)
+                                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                            ");
+                            
+                            // Ensure columns exist (in case table was created without them)
+                            try {
+                                $checkWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'weekly_schedule'");
+                                if ($checkWeekly->rowCount() == 0) {
+                                    $db->exec("ALTER TABLE `schedule` ADD COLUMN `weekly_schedule` JSON NULL AFTER `day_of_week`");
+                                }
+                            } catch (\PDOException $e) {}
+                            
+                            try {
+                                $checkIsWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'is_weekly'");
+                                if ($checkIsWeekly->rowCount() == 0) {
+                                    $db->exec("ALTER TABLE `schedule` ADD COLUMN `is_weekly` TINYINT(1) DEFAULT 0 AFTER `weekly_schedule`");
+                                }
+                            } catch (\PDOException $e) {}
+                            $success = "Schedule table created successfully (without foreign key constraints)!";
+                        } catch (\PDOException $e2) {
+                            $error = "Failed to create schedule table: " . $e2->getMessage() . ". Please click 'Run Migration' button.";
+                        }
+                    } else {
+                        $error = "Failed to create schedule table: " . $e->getMessage() . ". Please click 'Run Migration' button.";
+                    }
+                }
+            } else {
+                // Table exists, but check if course_ids column exists and add it if missing
+                try {
+                    $checkCourseIds = $db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+                    if ($checkCourseIds->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `course_ids` JSON NULL AFTER `course_id`");
+                        error_log("Added course_ids column to existing schedule table");
+                    }
+                } catch (\PDOException $e) {
+                    error_log("Error checking/adding course_ids column: " . $e->getMessage());
+                }
+                
+                // Also ensure weekly_schedule and is_weekly columns exist
+                try {
+                    $checkWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'weekly_schedule'");
+                    if ($checkWeekly->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `weekly_schedule` JSON NULL AFTER `end_time`");
+                        error_log("Added weekly_schedule column to existing schedule table");
+                    }
+                } catch (\PDOException $e) {
+                    error_log("Error checking/adding weekly_schedule column: " . $e->getMessage());
+                }
+                
+                try {
+                    $checkIsWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'is_weekly'");
+                    if ($checkIsWeekly->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `is_weekly` TINYINT(1) DEFAULT 0 AFTER `weekly_schedule`");
+                        error_log("Added is_weekly column to existing schedule table");
+                    }
+                } catch (\PDOException $e) {
+                    error_log("Error checking/adding is_weekly column: " . $e->getMessage());
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("Error checking schedule table: " . $e->getMessage());
+            $error = "Error checking database: " . $e->getMessage();
+        }
+
         // Get schedule entries from database for current semester/year
-        $sections = $this->sectionModel->getBySemester($currentSemester, $currentYear);
-        
-        // Get weekly timetable view (organized by day)
-        $weeklyTimetable = $this->sectionModel->getWeeklyTimetable($currentSemester, $currentYear);
+        try {
+            $sections = $this->scheduleModel->getBySemester($currentSemester, $currentYear);
+            
+            // Get weekly timetable view (organized by day)
+            $weeklyTimetable = $this->scheduleModel->getWeeklyTimetable($currentSemester, $currentYear);
+        } catch (\PDOException $e) {
+            // If table still doesn't exist, show error
+            if (strpos($e->getMessage(), "doesn't exist") !== false || strpos($e->getMessage(), "Base table") !== false) {
+                $error = "Schedule table not found. The table will be created automatically, or you can click 'Run Migration' button.";
+                $sections = [];
+                $weeklyTimetable = [];
+            } else {
+                $error = "Database error: " . $e->getMessage();
+                $sections = [];
+                $weeklyTimetable = [];
+            }
+        }
         
         // Decorator Pattern - Format sections for display
         $decoratedSections = [];
         foreach ($sections as $section) {
-            $decorator = new SectionDecorator($section);
+            $decorator = new ScheduleDecorator($section);
             $section['formatted'] = $decorator->format();
             $section['enrollment_status'] = $decorator->getEnrollmentStatus();
             $decoratedSections[] = $section;
@@ -494,7 +891,15 @@ class ItOfficer extends Controller
         $doctors = $this->doctorModel->getAll();
         
         // Get all sections for history (all semesters)
-        $allSections = $this->sectionModel->getAll();
+        try {
+            $allSections = $this->scheduleModel->getAll();
+        } catch (\PDOException $e) {
+            if (strpos($e->getMessage(), "doesn't exist") !== false) {
+                $allSections = [];
+            } else {
+                throw $e;
+            }
+        }
         
         // Group history by semester/year
         $historyBySemester = [];
@@ -636,7 +1041,7 @@ class ItOfficer extends Controller
                             }
                             
                             $checkDuplicate = $db->prepare("
-                                SELECT COUNT(*) as count FROM sections
+                                SELECT COUNT(*) as count FROM schedule
                                 WHERE course_id = :course_id
                                 AND doctor_id = :doctor_id
                                 AND semester = :semester
@@ -677,10 +1082,10 @@ class ItOfficer extends Controller
                                 if ($doctor) {
                                     $this->enrollmentSubject->sectionCreated([
                                         'user_id' => $doctor['user_id'],
-                                        'section_id' => $sectionId,
-                                        'message' => "You have been assigned to section {$sectionNumber} on {$day}",
-                                        'entity_type' => 'section',
-                                        'entity_id' => $sectionId,
+                                                        'schedule_id' => $scheduleId,
+                                                        'message' => "You have been assigned to section {$sectionNumber} on {$day}",
+                                                        'entity_type' => 'schedule',
+                                                        'entity_id' => $scheduleId,
                                         'details' => json_encode($entryData),
                                     ]);
                                 }
@@ -863,7 +1268,7 @@ class ItOfficer extends Controller
                         // 3. Check for exact duplicate
                         if (!$dayError) {
                             $checkDuplicate = $db->prepare("
-                                SELECT COUNT(*) as count FROM sections
+                                SELECT COUNT(*) as count FROM schedule
                                 WHERE course_id = :course_id
                                 AND semester = :semester
                                 AND academic_year = :academic_year
@@ -913,9 +1318,9 @@ class ItOfficer extends Controller
                                 // Audit log
                                 $this->auditLogModel->log([
                                     'user_id' => $_SESSION['user_id'],
-                                    'action' => 'create_section',
-                                    'entity_type' => 'section',
-                                    'entity_id' => $sectionId,
+                                    'action' => 'create_schedule',
+                                    'entity_type' => 'schedule',
+                                    'entity_id' => $scheduleId,
                                     'details' => json_encode($entryData),
                                 ]);
                             } else {
@@ -1468,7 +1873,7 @@ class ItOfficer extends Controller
             $course['pending_requests'] = [];
             foreach ($allRequests as $request) {
                 // Check if request is for a section of this course
-                $section = $this->sectionModel->findById($request['section_id'] ?? 0);
+                $section = $this->scheduleModel->findById($request['schedule_id'] ?? 0);
                 if ($section && $section['course_id'] == $course['course_id']) {
                     $course['pending_requests'][] = $request;
                 }
@@ -1723,7 +2128,7 @@ class ItOfficer extends Controller
         
         try {
             $db = DatabaseConnection::getInstance()->getConnection();
-            $requiredTables = ['sections', 'courses', 'doctors', 'users'];
+            $requiredTables = ['schedule', 'courses', 'doctors', 'users'];
             $existingTables = [];
             $missingTables = [];
             
@@ -1759,14 +2164,15 @@ class ItOfficer extends Controller
         try {
             $db = DatabaseConnection::getInstance()->getConnection();
             
-            // Check if sections table exists
-            $stmt = $db->query("SHOW TABLES LIKE 'sections'");
+            // Check if schedule table exists
+            $stmt = $db->query("SHOW TABLES LIKE 'schedule'");
             if ($stmt->rowCount() == 0) {
-                // Create sections table
+                // Create schedule table
                 $db->exec("
-                    CREATE TABLE IF NOT EXISTS `sections` (
-                        `section_id` INT(11) NOT NULL AUTO_INCREMENT,
+                        CREATE TABLE IF NOT EXISTS `schedule` (
+                        `schedule_id` INT(11) NOT NULL AUTO_INCREMENT,
                         `course_id` INT(11) NOT NULL,
+                        `course_ids` JSON NULL,
                         `doctor_id` INT(11) NOT NULL,
                         `section_number` VARCHAR(10) NOT NULL,
                         `semester` VARCHAR(20) NOT NULL,
@@ -1776,15 +2182,22 @@ class ItOfficer extends Controller
                         `day_of_week` VARCHAR(20) DEFAULT NULL,
                         `start_time` TIME DEFAULT NULL,
                         `end_time` TIME DEFAULT NULL,
+                        `weekly_schedule` JSON NULL,
+                        `is_weekly` TINYINT(1) DEFAULT 0,
                         `capacity` INT(11) NOT NULL DEFAULT 30,
                         `current_enrollment` INT(11) DEFAULT 0,
+                        `session_type` VARCHAR(20) DEFAULT 'lecture',
                         `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
                         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        PRIMARY KEY (`section_id`),
+                        PRIMARY KEY (`schedule_id`),
+                        FOREIGN KEY (`course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE,
+                        FOREIGN KEY (`doctor_id`) REFERENCES `doctors`(`doctor_id`) ON DELETE CASCADE,
                         INDEX `idx_course_id` (`course_id`),
                         INDEX `idx_doctor_id` (`doctor_id`),
-                        INDEX `idx_semester` (`semester`, `academic_year`)
+                        INDEX `idx_semester` (`semester`, `academic_year`),
+                        INDEX `idx_day_time` (`day_of_week`, `start_time`, `end_time`),
+                        INDEX `idx_is_weekly` (`is_weekly`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 ");
             }
@@ -1802,85 +2215,415 @@ class ItOfficer extends Controller
     }
     
     /**
-     * Run migration for sections table from SQL file
+     * Run migration for schedule table from SQL file and drop sections table
      */
     private function runMigration(): void
     {
-        header('Content-Type: application/json');
+        // Clear any previous output
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_start();
+        
+        // Set JSON header immediately - must be before any output
+        if (!headers_sent()) {
+            header('Content-Type: application/json');
+        }
         
         try {
             $db = DatabaseConnection::getInstance()->getConnection();
             
-            // Path to migration file
-            $migrationFile = dirname(__DIR__, 2) . '/database/migrations/create_sections_table.sql';
+            // Step 1: Create schedule table
+            // Try multiple possible paths
+            $possiblePaths = [
+                dirname(__DIR__, 2) . '/database/migrations/create_schedule_table.sql',
+                dirname(__DIR__, 2) . '\\database\\migrations\\create_schedule_table.sql',
+                __DIR__ . '/../../database/migrations/create_schedule_table.sql',
+                __DIR__ . '/..\\..\\database\\migrations\\create_schedule_table.sql',
+            ];
             
-            if (!file_exists($migrationFile)) {
-                throw new \Exception("Migration file not found: {$migrationFile}");
+            $migrationFile = null;
+            foreach ($possiblePaths as $path) {
+                if (file_exists($path)) {
+                    $migrationFile = $path;
+                    break;
+                }
             }
             
-            // Read SQL file
-            $sql = file_get_contents($migrationFile);
-            
-            // Remove comments
-            $sql = preg_replace('/--.*$/m', '', $sql);
-            
-            // Split by semicolon and execute each statement
-            $statements = array_filter(
-                array_map('trim', explode(';', $sql)),
-                function($stmt) {
-                    return !empty($stmt) && !preg_match('/^\s*$/s', $stmt);
-                }
-            );
-            
-            $executed = 0;
-            $errors = [];
-            
-            foreach ($statements as $statement) {
+            if (!$migrationFile || !file_exists($migrationFile)) {
+                // If file doesn't exist, create the table directly
+                error_log("Migration file not found, creating table directly");
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS `schedule` (
+                        `schedule_id` INT(11) NOT NULL AUTO_INCREMENT,
+                        `course_id` INT(11) NOT NULL,
+                        `course_ids` JSON NULL,
+                        `doctor_id` INT(11) NOT NULL,
+                        `section_number` VARCHAR(10) NOT NULL,
+                        `semester` VARCHAR(20) NOT NULL,
+                        `academic_year` VARCHAR(10) NOT NULL,
+                        `room` VARCHAR(50) DEFAULT NULL,
+                        `time_slot` VARCHAR(100) DEFAULT NULL,
+                        `day_of_week` VARCHAR(20) DEFAULT NULL,
+                        `start_time` TIME DEFAULT NULL,
+                        `end_time` TIME DEFAULT NULL,
+                        `weekly_schedule` JSON NULL,
+                        `is_weekly` TINYINT(1) DEFAULT 0,
+                        `capacity` INT(11) NOT NULL DEFAULT 30,
+                        `current_enrollment` INT(11) DEFAULT 0,
+                        `session_type` VARCHAR(20) DEFAULT 'lecture',
+                        `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (`schedule_id`),
+                        INDEX `idx_course_id` (`course_id`),
+                        INDEX `idx_doctor_id` (`doctor_id`),
+                        INDEX `idx_semester` (`semester`, `academic_year`),
+                        INDEX `idx_day_time` (`day_of_week`, `start_time`, `end_time`),
+                        INDEX `idx_is_weekly` (`is_weekly`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+                // Add weekly_schedule and is_weekly columns if they don't exist (for existing tables)
                 try {
-                    $db->exec($statement . ';');
-                    $executed++;
+                    $checkWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'weekly_schedule'");
+                    if ($checkWeekly->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `weekly_schedule` JSON NULL AFTER `day_of_week`");
+                    }
                 } catch (\PDOException $e) {
-                    // If table already exists, that's okay
-                    if (strpos($e->getMessage(), 'already exists') === false && 
-                        strpos($e->getMessage(), 'Duplicate key') === false) {
-                        $errors[] = $e->getMessage();
-                    } else {
+                    // Column might already exist or error occurred
+                }
+                
+                try {
+                    $checkIsWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'is_weekly'");
+                    if ($checkIsWeekly->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `is_weekly` TINYINT(1) DEFAULT 0 AFTER `weekly_schedule`");
+                    }
+                } catch (\PDOException $e) {
+                    // Column might already exist or error occurred
+                }
+                
+                // Add index for is_weekly if it doesn't exist
+                try {
+                    $checkIndex = $db->query("SHOW INDEX FROM schedule WHERE Key_name = 'idx_is_weekly'");
+                    if ($checkIndex->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD INDEX `idx_is_weekly` (`is_weekly`)");
+                    }
+                } catch (\PDOException $e) {
+                    // Index might already exist or error occurred
+                }
+                $executed = 1;
+            } else {
+                // Read SQL file
+                $sql = file_get_contents($migrationFile);
+                
+                // Remove comments
+                $sql = preg_replace('/--.*$/m', '', $sql);
+                
+                // Split by semicolon and execute each statement
+                $statements = array_filter(
+                    array_map('trim', explode(';', $sql)),
+                    function($stmt) {
+                        return !empty($stmt) && !preg_match('/^\s*$/s', $stmt);
+                    }
+                );
+                
+                $executed = 0;
+                $errors = [];
+                
+                foreach ($statements as $statement) {
+                    try {
+                        $db->exec($statement . ';');
                         $executed++;
+                    } catch (\PDOException $e) {
+                        // If table already exists, that's okay
+                        if (strpos($e->getMessage(), 'already exists') === false && 
+                            strpos($e->getMessage(), 'Duplicate key') === false) {
+                            $errors[] = $e->getMessage();
+                        } else {
+                            $executed++;
+                        }
                     }
                 }
+                
+                // Ensure weekly_schedule and is_weekly columns exist (for tables created from file)
+                try {
+                    $checkWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'weekly_schedule'");
+                    if ($checkWeekly->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `weekly_schedule` JSON NULL AFTER `day_of_week`");
+                    }
+                } catch (\PDOException $e) {
+                    // Column might already exist or error occurred
+                }
+                
+                try {
+                    $checkIsWeekly = $db->query("SHOW COLUMNS FROM schedule LIKE 'is_weekly'");
+                    if ($checkIsWeekly->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD COLUMN `is_weekly` TINYINT(1) DEFAULT 0 AFTER `weekly_schedule`");
+                    }
+                } catch (\PDOException $e) {
+                    // Column might already exist or error occurred
+                }
+                
+                // Add index for is_weekly if it doesn't exist
+                try {
+                    $checkIndex = $db->query("SHOW INDEX FROM schedule WHERE Key_name = 'idx_is_weekly'");
+                    if ($checkIndex->rowCount() == 0) {
+                        $db->exec("ALTER TABLE `schedule` ADD INDEX `idx_is_weekly` (`is_weekly`)");
+                    }
+                } catch (\PDOException $e) {
+                    // Index might already exist or error occurred
+                }
             }
             
-            // Verify table was created
-            $stmt = $db->query("SHOW TABLES LIKE 'sections'");
+            // Step 2: Drop sections table and its foreign key constraints
+            // First, try to get the database name
+            $dbName = null;
+            try {
+                $dbName = $db->query("SELECT DATABASE()")->fetchColumn();
+            } catch (\PDOException $e) {
+                // Try alternative method
+                try {
+                    $config = require dirname(__DIR__) . '/config/config.php';
+                    $dbName = $config['database']['name'] ?? null;
+                } catch (\Exception $e2) {
+                    error_log("Could not get database name: " . $e2->getMessage());
+                }
+            }
+            
+            // Drop foreign key constraints from tables that reference sections
+            $tablesToCheck = ['enrollments', 'enrollment_requests', 'assignments'];
+            $fkDropped = 0;
+            
+            foreach ($tablesToCheck as $tableName) {
+                try {
+                    // Check if table exists
+                    $tableCheck = $db->query("SHOW TABLES LIKE '{$tableName}'");
+                    if ($tableCheck->rowCount() == 0) {
+                        continue; // Table doesn't exist, skip
+                    }
+                    
+                    // Method 1: Try to find all foreign key constraints using information_schema
+                    if ($dbName) {
+                        try {
+                            $fkStmt = $db->prepare("
+                                SELECT DISTINCT CONSTRAINT_NAME 
+                                FROM information_schema.KEY_COLUMN_USAGE 
+                                WHERE TABLE_SCHEMA = ? 
+                                AND TABLE_NAME = ? 
+                                AND REFERENCED_TABLE_NAME = 'sections'
+                            ");
+                            $fkStmt->execute([$dbName, $tableName]);
+                            $fks = $fkStmt->fetchAll(PDO::FETCH_ASSOC);
+                            
+                            foreach ($fks as $fk) {
+                                if (!empty($fk['CONSTRAINT_NAME'])) {
+                                    try {
+                                        $constraintName = $fk['CONSTRAINT_NAME'];
+                                        $db->exec("ALTER TABLE `{$tableName}` DROP FOREIGN KEY `{$constraintName}`");
+                                        $fkDropped++;
+                                        error_log("Dropped FK {$constraintName} from {$tableName}");
+                                    } catch (\PDOException $e) {
+                                        error_log("Could not drop FK {$constraintName} from {$tableName}: " . $e->getMessage());
+                                    }
+                                }
+                            }
+                        } catch (\PDOException $e) {
+                            error_log("Could not query information_schema for {$tableName}: " . $e->getMessage());
+                        }
+                    }
+                    
+                    // Method 2: Try using SHOW CREATE TABLE to find constraint names (fallback)
+                    try {
+                        $createStmt = $db->query("SHOW CREATE TABLE `{$tableName}`");
+                        $createRow = $createStmt->fetch(PDO::FETCH_ASSOC);
+                        if (isset($createRow['Create Table'])) {
+                            $createTable = $createRow['Create Table'];
+                            // Look for foreign key constraints referencing sections
+                            if (preg_match_all("/CONSTRAINT\s+`([^`]+)`\s+FOREIGN KEY.*?REFERENCES\s+`sections`/i", $createTable, $matches)) {
+                                foreach ($matches[1] as $constraintName) {
+                                    try {
+                                        $db->exec("ALTER TABLE `{$tableName}` DROP FOREIGN KEY `{$constraintName}`");
+                                        $fkDropped++;
+                                        error_log("Dropped FK {$constraintName} from {$tableName} (method 2)");
+                                    } catch (\PDOException $e) {
+                                        error_log("Could not drop FK {$constraintName} from {$tableName}: " . $e->getMessage());
+                                    }
+                                }
+                            }
+                        }
+                    } catch (\PDOException $e) {
+                        error_log("Could not get CREATE TABLE for {$tableName}: " . $e->getMessage());
+                    }
+                    
+                } catch (\PDOException $e) {
+                    error_log("Error checking table {$tableName}: " . $e->getMessage());
+                }
+            }
+            
+            // Drop sections table - use foreign key checks disable as fallback
+            try {
+                $db->exec("DROP TABLE IF EXISTS `sections`");
+                $executed++;
+            } catch (\PDOException $e) {
+                // If foreign key constraint error, disable checks temporarily
+                if (strpos($e->getMessage(), 'foreign key') !== false || 
+                    strpos($e->getMessage(), '1451') !== false ||
+                    strpos($e->getMessage(), '23000') !== false) {
+                    try {
+                        $db->exec("SET FOREIGN_KEY_CHECKS = 0");
+                        $db->exec("DROP TABLE IF EXISTS `sections`");
+                        $db->exec("SET FOREIGN_KEY_CHECKS = 1");
+                        $executed++;
+                        $errors[] = "Sections table dropped (foreign key checks were temporarily disabled)";
+                    } catch (\PDOException $e2) {
+                        $errors[] = "Error dropping sections table even with FK checks disabled: " . $e2->getMessage();
+                        error_log("Error dropping sections table: " . $e2->getMessage());
+                    }
+                } else {
+                    $errors[] = "Error dropping sections table: " . $e->getMessage();
+                    error_log("Error dropping sections table: " . $e->getMessage());
+                }
+            }
+            
+            // Verify schedule table was created
+            $stmt = $db->query("SHOW TABLES LIKE 'schedule'");
             $tableExists = $stmt->rowCount() > 0;
+            
+            // Check if sections table still exists
+            $stmt = $db->query("SHOW TABLES LIKE 'sections'");
+            $sectionsExists = $stmt->rowCount() > 0;
             
             if ($tableExists) {
                 // Check table structure
-                $stmt = $db->query("DESCRIBE sections");
+                $stmt = $db->query("DESCRIBE schedule");
                 $columns = $stmt->fetchAll(\PDO::FETCH_ASSOC);
                 $columnNames = array_column($columns, 'Field');
                 
+                $message = 'Migration completed successfully!';
+                if ($sectionsExists) {
+                    $message .= ' Warning: sections table still exists. You may need to drop it manually.';
+                } else {
+                    $message .= ' Sections table has been removed.';
+                }
+                
+                // Clear any output buffer and send JSON
+                ob_clean();
                 echo json_encode([
                     'success' => true,
-                    'message' => 'Migration completed successfully!',
+                    'message' => $message,
                     'executed' => $executed,
                     'table_exists' => true,
+                    'sections_removed' => !$sectionsExists,
                     'columns' => $columnNames,
                     'errors' => $errors
                 ]);
             } else {
+                ob_clean();
                 echo json_encode([
                     'success' => false,
-                    'error' => 'Migration executed but table was not created. Please check database permissions.',
+                    'error' => 'Migration executed but schedule table was not created. Please check database permissions.',
                     'executed' => $executed,
                     'errors' => $errors
                 ]);
             }
-        } catch (\Exception $e) {
+        } catch (\PDOException $e) {
+            ob_clean();
+            error_log("Migration PDO Error: " . $e->getMessage());
+            error_log("Migration PDO Error Trace: " . $e->getTraceAsString());
             echo json_encode([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => "Database error: " . $e->getMessage(),
+                'code' => $e->getCode()
             ]);
+        } catch (\Throwable $e) {
+            ob_clean();
+            error_log("Migration Fatal Error: " . $e->getMessage());
+            error_log("Migration Fatal Error Trace: " . $e->getTraceAsString());
+            echo json_encode([
+                'success' => false,
+                'error' => "Fatal error: " . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'type' => get_class($e)
+            ]);
+        } catch (\Exception $e) {
+            ob_clean();
+            error_log("Migration Error: " . $e->getMessage());
+            error_log("Migration Error Trace: " . $e->getTraceAsString());
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+        } finally {
+            // End output buffering
+            ob_end_flush();
+        }
+    }
+    
+    /**
+     * Clear all schedules from the schedule table
+     */
+    private function clearAllSchedules(): void
+    {
+        // Clear any previous output
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_start();
+        
+        // Set JSON header immediately - must be before any output
+        if (!headers_sent()) {
+            header('Content-Type: application/json');
+        }
+        
+        try {
+            $db = DatabaseConnection::getInstance()->getConnection();
+            
+            // Get count before deletion
+            $countStmt = $db->query("SELECT COUNT(*) as count FROM schedule");
+            $countResult = $countStmt->fetch(PDO::FETCH_ASSOC);
+            $countBefore = (int)($countResult['count'] ?? 0);
+            
+            // Delete all schedules
+            $db->exec("DELETE FROM schedule");
+            
+            // Verify deletion
+            $countStmt = $db->query("SELECT COUNT(*) as count FROM schedule");
+            $countResult = $countStmt->fetch(PDO::FETCH_ASSOC);
+            $countAfter = (int)($countResult['count'] ?? 0);
+            
+            ob_clean();
+            echo json_encode([
+                'success' => true,
+                'message' => "Successfully deleted {$countBefore} schedule(s) from the schedule table.",
+                'deleted_count' => $countBefore,
+                'remaining_count' => $countAfter
+            ]);
+        } catch (\PDOException $e) {
+            ob_clean();
+            error_log("Clear Schedules Error: " . $e->getMessage());
+            error_log("Clear Schedules Error Trace: " . $e->getTraceAsString());
+            echo json_encode([
+                'success' => false,
+                'error' => 'Database error: ' . $e->getMessage(),
+                'code' => $e->getCode()
+            ]);
+        } catch (\Exception $e) {
+            ob_clean();
+            error_log("Clear Schedules Error: " . $e->getMessage());
+            error_log("Clear Schedules Error Trace: " . $e->getTraceAsString());
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+        } finally {
+            // End output buffering
+            ob_end_flush();
         }
     }
 }

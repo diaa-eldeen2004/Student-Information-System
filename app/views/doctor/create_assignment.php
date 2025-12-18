@@ -187,7 +187,7 @@ function updateSections() {
         if (course && course.sections) {
             course.sections.forEach(section => {
                 const option = document.createElement('option');
-                option.value = section.section_id;
+                option.value = section.schedule_id || section.section_id;
                 option.textContent = `Section ${section.section_number} - ${section.semester} ${section.academic_year}`;
                 sectionSelect.appendChild(option);
             });

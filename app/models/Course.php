@@ -168,15 +168,85 @@ class Course extends Model
     public function getAssignedDoctors(int $courseId): array
     {
         try {
+            // First, check if schedule table exists
+            $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+            if ($checkTable->rowCount() == 0) {
+                // Fallback to sections table if schedule doesn't exist
+                $stmt = $this->db->prepare("
+                    SELECT DISTINCT d.doctor_id, d.department, u.first_name, u.last_name, u.email
+                    FROM doctors d
+                    JOIN users u ON d.user_id = u.id
+                    JOIN sections s ON d.doctor_id = s.doctor_id
+                    WHERE s.course_id = ?
+                ");
+                $stmt->execute([$courseId]);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            // Check if course_ids column exists in schedule table
+            $checkColumn = $this->db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+            $hasCourseIds = $checkColumn->rowCount() > 0;
+
+            $doctors = [];
+            $doctorIds = [];
+
+            // Get doctors from schedules where course_id matches directly
             $stmt = $this->db->prepare("
                 SELECT DISTINCT d.doctor_id, d.department, u.first_name, u.last_name, u.email
                 FROM doctors d
                 JOIN users u ON d.user_id = u.id
-                JOIN sections s ON d.doctor_id = s.doctor_id
+                JOIN schedule s ON d.doctor_id = s.doctor_id
                 WHERE s.course_id = ?
             ");
             $stmt->execute([$courseId]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $directDoctors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($directDoctors as $doc) {
+                if (!in_array($doc['doctor_id'], $doctorIds)) {
+                    $doctors[] = $doc;
+                    $doctorIds[] = $doc['doctor_id'];
+                }
+            }
+
+            // If course_ids column exists, also check for doctors assigned through multiple courses
+            if ($hasCourseIds) {
+                // Get all schedules with course_ids JSON column
+                $stmt2 = $this->db->query("
+                    SELECT DISTINCT s.doctor_id, s.course_ids
+                    FROM schedule s
+                    WHERE s.course_ids IS NOT NULL
+                ");
+                $schedulesWithMultipleCourses = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($schedulesWithMultipleCourses as $schedule) {
+                    $courseIdsJson = $schedule['course_ids'];
+                    if (empty($courseIdsJson)) continue;
+
+                    // Parse JSON
+                    $courseIds = is_string($courseIdsJson) ? json_decode($courseIdsJson, true) : $courseIdsJson;
+                    
+                    if (is_array($courseIds) && in_array($courseId, $courseIds)) {
+                        // This schedule includes our course, get the doctor info
+                        $doctorId = $schedule['doctor_id'];
+                        if (!in_array($doctorId, $doctorIds)) {
+                            $stmt3 = $this->db->prepare("
+                                SELECT DISTINCT d.doctor_id, d.department, u.first_name, u.last_name, u.email
+                                FROM doctors d
+                                JOIN users u ON d.user_id = u.id
+                                WHERE d.doctor_id = ?
+                            ");
+                            $stmt3->execute([$doctorId]);
+                            $doc = $stmt3->fetch(PDO::FETCH_ASSOC);
+                            if ($doc) {
+                                $doctors[] = $doc;
+                                $doctorIds[] = $doc['doctor_id'];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return $doctors;
         } catch (\PDOException $e) {
             error_log("Get assigned doctors failed: " . $e->getMessage());
             return [];
@@ -251,16 +321,117 @@ class Course extends Model
     public function getEnrolledStudents(int $courseId): array
     {
         try {
-            $stmt = $this->db->prepare("
-                SELECT DISTINCT s.student_id, s.student_number, u.first_name, u.last_name, u.email, e.status
-                FROM students s
-                JOIN users u ON s.user_id = u.id
-                JOIN enrollments e ON s.student_id = e.student_id
-                JOIN sections sec ON e.section_id = sec.section_id
-                WHERE sec.course_id = ?
-            ");
+            // First, check if schedule table exists
+            $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+            if ($checkTable->rowCount() == 0) {
+                // Fallback to sections table if schedule doesn't exist
+                $stmt = $this->db->prepare("
+                    SELECT DISTINCT s.student_id, s.student_number, u.first_name, u.last_name, u.email, e.status
+                    FROM students s
+                    JOIN users u ON s.user_id = u.id
+                    JOIN enrollments e ON s.student_id = e.student_id
+                    JOIN sections sec ON e.section_id = sec.section_id
+                    WHERE sec.course_id = ?
+                ");
+                $stmt->execute([$courseId]);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            // Check if enrollments table has schedule_id column
+            $checkEnrollmentColumn = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+            $hasScheduleIdInEnrollments = $checkEnrollmentColumn->rowCount() > 0;
+
+            // Check if course_ids column exists in schedule table
+            $checkScheduleColumn = $this->db->query("SHOW COLUMNS FROM schedule LIKE 'course_ids'");
+            $hasCourseIds = $checkScheduleColumn->rowCount() > 0;
+
+            $students = [];
+            $studentIds = [];
+
+            // Get students from enrollments where schedule.course_id matches directly
+            if ($hasScheduleIdInEnrollments) {
+                $stmt = $this->db->prepare("
+                    SELECT DISTINCT st.student_id, st.student_number, u.first_name, u.last_name, u.email, e.status
+                    FROM students st
+                    JOIN users u ON st.user_id = u.id
+                    JOIN enrollments e ON st.student_id = e.student_id
+                    JOIN schedule s ON e.schedule_id = s.schedule_id
+                    WHERE s.course_id = ?
+                ");
+            } else {
+                // Fallback: use section_id in enrollments (which stores schedule_id)
+                $stmt = $this->db->prepare("
+                    SELECT DISTINCT st.student_id, st.student_number, u.first_name, u.last_name, u.email, e.status
+                    FROM students st
+                    JOIN users u ON st.user_id = u.id
+                    JOIN enrollments e ON st.student_id = e.student_id
+                    JOIN schedule s ON e.section_id = s.schedule_id
+                    WHERE s.course_id = ?
+                ");
+            }
             $stmt->execute([$courseId]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $directStudents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($directStudents as $student) {
+                if (!in_array($student['student_id'], $studentIds)) {
+                    $students[] = $student;
+                    $studentIds[] = $student['student_id'];
+                }
+            }
+
+            // If course_ids column exists, also check for students enrolled through schedules with multiple courses
+            if ($hasCourseIds) {
+                // Get all schedules with course_ids JSON column
+                $stmt2 = $this->db->query("
+                    SELECT DISTINCT s.schedule_id, s.course_ids
+                    FROM schedule s
+                    WHERE s.course_ids IS NOT NULL
+                ");
+                $schedulesWithMultipleCourses = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($schedulesWithMultipleCourses as $schedule) {
+                    $courseIdsJson = $schedule['course_ids'];
+                    if (empty($courseIdsJson)) continue;
+
+                    // Parse JSON
+                    $courseIds = is_string($courseIdsJson) ? json_decode($courseIdsJson, true) : $courseIdsJson;
+                    
+                    if (is_array($courseIds) && in_array($courseId, $courseIds)) {
+                        // This schedule includes our course, get enrolled students
+                        $scheduleId = $schedule['schedule_id'];
+                        
+                        if ($hasScheduleIdInEnrollments) {
+                            $stmt3 = $this->db->prepare("
+                                SELECT DISTINCT st.student_id, st.student_number, u.first_name, u.last_name, u.email, e.status
+                                FROM students st
+                                JOIN users u ON st.user_id = u.id
+                                JOIN enrollments e ON st.student_id = e.student_id
+                                WHERE e.schedule_id = ?
+                            ");
+                        } else {
+                            $stmt3 = $this->db->prepare("
+                                SELECT DISTINCT st.student_id, st.student_number, u.first_name, u.last_name, u.email, e.status
+                                FROM students st
+                                JOIN users u ON st.user_id = u.id
+                                JOIN enrollments e ON st.student_id = e.student_id
+                                WHERE e.section_id = ?
+                            ");
+                        }
+                        $stmt3->execute([$scheduleId]);
+                        $additionalStudents = $stmt3->fetchAll(PDO::FETCH_ASSOC);
+
+                        // Merge results, avoiding duplicates
+                        foreach ($additionalStudents as $student) {
+                            if (!in_array($student['student_id'], $studentIds)) {
+                                $students[] = $student;
+                                $studentIds[] = $student['student_id'];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return $students;
         } catch (\PDOException $e) {
             error_log("Get enrolled students failed: " . $e->getMessage());
             return [];

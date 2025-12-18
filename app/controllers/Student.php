@@ -10,7 +10,7 @@ use patterns\Observer\NotificationObserver;
 use patterns\Observer\AuditLogObserver;
 use models\Student as StudentModel;
 use models\Course;
-use models\Section;
+use models\Schedule;
 use models\Assignment;
 use models\Attendance;
 use models\EnrollmentRequest;
@@ -23,7 +23,7 @@ class Student extends Controller
 {
     private StudentModel $studentModel;
     private Course $courseModel;
-    private Section $sectionModel;
+    private Schedule $sectionModel;
     private Assignment $assignmentModel;
     private Attendance $attendanceModel;
     private EnrollmentRequest $enrollmentRequestModel;
@@ -61,7 +61,7 @@ class Student extends Controller
         // Factory Method Pattern - Create all models
         $this->studentModel = ModelFactory::create('Student');
         $this->courseModel = ModelFactory::create('Course');
-        $this->sectionModel = ModelFactory::create('Section');
+        $this->sectionModel = ModelFactory::create('Schedule');
         $this->assignmentModel = ModelFactory::create('Assignment');
         $this->attendanceModel = ModelFactory::create('Attendance');
         $this->enrollmentRequestModel = ModelFactory::create('EnrollmentRequest');
@@ -298,7 +298,13 @@ class Student extends Controller
             
             // Get existing enrollment requests
             $enrollmentRequests = $this->studentModel->getEnrollmentRequests($studentId);
-            $requestedSectionIds = array_column($enrollmentRequests, 'section_id');
+            $requestedSectionIds = [];
+            foreach ($enrollmentRequests as $request) {
+                $scheduleId = $request['schedule_id'] ?? $request['section_id'] ?? null;
+                if ($scheduleId) {
+                    $requestedSectionIds[] = $scheduleId;
+                }
+            }
             
             // Organize by day for weekly view
             $weeklySchedule = [
@@ -343,6 +349,51 @@ class Student extends Controller
                 'title' => 'Error',
                 'message' => 'An error occurred while loading schedule.'
             ]);
+        }
+    }
+
+    public function previewTimetable(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'] ?? null;
+            
+            if (!$userId) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Access denied']);
+                exit;
+            }
+            
+            $scheduleId = isset($_GET['schedule_id']) ? (int)$_GET['schedule_id'] : 0;
+            
+            if (!$scheduleId) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Invalid schedule ID']);
+                exit;
+            }
+            
+            // Get the schedule entry
+            $schedule = $this->sectionModel->findById($scheduleId);
+            if (!$schedule) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Schedule not found']);
+                exit;
+            }
+            
+            // Get timetable for this specific schedule
+            $timetable = $this->sectionModel->getScheduleTimetable($scheduleId);
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'timetable' => $timetable,
+                'schedule' => $schedule
+            ]);
+            exit;
+        } catch (\Exception $e) {
+            error_log("Preview timetable error: " . $e->getMessage());
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'An error occurred']);
+            exit;
         }
     }
 
@@ -803,53 +854,88 @@ class Student extends Controller
             }
             
             $studentId = $student['student_id'];
-            $sectionId = isset($_POST['section_id']) ? (int)$_POST['section_id'] : 0;
+            $scheduleId = isset($_POST['schedule_id']) ? (int)$_POST['schedule_id'] : (isset($_POST['section_id']) ? (int)$_POST['section_id'] : 0);
             
-            if (!$sectionId) {
-                $_SESSION['error'] = 'Invalid section ID.';
+            if (!$scheduleId) {
+                $_SESSION['error'] = 'Invalid schedule ID.';
                 $this->redirectTo('student/schedule');
                 return;
             }
             
-            // Get section details
-            $section = $this->sectionModel->findById($sectionId);
-            if (!$section) {
-                $_SESSION['error'] = 'Section not found.';
+            // Get schedule details
+            $schedule = $this->sectionModel->findById($scheduleId);
+            if (!$schedule) {
+                $_SESSION['error'] = 'Schedule not found.';
                 $this->redirectTo('student/schedule');
                 return;
             }
             
-            // Check if section is published
-            if (($section['status'] ?? '') !== 'published') {
-                $_SESSION['error'] = 'This section is not available for enrollment.';
+            // Check if schedule is available (status check)
+            if (($schedule['status'] ?? '') === 'cancelled') {
+                $_SESSION['error'] = 'This schedule is cancelled.';
                 $this->redirectTo('student/schedule');
                 return;
             }
             
             // Check capacity
-            if (!$this->sectionModel->hasCapacity($sectionId)) {
-                $_SESSION['error'] = 'This section is full.';
+            if (!$this->sectionModel->hasCapacity($scheduleId)) {
+                $_SESSION['error'] = 'This schedule is full.';
                 $this->redirectTo('student/schedule');
                 return;
             }
             
-            // Check prerequisites
-            if (!$this->courseModel->checkPrerequisites($studentId, $section['course_id'])) {
+            // Check prerequisites - use first course_id for now (or check all if course_ids exists)
+            $courseId = $schedule['course_id'];
+            if (!empty($schedule['course_ids'])) {
+                $courseIds = json_decode($schedule['course_ids'], true);
+                if (is_array($courseIds) && !empty($courseIds)) {
+                    $courseId = $courseIds[0]; // Check prerequisites for first course
+                }
+            }
+            
+            if (!$this->courseModel->checkPrerequisites($studentId, $courseId)) {
                 $_SESSION['error'] = 'You have not completed the prerequisites for this course.';
                 $this->redirectTo('student/schedule');
                 return;
             }
             
-            // Check schedule conflict
-            if ($this->sectionModel->checkStudentScheduleConflict(
-                $studentId,
-                $section['day_of_week'] ?? '',
-                $section['start_time'] ?? '',
-                $section['end_time'] ?? '',
-                $section['semester'] ?? '',
-                $section['academic_year'] ?? ''
-            )) {
-                $_SESSION['error'] = 'This section conflicts with your existing schedule.';
+            // Check schedule conflict - handle weekly schedules
+            $hasConflict = false;
+            if (!empty($schedule['is_weekly']) && !empty($schedule['weekly_schedule'])) {
+                $weeklySchedule = json_decode($schedule['weekly_schedule'], true);
+                if (is_array($weeklySchedule)) {
+                    foreach ($weeklySchedule as $day => $sessions) {
+                        if (is_array($sessions)) {
+                            foreach ($sessions as $session) {
+                                if ($this->sectionModel->checkStudentScheduleConflict(
+                                    $studentId,
+                                    $day,
+                                    $session['start_time'] ?? '',
+                                    $session['end_time'] ?? '',
+                                    $schedule['semester'] ?? '',
+                                    $schedule['academic_year'] ?? ''
+                                )) {
+                                    $hasConflict = true;
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Single day schedule
+                $hasConflict = $this->sectionModel->checkStudentScheduleConflict(
+                    $studentId,
+                    $schedule['day_of_week'] ?? '',
+                    $schedule['start_time'] ?? '',
+                    $schedule['end_time'] ?? '',
+                    $schedule['semester'] ?? '',
+                    $schedule['academic_year'] ?? ''
+                );
+            }
+            
+            if ($hasConflict) {
+                $_SESSION['error'] = 'This schedule conflicts with your existing schedule.';
                 $this->redirectTo('student/schedule');
                 return;
             }
@@ -857,8 +943,9 @@ class Student extends Controller
             // Check if already enrolled or has pending request
             $enrolledCourses = $this->studentModel->getEnrolledCourses($studentId);
             foreach ($enrolledCourses as $course) {
-                if ($course['section_id'] == $sectionId) {
-                    $_SESSION['error'] = 'You are already enrolled in this section.';
+                $enrolledScheduleId = $course['schedule_id'] ?? $course['section_id'] ?? null;
+                if ($enrolledScheduleId == $scheduleId) {
+                    $_SESSION['error'] = 'You are already enrolled in this schedule.';
                     $this->redirectTo('student/schedule');
                     return;
                 }
@@ -866,15 +953,16 @@ class Student extends Controller
             
             $existingRequests = $this->studentModel->getEnrollmentRequests($studentId);
             foreach ($existingRequests as $request) {
-                if ($request['section_id'] == $sectionId && $request['status'] == 'pending') {
-                    $_SESSION['error'] = 'You already have a pending enrollment request for this section.';
+                $requestScheduleId = $request['schedule_id'] ?? $request['section_id'] ?? null;
+                if ($requestScheduleId == $scheduleId && $request['status'] == 'pending') {
+                    $_SESSION['error'] = 'You already have a pending enrollment request for this schedule.';
                     $this->redirectTo('student/schedule');
                     return;
                 }
             }
             
-            // Create enrollment request
-            $success = $this->enrollmentRequestModel->createRequest($studentId, $sectionId);
+            // Create enrollment request (section_id column stores schedule_id)
+            $success = $this->enrollmentRequestModel->createRequest($studentId, $scheduleId);
             
             if ($success) {
                 // Get the request ID
@@ -882,20 +970,23 @@ class Student extends Controller
                 $requestId = $db->lastInsertId();
                 
                 // Log action
+                $courseCode = $schedule['course_code'] ?? 'Unknown';
+                $sectionNumber = $schedule['section_number'] ?? 'N/A';
                 $this->auditLogModel->create([
                     'user_id' => $userId,
                     'action' => 'enrollment_request_created',
                     'entity_type' => 'enrollment_request',
                     'entity_id' => $requestId,
-                    'description' => "Requested enrollment in section: {$section['course_code']} - {$section['section_number']}"
+                    'description' => "Requested enrollment in schedule: {$courseCode} - {$sectionNumber}"
                 ]);
                 
                 // Notify IT officer (using observer pattern)
                 $this->enrollmentSubject->enrollmentRequested([
                     'student_id' => $studentId,
-                    'section_id' => $sectionId,
-                    'course_code' => $section['course_code'],
-                    'section_number' => $section['section_number'],
+                    'schedule_id' => $scheduleId,
+                    'section_id' => $scheduleId, // For backward compatibility
+                    'course_code' => $courseCode,
+                    'section_number' => $sectionNumber,
                 ]);
                 
                 $_SESSION['success'] = 'Enrollment request submitted successfully!';

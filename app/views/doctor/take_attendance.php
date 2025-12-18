@@ -37,7 +37,7 @@ $messageType = $messageType ?? 'info';
             </a>
         </div>
     <?php else: ?>
-        <form method="POST" action="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . ($section['section_id'] ?? ''))) ?>" id="attendanceForm" onsubmit="return validateAttendanceForm(event)">
+        <form method="POST" action="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . ($section['schedule_id'] ?? $section['section_id'] ?? ''))) ?>" id="attendanceForm" onsubmit="return validateAttendanceForm(event)">
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">

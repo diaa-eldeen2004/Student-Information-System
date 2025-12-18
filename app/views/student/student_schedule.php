@@ -170,7 +170,8 @@ $academicYear = $academicYear ?? date('Y');
                         <tbody>
                             <?php 
                             foreach ($availableSections as $section): 
-                                $isRequested = in_array($section['section_id'], $requestedSectionIds);
+                                $scheduleId = $section['schedule_id'] ?? $section['section_id'] ?? null;
+                                $isRequested = in_array($scheduleId, $requestedSectionIds);
                                 $isFull = ($section['current_enrollment'] ?? 0) >= ($section['capacity'] ?? 0);
                             ?>
                                 <tr>
@@ -192,18 +193,23 @@ $academicYear = $academicYear ?? date('Y');
                                         <?= htmlspecialchars($section['capacity'] ?? 0) ?>
                                     </td>
                                     <td>
-                                        <?php if ($isRequested): ?>
-                                            <span class="badge" style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">Request Pending</span>
-                                        <?php elseif ($isFull): ?>
-                                            <span class="badge" style="background-color: var(--error-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">Full</span>
-                                        <?php else: ?>
-                                            <form method="POST" action="<?= htmlspecialchars($url('student/enroll')) ?>" style="display: inline;">
-                                                <input type="hidden" name="section_id" value="<?= htmlspecialchars($section['section_id']) ?>">
-                                                <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Submit enrollment request for this section?')">
-                                                    <i class="fas fa-plus"></i> Request Enrollment
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                                            <button type="button" class="btn btn-sm btn-outline" onclick="previewTimetable(<?= htmlspecialchars($scheduleId ?? 0) ?>)" title="Preview Timetable">
+                                                <i class="fas fa-calendar-week"></i> Preview
+                                            </button>
+                                            <?php if ($isRequested): ?>
+                                                <span class="badge" style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">Request Pending</span>
+                                            <?php elseif ($isFull): ?>
+                                                <span class="badge" style="background-color: var(--error-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem;">Full</span>
+                                            <?php else: ?>
+                                                <form method="POST" action="<?= htmlspecialchars($url('student/enroll')) ?>" style="display: inline;">
+                                                    <input type="hidden" name="schedule_id" value="<?= htmlspecialchars($scheduleId ?? $section['schedule_id'] ?? $section['section_id'] ?? '') ?>">
+                                                    <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Submit enrollment request for this schedule?')">
+                                                        <i class="fas fa-plus"></i> Request Enrollment
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -230,4 +236,212 @@ $academicYear = $academicYear ?? date('Y');
     }
     <?php unset($_SESSION['error']); ?>
 <?php endif; ?>
+</script>
+
+<!-- Timetable Preview Modal -->
+<div id="timetablePreviewModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h2><i class="fas fa-calendar-week"></i> Schedule Timetable Preview</h2>
+            <span class="close" onclick="closeTimetablePreview()">&times;</span>
+        </div>
+        <div class="modal-body" id="timetablePreviewContent">
+            <div class="text-center" style="padding: 2rem;">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p>Loading timetable...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: var(--bg-color, #fff);
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+.timetable-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.timetable-preview-table th,
+.timetable-preview-table td {
+    border: 1px solid var(--border-color, #e0e0e0);
+    padding: 0.75rem;
+    text-align: left;
+}
+
+.timetable-preview-table th {
+    background-color: var(--primary-color, #3b82f6);
+    color: white;
+    font-weight: bold;
+}
+
+.timetable-preview-table .time-col {
+    font-weight: bold;
+    background-color: var(--bg-secondary, #f5f5f5);
+    width: 100px;
+}
+
+.timetable-preview-cell {
+    min-height: 60px;
+    vertical-align: top;
+}
+
+.timetable-preview-entry {
+    background-color: #3b82f6;
+    color: white;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.timetable-preview-entry strong {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+</style>
+
+<script>
+function previewTimetable(scheduleId) {
+    if (!scheduleId) {
+        alert('Invalid schedule ID');
+        return;
+    }
+    
+    // Show modal
+    const modal = document.getElementById('timetablePreviewModal');
+    const content = document.getElementById('timetablePreviewContent');
+    modal.style.display = 'block';
+    content.innerHTML = '<div class="text-center" style="padding: 2rem;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading timetable...</p></div>';
+    
+    // Fetch timetable data
+    fetch('<?= htmlspecialchars($url('student/preview-timetable')) ?>?schedule_id=' + scheduleId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayTimetablePreview(data.timetable, data.schedule);
+            } else {
+                content.innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Failed to load timetable') + '</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            content.innerHTML = '<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> An error occurred while loading the timetable.</div>';
+        });
+}
+
+function displayTimetablePreview(timetable, schedule) {
+    const content = document.getElementById('timetablePreviewContent');
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const timeSlots = [];
+    for (let hour = 8; hour <= 20; hour++) {
+        timeSlots.push(String(hour).padStart(2, '0') + ':00');
+    }
+    
+    let html = '<h3>' + (schedule.course_code || 'Schedule') + ' - ' + (schedule.section_number || '') + '</h3>';
+    html += '<p><strong>Semester:</strong> ' + (schedule.semester || '') + ' ' + (schedule.academic_year || '') + '</p>';
+    html += '<div class="table-responsive">';
+    html += '<table class="timetable-preview-table">';
+    html += '<thead><tr><th class="time-col">Time</th>';
+    days.forEach(day => {
+        html += '<th>' + day + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+    
+    timeSlots.forEach(timeSlot => {
+        html += '<tr><td class="time-col"><strong>' + timeSlot + '</strong></td>';
+        days.forEach(day => {
+            html += '<td class="timetable-preview-cell">';
+            if (timetable[day] && timetable[day].length > 0) {
+                timetable[day].forEach(entry => {
+                    const startTime = entry.start_time || '';
+                    const endTime = entry.end_time || '';
+                    const slotStart = new Date('1970-01-01T' + timeSlot + ':00').getTime();
+                    const slotEnd = slotStart + 3600000;
+                    const entryStart = new Date('1970-01-01T' + startTime).getTime();
+                    const entryEnd = new Date('1970-01-01T' + endTime).getTime();
+                    
+                    if (entryStart < slotEnd && entryEnd > slotStart) {
+                        html += '<div class="timetable-preview-entry">';
+                        html += '<strong>' + (entry.course_code || '') + ' - ' + (entry.section_number || '') + '</strong>';
+                        html += '<div>' + (entry.course_name || '') + '</div>';
+                        html += '<div><i class="fas fa-clock"></i> ' + formatTime(startTime) + ' - ' + formatTime(endTime) + '</div>';
+                        html += '<div><i class="fas fa-door-open"></i> ' + (entry.room || 'TBA') + '</div>';
+                        html += '</div>';
+                    }
+                });
+            }
+            html += '</td>';
+        });
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    content.innerHTML = html;
+}
+
+function formatTime(timeStr) {
+    if (!timeStr) return '';
+    const time = timeStr.substring(0, 5);
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return displayHour + ':' + minutes + ' ' + ampm;
+}
+
+function closeTimetablePreview() {
+    document.getElementById('timetablePreviewModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('timetablePreviewModal');
+    if (event.target == modal) {
+        closeTimetablePreview();
+    }
+}
 </script>

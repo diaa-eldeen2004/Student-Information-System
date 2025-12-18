@@ -247,7 +247,7 @@ class Doctor extends Model
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
-            FROM sections s
+            FROM schedule s
             WHERE s.doctor_id = :doctor_id
             AND s.semester = :semester
             AND s.academic_year = :academic_year

@@ -30,6 +30,7 @@ return [
     ['GET', '/student/notifications', 'Student@notifications'],
     ['GET', '/student/profile', 'Student@profile'],
     ['POST', '/student/enroll', 'Student@enroll'],
+    ['GET', '/student/preview-timetable', 'Student@previewTimetable'],
 
     // Doctor routes
     ['GET', '/doctor/dashboard', 'Doctor@dashboard'],

@@ -15,7 +15,7 @@ class Material extends Model
                    s.section_number, u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM {$this->table} m
             JOIN courses c ON m.course_id = c.course_id
-            LEFT JOIN sections s ON m.section_id = s.section_id
+            LEFT JOIN schedule s ON m.section_id = s.schedule_id
             JOIN doctors d ON m.doctor_id = d.doctor_id
             JOIN users u ON d.user_id = u.id
             WHERE m.material_id = :material_id LIMIT 1
@@ -40,7 +40,7 @@ class Material extends Model
                    s.section_number
             FROM {$this->table} m
             JOIN courses c ON m.course_id = c.course_id
-            LEFT JOIN sections s ON m.section_id = s.section_id
+            LEFT JOIN schedule s ON m.section_id = s.schedule_id
             WHERE {$whereClause}
             ORDER BY m.created_at DESC
         ");
@@ -64,7 +64,7 @@ class Material extends Model
                    s.section_number
             FROM {$this->table} m
             JOIN courses c ON m.course_id = c.course_id
-            LEFT JOIN sections s ON m.section_id = s.section_id
+            LEFT JOIN schedule s ON m.section_id = s.schedule_id
             WHERE {$whereClause}
             ORDER BY m.created_at DESC
         ");

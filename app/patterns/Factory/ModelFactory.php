@@ -2,7 +2,7 @@
 namespace patterns\Factory;
 
 use models\ItOfficer;
-use models\Section;
+use models\Schedule;
 use models\Course;
 use models\Doctor;
 use models\EnrollmentRequest;
@@ -34,7 +34,8 @@ class ModelFactory
 
         $model = match($modelType) {
             'ItOfficer' => new ItOfficer(),
-            'Section' => new Section(),
+            'Schedule' => new Schedule(),
+            'Section' => new Schedule(), // Backward compatibility
             'Course' => new Course(),
             'Doctor' => new Doctor(),
             'EnrollmentRequest' => new EnrollmentRequest(),

@@ -14,14 +14,14 @@ class EnrollmentRequest extends Model
             SELECT er.*, 
                    s.student_id, s.gpa,
                    u.first_name as student_first_name, u.last_name as student_last_name, u.email as student_email,
-                   sec.section_id, sec.section_number, sec.semester, sec.academic_year, sec.room, sec.time_slot,
+                   sec.schedule_id, sec.schedule_id as section_id, sec.section_number, sec.semester, sec.academic_year, sec.room, sec.time_slot,
                    c.course_code, c.name as course_name, c.credit_hours,
                    d.doctor_id,
                    doc.first_name as doctor_first_name, doc.last_name as doctor_last_name
             FROM {$this->table} er
             JOIN students s ON er.student_id = s.student_id
             JOIN users u ON s.user_id = u.id
-            JOIN sections sec ON er.section_id = sec.section_id
+            JOIN schedule sec ON er.section_id = sec.schedule_id
             JOIN courses c ON sec.course_id = c.course_id
             JOIN doctors d ON sec.doctor_id = d.doctor_id
             JOIN users doc ON d.user_id = doc.id
@@ -37,13 +37,13 @@ class EnrollmentRequest extends Model
             SELECT er.*, 
                    s.student_id, s.gpa,
                    u.first_name as student_first_name, u.last_name as student_last_name, u.email as student_email,
-                   sec.section_id, sec.section_number, sec.semester, sec.academic_year, sec.room, sec.time_slot,
+                   sec.schedule_id, sec.schedule_id as section_id, sec.section_number, sec.semester, sec.academic_year, sec.room, sec.time_slot,
                    c.course_code, c.name as course_name, c.credit_hours,
                    doc.first_name as doctor_first_name, doc.last_name as doctor_last_name
             FROM {$this->table} er
             JOIN students s ON er.student_id = s.student_id
             JOIN users u ON s.user_id = u.id
-            JOIN sections sec ON er.section_id = sec.section_id
+            JOIN schedule sec ON er.section_id = sec.schedule_id
             JOIN courses c ON sec.course_id = c.course_id
             JOIN doctors d ON sec.doctor_id = d.doctor_id
             JOIN users doc ON d.user_id = doc.id
@@ -60,13 +60,13 @@ class EnrollmentRequest extends Model
             SELECT er.*, 
                    s.student_id, s.gpa,
                    u.first_name as student_first_name, u.last_name as student_last_name, u.email as student_email,
-                   sec.section_id, sec.section_number, sec.semester, sec.academic_year, sec.room, sec.time_slot,
+                   sec.schedule_id, sec.schedule_id as section_id, sec.section_number, sec.semester, sec.academic_year, sec.room, sec.time_slot,
                    c.course_code, c.name as course_name, c.credit_hours,
                    doc.first_name as doctor_first_name, doc.last_name as doctor_last_name
             FROM {$this->table} er
             JOIN students s ON er.student_id = s.student_id
             JOIN users u ON s.user_id = u.id
-            JOIN sections sec ON er.section_id = sec.section_id
+            JOIN schedule sec ON er.section_id = sec.schedule_id
             JOIN courses c ON sec.course_id = c.course_id
             JOIN doctors d ON sec.doctor_id = d.doctor_id
             JOIN users doc ON d.user_id = doc.id
@@ -113,18 +113,39 @@ class EnrollmentRequest extends Model
                 return false;
             }
 
-            // Create enrollment
-            $enrollmentSql = "INSERT INTO enrollments (student_id, section_id, status)
-                             VALUES (:student_id, :section_id, 'enrolled')";
-            $enrollmentStmt = $this->db->prepare($enrollmentSql);
-            $enrollmentStmt->execute([
-                'student_id' => $request['student_id'],
-                'section_id' => $request['section_id'],
-            ]);
+            // Create enrollment - check if schedule_id column exists
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            $scheduleId = $request['schedule_id'] ?? $request['section_id'];
+            
+            if ($hasScheduleId) {
+                $enrollmentSql = "INSERT INTO enrollments (student_id, schedule_id, status)
+                                 VALUES (:student_id, :schedule_id, 'enrolled')";
+                $enrollmentStmt = $this->db->prepare($enrollmentSql);
+                $enrollmentStmt->execute([
+                    'student_id' => $request['student_id'],
+                    'schedule_id' => $scheduleId,
+                ]);
+            } else {
+                // Fallback to section_id
+                $enrollmentSql = "INSERT INTO enrollments (student_id, section_id, status)
+                                 VALUES (:student_id, :section_id, 'enrolled')";
+                $enrollmentStmt = $this->db->prepare($enrollmentSql);
+                $enrollmentStmt->execute([
+                    'student_id' => $request['student_id'],
+                    'section_id' => $scheduleId,
+                ]);
+            }
 
-            // Update section enrollment count
-            $sectionStmt = $this->db->prepare("UPDATE sections SET current_enrollment = current_enrollment + 1 
-                                              WHERE section_id = :section_id");
+            // Update schedule enrollment count
+            $sectionStmt = $this->db->prepare("UPDATE schedule SET current_enrollment = current_enrollment + 1 
+                                              WHERE schedule_id = :section_id");
             $sectionStmt->execute(['section_id' => $request['section_id']]);
 
             // Update request status

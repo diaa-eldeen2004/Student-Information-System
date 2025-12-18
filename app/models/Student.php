@@ -527,11 +527,28 @@ class Student extends Model
     public function getStudentSchedule(int $studentId, string $semester, string $academicYear): array
     {
         try {
+            // Check if enrollments has schedule_id column
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            // Build JOIN condition based on available columns
+            if ($hasScheduleId) {
+                $joinCondition = "e.schedule_id = s.schedule_id";
+            } else {
+                $joinCondition = "e.section_id = s.schedule_id";
+            }
+            
             $stmt = $this->db->prepare("
                 SELECT s.*, c.course_code, c.name as course_name, c.credit_hours,
-                       u.first_name as doctor_first_name, u.last_name as doctor_last_name
+                       u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+                       s.weekly_schedule, s.is_weekly
                 FROM enrollments e
-                JOIN sections s ON e.section_id = s.section_id
+                JOIN schedule s ON {$joinCondition}
                 JOIN courses c ON s.course_id = c.course_id
                 JOIN doctors d ON s.doctor_id = d.doctor_id
                 JOIN users u ON d.user_id = u.id
@@ -546,7 +563,35 @@ class Student extends Model
                 'semester' => $semester,
                 'academic_year' => $academicYear
             ]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Expand weekly schedules into individual day entries
+            $expandedResults = [];
+            foreach ($results as $entry) {
+                $isWeekly = !empty($entry['is_weekly']) && (int)$entry['is_weekly'] === 1;
+                $weeklySchedule = !empty($entry['weekly_schedule']) ? json_decode($entry['weekly_schedule'], true) : null;
+                
+                if ($isWeekly && $weeklySchedule && is_array($weeklySchedule)) {
+                    // Expand weekly schedule into multiple entries (one per day)
+                    foreach ($weeklySchedule as $day => $dayData) {
+                        $dayEntry = $entry;
+                        $dayEntry['day_of_week'] = $day;
+                        $dayEntry['start_time'] = $dayData['start_time'] ?? $entry['start_time'] ?? '';
+                        $dayEntry['end_time'] = $dayData['end_time'] ?? $entry['end_time'] ?? '';
+                        // Remove weekly schedule fields from individual entries
+                        unset($dayEntry['weekly_schedule']);
+                        unset($dayEntry['is_weekly']);
+                        $expandedResults[] = $dayEntry;
+                    }
+                } else {
+                    // Regular single-day entry
+                    unset($entry['weekly_schedule']);
+                    unset($entry['is_weekly']);
+                    $expandedResults[] = $entry;
+                }
+            }
+            
+            return $expandedResults;
         } catch (\PDOException $e) {
             error_log("getStudentSchedule failed: " . $e->getMessage());
             return [];
@@ -556,19 +601,35 @@ class Student extends Model
     public function getAvailableSectionsForEnrollment(string $semester, string $academicYear): array
     {
         try {
+            // Check if enrollments has schedule_id column
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            // Build enrollment count subquery based on available columns
+            if ($hasScheduleId) {
+                $enrollmentSubquery = "(SELECT COUNT(*) FROM enrollments e WHERE e.schedule_id = s.schedule_id AND e.status = 'enrolled')";
+            } else {
+                $enrollmentSubquery = "(SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.schedule_id AND e.status = 'enrolled')";
+            }
+            
             $stmt = $this->db->prepare("
-                SELECT s.*, c.course_code, c.name as course_name, c.credit_hours, c.description,
+                SELECT s.*, s.schedule_id as section_id, c.course_code, c.name as course_name, c.credit_hours, c.description,
                        u.first_name as doctor_first_name, u.last_name as doctor_last_name,
-                       (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.section_id AND e.status = 'enrolled') as current_enrollment,
+                       {$enrollmentSubquery} as current_enrollment,
                        s.capacity
-                FROM sections s
+                FROM schedule s
                 JOIN courses c ON s.course_id = c.course_id
                 JOIN doctors d ON s.doctor_id = d.doctor_id
                 JOIN users u ON d.user_id = u.id
                 WHERE s.semester = :semester
                 AND s.academic_year = :academic_year
-                AND s.status = 'published'
-                AND (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.section_id AND e.status = 'enrolled') < s.capacity
+                AND (s.status = 'published' OR s.status = 'scheduled')
+                AND {$enrollmentSubquery} < s.capacity
                 ORDER BY c.course_code, s.section_number
             ");
             $stmt->execute(['semester' => $semester, 'academic_year' => $academicYear]);
@@ -582,12 +643,31 @@ class Student extends Model
     public function getEnrollmentRequests(int $studentId): array
     {
         try {
+            // Check if enrollment_requests has schedule_id column
+            $hasScheduleId = false;
+            try {
+                $checkStmt = $this->db->query("SHOW COLUMNS FROM enrollment_requests LIKE 'schedule_id'");
+                $hasScheduleId = $checkStmt->rowCount() > 0;
+            } catch (\PDOException $e) {
+                $hasScheduleId = false;
+            }
+            
+            // Build JOIN condition based on available columns
+            if ($hasScheduleId) {
+                $joinCondition = "er.schedule_id = s.schedule_id";
+                $selectSectionId = "s.schedule_id as section_id";
+            } else {
+                $joinCondition = "er.section_id = s.schedule_id";
+                $selectSectionId = "s.schedule_id as section_id";
+            }
+            
             $stmt = $this->db->prepare("
-                SELECT er.*, s.section_id, s.section_number, s.semester, s.academic_year, s.room, s.time_slot,
+                SELECT er.*, {$selectSectionId}, s.section_number, s.semester, s.academic_year, s.room, s.time_slot,
+                       s.day_of_week, s.start_time, s.end_time,
                        c.course_code, c.name as course_name, c.credit_hours,
                        u.first_name as doctor_first_name, u.last_name as doctor_last_name
                 FROM enrollment_requests er
-                JOIN sections s ON er.section_id = s.section_id
+                JOIN schedule s ON {$joinCondition}
                 JOIN courses c ON s.course_id = c.course_id
                 JOIN doctors d ON s.doctor_id = d.doctor_id
                 JOIN users u ON d.user_id = u.id
@@ -595,7 +675,7 @@ class Student extends Model
                 ORDER BY er.requested_at DESC
             ");
             $stmt->execute(['student_id' => $studentId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             error_log("getEnrollmentRequests failed: " . $e->getMessage());
             return [];

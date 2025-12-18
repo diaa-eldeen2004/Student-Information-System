@@ -44,5 +44,10 @@ class EnrollmentSubject implements Subject
     {
         $this->notify('section.created', $sectionData);
     }
+
+    public function enrollmentRequested(array $enrollmentData): void
+    {
+        $this->notify('enrollment.requested', $enrollmentData);
+    }
 }
 

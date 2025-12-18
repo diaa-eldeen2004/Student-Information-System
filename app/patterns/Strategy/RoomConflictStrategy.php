@@ -26,14 +26,14 @@ class RoomConflictStrategy implements ConflictDetectionStrategy
         $endTime = $data['end_time'] ?? '';
         $semester = $data['semester'] ?? '';
         $academicYear = $data['academic_year'] ?? '';
-        $excludeSectionId = $data['exclude_section_id'] ?? null;
+        $excludeScheduleId = $data['exclude_schedule_id'] ?? null;
 
         if (!$room || !$dayOfWeek || !$startTime || !$endTime || !$semester || !$academicYear) {
             $this->errorMessage = 'Missing required room data';
             return false;
         }
 
-        $sql = "SELECT COUNT(*) as count FROM sections
+        $sql = "SELECT COUNT(*) as count FROM schedule
                 WHERE room = :room
                 AND semester = :semester
                 AND academic_year = :academic_year
@@ -44,8 +44,8 @@ class RoomConflictStrategy implements ConflictDetectionStrategy
                     OR (start_time >= :start_time AND end_time <= :end_time)
                 )";
         
-        if ($excludeSectionId) {
-            $sql .= " AND section_id != :exclude_section_id";
+        if ($excludeScheduleId) {
+            $sql .= " AND schedule_id != :exclude_schedule_id";
         }
         
         $stmt = $this->db->prepare($sql);
@@ -58,8 +58,8 @@ class RoomConflictStrategy implements ConflictDetectionStrategy
             'end_time' => $endTime,
         ];
         
-        if ($excludeSectionId) {
-            $params['exclude_section_id'] = $excludeSectionId;
+        if ($excludeScheduleId) {
+            $params['exclude_schedule_id'] = $excludeScheduleId;
         }
         
         $stmt->execute($params);

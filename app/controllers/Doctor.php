@@ -13,7 +13,7 @@ use patterns\Decorator\AssignmentDecorator;
 use patterns\Builder\AssignmentBuilder;
 use models\Doctor as DoctorModel;
 use models\Course;
-use models\Section;
+use models\Schedule;
 use models\Assignment;
 use models\Attendance;
 use models\Student;
@@ -25,7 +25,7 @@ class Doctor extends Controller
 {
     private DoctorModel $doctorModel;
     private Course $courseModel;
-    private Section $sectionModel;
+    private Schedule $sectionModel;
     private Assignment $assignmentModel;
     private Attendance $attendanceModel;
     private Student $studentModel;
@@ -55,7 +55,7 @@ class Doctor extends Controller
         // Factory Method Pattern - Create all models
         $this->doctorModel = ModelFactory::create('Doctor');
         $this->courseModel = ModelFactory::create('Course');
-        $this->sectionModel = ModelFactory::create('Section');
+        $this->sectionModel = ModelFactory::create('Schedule');
         $this->assignmentModel = ModelFactory::create('Assignment');
         $this->attendanceModel = ModelFactory::create('Attendance');
         $this->studentModel = ModelFactory::create('Student');
@@ -119,6 +119,16 @@ class Doctor extends Controller
 
             // Get doctor's sections and assignments
             $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
+            // Ensure schedule_id is available in all sections
+            foreach ($sections as &$section) {
+                if (!isset($section['schedule_id']) && isset($section['section_id'])) {
+                    $section['schedule_id'] = $section['section_id'];
+                } elseif (isset($section['schedule_id']) && !isset($section['section_id'])) {
+                    $section['section_id'] = $section['schedule_id'];
+                }
+            }
+            unset($section); // Break reference
+            
             $assignments = $this->assignmentModel->getByDoctor($doctor['doctor_id']);
 
             $this->view->render('doctor/doctor_dashboard', [
@@ -149,6 +159,13 @@ class Doctor extends Controller
             $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
             $courses = [];
             foreach ($sections as $section) {
+                // Ensure schedule_id is available (it should be from s.* but ensure it's set)
+                if (!isset($section['schedule_id']) && isset($section['section_id'])) {
+                    $section['schedule_id'] = $section['section_id'];
+                } elseif (isset($section['schedule_id']) && !isset($section['section_id'])) {
+                    $section['section_id'] = $section['schedule_id'];
+                }
+                
                 $courseId = $section['course_id'];
                 if (!isset($courses[$courseId])) {
                     $course = $this->courseModel->findById($courseId);
@@ -384,11 +401,24 @@ class Doctor extends Controller
                     continue; // Skip unassigned courses
                 }
                 
-                $stats = $this->attendanceModel->getAttendanceStats($section['section_id']);
+                // Get schedule_id (primary key in schedule table)
+                $scheduleId = isset($section['schedule_id']) ? $section['schedule_id'] : (isset($section['section_id']) ? $section['section_id'] : null);
+                if (!$scheduleId) {
+                    continue; // Skip if no valid ID
+                }
+                
+                // Ensure schedule_id is in the section array for the view
+                $section['schedule_id'] = $scheduleId;
+                // Also add section_id for backward compatibility in views
+                if (!isset($section['section_id'])) {
+                    $section['section_id'] = $scheduleId;
+                }
+                
+                $stats = $this->attendanceModel->getAttendanceStats($scheduleId);
                 $section['attendance_stats'] = $stats;
                 
                 // Get student count
-                $enrollments = $this->sectionModel->getEnrolledStudents($section['section_id']);
+                $enrollments = $this->sectionModel->getEnrolledStudents($scheduleId);
                 $section['student_count'] = count($enrollments);
                 
                 // Get course info
@@ -421,7 +451,7 @@ class Doctor extends Controller
                 return;
             }
 
-            $sectionId = (int)($_GET['section_id'] ?? 0);
+            $sectionId = (int)($_GET['section_id'] ?? $_GET['schedule_id'] ?? 0);
             if (!$sectionId) {
                 $this->view->render('errors/400', ['title' => 'Bad Request', 'message' => 'Section ID required']);
                 return;
@@ -432,6 +462,9 @@ class Doctor extends Controller
                 $this->view->render('errors/403', ['title' => 'Access Denied', 'message' => 'You do not have access to this section']);
                 return;
             }
+
+            // Get the schedule_id from the section (it might be schedule_id or section_id)
+            $scheduleId = $section['schedule_id'] ?? $sectionId;
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $attendanceDate = trim($_POST['attendance_date'] ?? date('Y-m-d'));
@@ -446,7 +479,7 @@ class Doctor extends Controller
                     ];
                 }
 
-                if ($this->attendanceModel->recordAttendance($sectionId, $attendanceData, $doctor['doctor_id'])) {
+                if ($this->attendanceModel->recordAttendance($scheduleId, $attendanceData, $doctor['doctor_id'])) {
                     $config = require dirname(__DIR__) . '/config/config.php';
                     $base = rtrim($config['base_url'] ?? '', '/');
                     $target = $base . '/doctor/attendance?success=recorded';
@@ -459,13 +492,13 @@ class Doctor extends Controller
             }
 
             // Get enrolled students - ONLY students assigned to this course
-            $enrollments = $this->sectionModel->getEnrolledStudents($sectionId);
+            $enrollments = $this->sectionModel->getEnrolledStudents($scheduleId);
             $students = [];
             foreach ($enrollments as $enrollment) {
                 $student = $this->studentModel->findById($enrollment['student_id']);
                 if ($student) {
                     // Get existing attendance for this date if any
-                    $existingAttendance = $this->attendanceModel->getByDate($sectionId, $attendanceDate ?? date('Y-m-d'));
+                    $existingAttendance = $this->attendanceModel->getByDate($scheduleId, $attendanceDate ?? date('Y-m-d'));
                     $student['attendance_status'] = null;
                     foreach ($existingAttendance as $att) {
                         if ($att['student_id'] == $student['student_id']) {
@@ -638,7 +671,11 @@ class Doctor extends Controller
             $sections = $this->sectionModel->getByDoctor($doctor['doctor_id']);
             $students = [];
             foreach ($sections as $section) {
-                $enrollments = $this->sectionModel->getEnrolledStudents($section['section_id']);
+                $scheduleId = $section['schedule_id'] ?? $section['section_id'] ?? null;
+                if (!$scheduleId) {
+                    continue;
+                }
+                $enrollments = $this->sectionModel->getEnrolledStudents($scheduleId);
                 foreach ($enrollments as $enrollment) {
                     $student = $this->studentModel->findById($enrollment['student_id']);
                     if ($student && !isset($students[$student['student_id']])) {

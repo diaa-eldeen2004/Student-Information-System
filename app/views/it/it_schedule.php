@@ -22,6 +22,9 @@ $historyBySemester = $historyBySemester ?? [];
             <button type="button" class="btn btn-primary" onclick="runMigration()" style="padding: 0.75rem 1.5rem;">
                 <i class="fas fa-sync"></i> Run Migration
             </button>
+            <button type="button" class="btn btn-danger" onclick="clearAllSchedules()" style="padding: 0.75rem 1.5rem;">
+                <i class="fas fa-trash-alt"></i> Clear All Schedules
+            </button>
         </div>
     </div>
 
@@ -75,126 +78,29 @@ $historyBySemester = $historyBySemester ?? [];
         
         <!-- Single Entry Form -->
         <form method="post" action="<?= htmlspecialchars($url('it/schedule')) ?>" class="section-form" id="singleEntryForm" onsubmit="return validateSingleForm(event);">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="course_id" class="form-label">Course *</label>
-                    <select id="course_id" name="course_id" class="form-input" required>
-                        <option value="">Select Course</option>
-                        <?php foreach ($courses as $course): ?>
-                            <option value="<?= $course['course_id'] ?>">
-                                <?= htmlspecialchars($course['course_code']) ?> - <?= htmlspecialchars($course['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="form-group full-width">
-                    <label class="form-label">Doctors (Instructors) *</label>
-                    <div class="checkbox-list" id="doctorsList" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 1rem; background: var(--bg-tertiary);">
-                        <?php foreach ($doctors as $doctor): ?>
-                            <label class="checkbox-item" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 
-                                   onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'"
-                                   onmouseout="this.style.backgroundColor='transparent'">
-                                <input type="checkbox" name="doctor_ids[]" value="<?= $doctor['doctor_id'] ?>" class="doctor-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
-                                <div>
-                                    <div style="font-weight: 500; color: var(--text-primary);">
-                                <?= htmlspecialchars($doctor['first_name']) ?> <?= htmlspecialchars($doctor['last_name']) ?>
-                                    </div>
-                                    <?php if (!empty($doctor['email'])): ?>
-                                        <div style="font-size: 0.85rem; color: var(--text-secondary);">
-                                            <?= htmlspecialchars($doctor['email']) ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                    <small class="form-hint">Select one or more doctors for this course. Each doctor will have separate schedule entries.</small>
-                </div>
-
-                <div class="form-group full-width">
-                    <label class="form-label">Section/Session Numbers *</label>
-                    <div class="checkbox-list" id="sectionsList" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 1rem; background: var(--bg-tertiary);">
-                        <div id="sectionNumbersPlaceholder" style="text-align: center; padding: 2rem; color: var(--text-muted);">
-                            <i class="fas fa-info-circle"></i> Select a course first to see available section numbers
-                        </div>
-                    </div>
-                    <small class="form-hint">Select one or more section numbers. You can also add new section numbers by typing them in the input below.</small>
-                    <input type="text" id="new_section_number" name="new_section_number" class="form-input" style="margin-top: 0.5rem;" placeholder="Add new section number (e.g., 001, L01, LAB01)">
-                    <button type="button" class="btn btn-outline" onclick="addNewSectionNumber()" style="margin-top: 0.5rem; padding: 0.5rem 1rem;">
-                        <i class="fas fa-plus"></i> Add Section Number
-                    </button>
-                </div>
-
-                <div class="form-group">
-                    <label for="semester" class="form-label">Semester *</label>
-                    <select id="semester" name="semester" class="form-input" required>
-                        <option value="Fall" <?= $currentSemester === 'Fall' ? 'selected' : '' ?>>Fall</option>
-                        <option value="Spring" <?= $currentSemester === 'Spring' ? 'selected' : '' ?>>Spring</option>
-                        <option value="Summer" <?= $currentSemester === 'Summer' ? 'selected' : '' ?>>Summer</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="academic_year" class="form-label">Academic Year *</label>
-                    <input type="text" id="academic_year" name="academic_year" class="form-input" required value="<?= htmlspecialchars($currentYear) ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="session_type" class="form-label">Session Type *</label>
-                    <select id="session_type" name="session_type" class="form-input" required>
-                        <option value="lecture">Lecture</option>
-                        <option value="lab">Lab</option>
-                        <option value="tutorial">Tutorial</option>
-                        <option value="section">Section</option>
-                        <option value="seminar">Seminar</option>
-                        <option value="workshop">Workshop</option>
-                    </select>
-                    <small class="form-hint">Type of session. A course can have multiple sessions (e.g., lecture + lab) on the same or different days.</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="room" class="form-label">Room *</label>
-                    <input type="text" id="room" name="room" class="form-input" required placeholder="e.g., A101">
-                    <small class="form-hint">Required for conflict detection</small>
-                </div>
-
-                <div class="form-group full-width">
-                    <label class="form-label">Schedule Days *</label>
-                    <div class="days-selector">
-                        <?php 
-                        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                        foreach ($days as $day): ?>
-                            <div class="day-option">
-                                <input type="checkbox" name="days[]" value="<?= $day ?>" id="day_<?= strtolower($day) ?>" class="day-checkbox" onchange="updateDaySchedule('<?= $day ?>')">
-                                <label for="day_<?= strtolower($day) ?>" class="day-label">
-                                    <span class="day-name"><?= $day ?></span>
-                                </label>
-                                <div class="day-schedule" id="schedule_<?= strtolower($day) ?>" style="display: none;">
-                                    <div class="time-inputs">
-                                        <div>
-                                            <label>Start Time *</label>
-                                            <input type="time" name="start_time[<?= $day ?>]" class="form-input" required>
-                                        </div>
-                                        <div>
-                                            <label>End Time *</label>
-                                            <input type="time" name="end_time[<?= $day ?>]" class="form-input" required>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <small class="form-hint">
-                        <i class="fas fa-info-circle"></i> <strong>Multiple Sessions:</strong> You can create multiple sessions for the same course. Each selected day creates a separate schedule entry.
-                    </small>
-                </div>
-
-                <div class="form-group">
-                    <label for="capacity" class="form-label">Capacity *</label>
-                    <input type="number" id="capacity" name="capacity" class="form-input" required value="30" min="1">
-                </div>
+            <div id="coursesContainer">
+                <!-- Course entries will be added here dynamically -->
             </div>
+            
+            <button type="button" class="btn btn-outline" onclick="addCourseEntry()" style="margin-bottom: 1.5rem; width: 100%;">
+                <i class="fas fa-plus"></i> Add Another Course
+            </button>
+            
+            <div class="form-group">
+                <label for="semester" class="form-label">Semester *</label>
+                <select id="semester" name="semester" class="form-input" required>
+                    <option value="Fall">Fall</option>
+                    <option value="Spring">Spring</option>
+                    <option value="Summer">Summer</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="academic_year" class="form-label">Academic Year *</label>
+                <input type="text" id="academic_year" name="academic_year" class="form-input" required 
+                       value="<?= htmlspecialchars($currentYear) ?>" placeholder="e.g., 2024-2025">
+            </div>
+            
 
             <button type="submit" class="btn btn-primary" id="submitScheduleBtn">
                 <i class="fas fa-plus"></i> Create Schedule Entry
@@ -395,6 +301,20 @@ $historyBySemester = $historyBySemester ?? [];
                 <?php
                 $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
                 $weeklyTimetable = $weeklyTimetable ?? [];
+                
+                // Debug: Log timetable data (remove in production)
+                if (empty($weeklyTimetable)) {
+                    error_log("Weekly timetable is empty. Sections count: " . count($sections ?? []));
+                } else {
+                    foreach ($weeklyTimetable as $day => $entries) {
+                        if (!empty($entries)) {
+                            error_log("Day {$day} has " . count($entries) . " entries");
+                            foreach ($entries as $idx => $entry) {
+                                error_log("  Entry {$idx}: " . ($entry['course_code'] ?? 'N/A') . " - " . ($entry['start_time'] ?? 'N/A') . " - " . ($entry['day_of_week'] ?? 'N/A'));
+                            }
+                        }
+                    }
+                }
                 ?>
                 <div class="timetable-wrapper">
                     <table class="timetable-table">
@@ -420,16 +340,53 @@ $historyBySemester = $historyBySemester ?? [];
                                             $hourEntries = [];
                                             foreach ($weeklyTimetable[$day] ?? [] as $entry) {
                                                 if (empty($entry['start_time'])) continue;
-                                                $entryStart = strtotime($entry['start_time']);
-                                                $entryHour = (int)date('G', $entryStart);
-                                                if ($entryHour == $hour) {
-                                                    $hourEntries[] = $entry;
+                                                
+                                                // Parse start time - handle various formats
+                                                $startTime = $entry['start_time'];
+                                                if (strlen($startTime) == 5) {
+                                                    $startTime .= ':00'; // Add seconds if missing
+                                                }
+                                                
+                                                $entryStart = strtotime($startTime);
+                                                if ($entryStart === false) {
+                                                    // Try alternative parsing
+                                                    $entryStart = strtotime('1970-01-01 ' . $startTime);
+                                                }
+                                                
+                                                if ($entryStart !== false) {
+                                                    $entryHour = (int)date('G', $entryStart);
+                                                    // Check if this entry falls within this hour slot
+                                                    // (entry starts at this hour OR spans this hour)
+                                                    $entryEndTime = $entry['end_time'] ?? '';
+                                                    if (strlen($entryEndTime) == 5) {
+                                                        $entryEndTime .= ':00';
+                                                    }
+                                                    $entryEnd = strtotime($entryEndTime);
+                                                    if ($entryEnd === false) {
+                                                        $entryEnd = strtotime('1970-01-01 ' . $entryEndTime);
+                                                    }
+                                                    
+                                                    if ($entryEnd !== false) {
+                                                        $entryEndHour = (int)date('G', $entryEnd);
+                                                        // Include if starts at this hour or spans this hour
+                                                        if ($entryHour == $hour || ($entryHour < $hour && $entryEndHour >= $hour)) {
+                                                            $hourEntries[] = $entry;
+                                                        }
+                                                    } else if ($entryHour == $hour) {
+                                                        $hourEntries[] = $entry;
+                                                    }
                                                 }
                                             }
                                             
                                             foreach ($hourEntries as $entry):
-                                                $entryStart = strtotime($entry['start_time'] ?? '00:00:00');
-                                                $entryEnd = strtotime($entry['end_time'] ?? '00:00:00');
+                                                $startTime = $entry['start_time'] ?? '00:00:00';
+                                                $endTime = $entry['end_time'] ?? '00:00:00';
+                                                if (strlen($startTime) == 5) $startTime .= ':00';
+                                                if (strlen($endTime) == 5) $endTime .= ':00';
+                                                $entryStart = strtotime($startTime);
+                                                $entryEnd = strtotime($endTime);
+                                                if ($entryStart === false) $entryStart = strtotime('1970-01-01 ' . $startTime);
+                                                if ($entryEnd === false) $entryEnd = strtotime('1970-01-01 ' . $endTime);
                                             ?>
                                                 <div class="timetable-entry">
                                                     <div class="entry-header">
@@ -1158,12 +1115,81 @@ function updateDaySchedule(day) {
     
     if (checkbox.checked) {
         schedule.style.display = 'block';
+        // Add at least one session if none exist
+        const sessionsContainer = schedule.querySelector('.sessions-container');
+        if (sessionsContainer && sessionsContainer.children.length === 0) {
+            addSession(day.toLowerCase());
+        }
     } else {
         schedule.style.display = 'none';
-        const startTime = schedule.querySelector('input[name="start_time[' + day + ']"]');
-        const endTime = schedule.querySelector('input[name="end_time[' + day + ']"]');
-        if (startTime) startTime.value = '';
-        if (endTime) endTime.value = '';
+        // Clear all sessions when unchecked
+        const sessionsContainer = schedule.querySelector('.sessions-container');
+        if (sessionsContainer) {
+            sessionsContainer.innerHTML = '';
+        }
+    }
+}
+
+function addSession(day) {
+    const schedule = document.getElementById('schedule_' + day);
+    if (!schedule) return;
+    
+    const sessionsContainer = schedule.querySelector('.sessions-container');
+    if (!sessionsContainer) return;
+    
+    const sessionIndex = sessionsContainer.children.length;
+    const defaultSessionType = 'lecture'; // Default to lecture
+    
+    const sessionDiv = document.createElement('div');
+    sessionDiv.className = 'session-item';
+    sessionDiv.style.cssText = 'border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; background: var(--bg-secondary);';
+    sessionDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <strong style="color: var(--text-primary);">Session ${sessionIndex + 1}</strong>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeSession(this)" style="padding: 0.25rem 0.5rem;">
+                <i class="fas fa-times"></i> Remove
+            </button>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Session Type <span style="color: var(--error-color);">*</span></label>
+                <select name="session_type[${day}][]" class="form-input" required>
+                    <option value="lecture" ${defaultSessionType === 'lecture' ? 'selected' : ''}>Lecture</option>
+                    <option value="lab" ${defaultSessionType === 'lab' ? 'selected' : ''}>Lab</option>
+                    <option value="tutorial" ${defaultSessionType === 'tutorial' ? 'selected' : ''}>Tutorial</option>
+                    <option value="section" ${defaultSessionType === 'section' ? 'selected' : ''}>Section</option>
+                    <option value="seminar" ${defaultSessionType === 'seminar' ? 'selected' : ''}>Seminar</option>
+                    <option value="workshop" ${defaultSessionType === 'workshop' ? 'selected' : ''}>Workshop</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Start Time <span style="color: var(--error-color);">*</span></label>
+                <input type="time" name="start_time[${day}][]" class="form-input" required>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">End Time <span style="color: var(--error-color);">*</span></label>
+                <input type="time" name="end_time[${day}][]" class="form-input" required>
+            </div>
+        </div>
+    `;
+    
+    sessionsContainer.appendChild(sessionDiv);
+}
+
+function removeSession(button) {
+    const sessionItem = button.closest('.session-item');
+    if (sessionItem) {
+        sessionItem.remove();
+        // Update session numbers
+        const sessionsContainer = sessionItem.parentElement;
+        if (sessionsContainer) {
+            Array.from(sessionsContainer.children).forEach((item, index) => {
+                const strong = item.querySelector('strong');
+                if (strong) {
+                    strong.textContent = `Session ${index + 1}`;
+                }
+            });
+        }
     }
 }
 
@@ -1186,9 +1212,292 @@ function toggleView(view) {
     }
 }
 
+let courseEntryIndex = 0;
+
+function addCourseEntry() {
+    const container = document.getElementById('coursesContainer');
+    if (!container) return;
+    
+    const index = courseEntryIndex++;
+    const courses = <?= json_encode($courses) ?>;
+    const doctors = <?= json_encode($doctors) ?>;
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    const courseEntry = document.createElement('div');
+    courseEntry.className = 'course-entry';
+    courseEntry.dataset.courseIndex = index;
+    courseEntry.style.cssText = 'border: 2px solid var(--border-color); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; background: var(--bg-secondary);';
+    
+    let doctorsHtml = '';
+    doctors.forEach(doctor => {
+        doctorsHtml += `
+            <label class="checkbox-item" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 
+                   onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'"
+                   onmouseout="this.style.backgroundColor='transparent'">
+                <input type="checkbox" name="courses[${index}][doctor_ids][]" value="${doctor.doctor_id}" class="doctor-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
+                <div>
+                    <div style="font-weight: 500; color: var(--text-primary);">${doctor.first_name} ${doctor.last_name}</div>
+                    ${doctor.email ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${doctor.email}</div>` : ''}
+                </div>
+            </label>
+        `;
+    });
+    
+    let daysHtml = '';
+    days.forEach(day => {
+        const dayLower = day.toLowerCase();
+        daysHtml += `
+            <div class="day-option">
+                <input type="checkbox" name="courses[${index}][days][]" value="${day}" 
+                       id="day_${index}_${dayLower}" 
+                       class="day-checkbox" 
+                       onchange="updateDayScheduleForCourse(${index}, '${day}')">
+                <label for="day_${index}_${dayLower}" class="day-label">
+                    <span class="day-name">${day}</span>
+                </label>
+                <div class="day-schedule" id="schedule_${index}_${dayLower}" style="display: none;">
+                    <div class="sessions-container" data-day="${dayLower}" data-course-index="${index}"></div>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="addSessionForCourse(${index}, '${dayLower}')" style="margin-top: 0.5rem; width: 100%;">
+                        <i class="fas fa-plus"></i> Add Session
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    let coursesHtml = '<option value="">Select Course</option>';
+    courses.forEach(course => {
+        coursesHtml += `<option value="${course.course_id}">${course.course_code} - ${course.name}</option>`;
+    });
+    
+    courseEntry.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; color: var(--text-primary);">
+                <i class="fas fa-book"></i> Course Entry ${index + 1}
+            </h3>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeCourseEntry(this)" style="padding: 0.5rem 1rem;">
+                <i class="fas fa-times"></i> Remove Course
+            </button>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">Course *</label>
+                <select name="courses[${index}][course_id]" class="form-input course-select" required onchange="loadSectionsForCourse(${index}, this.value)">
+                    ${coursesHtml}
+                </select>
+            </div>
+            <div class="form-group full-width">
+                <label class="form-label">Doctors (Instructors) *</label>
+                <div class="checkbox-list doctors-list-${index}" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 1rem; background: var(--bg-tertiary);">
+                    ${doctorsHtml}
+                </div>
+            </div>
+            <div class="form-group full-width">
+                <label class="form-label">Section/Session Numbers *</label>
+                <div class="checkbox-list sections-list-${index}" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 1rem; background: var(--bg-tertiary);">
+                    <div class="section-numbers-placeholder-${index}" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                        <i class="fas fa-info-circle"></i> Select a course first to see available section numbers
+                    </div>
+                </div>
+                <input type="text" class="new-section-input-${index} form-input" style="margin-top: 0.5rem;" placeholder="Add new section number (e.g., 001, L01, LAB01)">
+                <button type="button" class="btn btn-outline" onclick="addNewSectionNumberForCourse(${index})" style="margin-top: 0.5rem; padding: 0.5rem 1rem;">
+                    <i class="fas fa-plus"></i> Add Section Number
+                </button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Room *</label>
+                <input type="text" name="courses[${index}][room]" class="form-input" required placeholder="e.g., A101">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Capacity *</label>
+                <input type="number" name="courses[${index}][capacity]" class="form-input" required value="30" min="1">
+            </div>
+            <div class="form-group full-width">
+                <label class="form-label">Schedule Days *</label>
+                <div class="days-selector">
+                    ${daysHtml}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(courseEntry);
+}
+
+function removeCourseEntry(button) {
+    const courseEntry = button.closest('.course-entry');
+    if (courseEntry) {
+        courseEntry.remove();
+        // Renumber remaining entries
+        const container = document.getElementById('coursesContainer');
+        if (container) {
+            Array.from(container.children).forEach((entry, index) => {
+                const h3 = entry.querySelector('h3');
+                if (h3) {
+                    h3.innerHTML = `<i class="fas fa-book"></i> Course Entry ${index + 1}`;
+                }
+            });
+        }
+    }
+}
+
+function updateDayScheduleForCourse(courseIndex, day) {
+    const checkbox = document.getElementById(`day_${courseIndex}_${day.toLowerCase()}`);
+    const schedule = document.getElementById(`schedule_${courseIndex}_${day.toLowerCase()}`);
+    
+    if (checkbox.checked) {
+        schedule.style.display = 'block';
+        const sessionsContainer = schedule.querySelector('.sessions-container');
+        if (sessionsContainer && sessionsContainer.children.length === 0) {
+            addSessionForCourse(courseIndex, day.toLowerCase());
+        }
+    } else {
+        schedule.style.display = 'none';
+        const sessionsContainer = schedule.querySelector('.sessions-container');
+        if (sessionsContainer) {
+            sessionsContainer.innerHTML = '';
+        }
+    }
+}
+
+function addSessionForCourse(courseIndex, day) {
+    const schedule = document.getElementById(`schedule_${courseIndex}_${day}`);
+    if (!schedule) return;
+    
+    const sessionsContainer = schedule.querySelector('.sessions-container');
+    if (!sessionsContainer) return;
+    
+    const sessionIndex = sessionsContainer.children.length;
+    const defaultSessionType = 'lecture'; // Default to lecture
+    
+    const sessionDiv = document.createElement('div');
+    sessionDiv.className = 'session-item';
+    sessionDiv.style.cssText = 'border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; background: var(--bg-secondary);';
+    sessionDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <strong style="color: var(--text-primary);">Session ${sessionIndex + 1}</strong>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeSession(this)" style="padding: 0.25rem 0.5rem;">
+                <i class="fas fa-times"></i> Remove
+            </button>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Session Type <span style="color: var(--error-color);">*</span></label>
+                <select name="courses[${courseIndex}][session_type][${day}][]" class="form-input" required>
+                    <option value="lecture" ${defaultSessionType === 'lecture' ? 'selected' : ''}>Lecture</option>
+                    <option value="lab" ${defaultSessionType === 'lab' ? 'selected' : ''}>Lab</option>
+                    <option value="tutorial" ${defaultSessionType === 'tutorial' ? 'selected' : ''}>Tutorial</option>
+                    <option value="section" ${defaultSessionType === 'section' ? 'selected' : ''}>Section</option>
+                    <option value="seminar" ${defaultSessionType === 'seminar' ? 'selected' : ''}>Seminar</option>
+                    <option value="workshop" ${defaultSessionType === 'workshop' ? 'selected' : ''}>Workshop</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Start Time <span style="color: var(--error-color);">*</span></label>
+                <input type="time" name="courses[${courseIndex}][start_time][${day}][]" class="form-input" required>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">End Time <span style="color: var(--error-color);">*</span></label>
+                <input type="time" name="courses[${courseIndex}][end_time][${day}][]" class="form-input" required>
+            </div>
+        </div>
+    `;
+    
+    sessionsContainer.appendChild(sessionDiv);
+}
+
+function loadSectionsForCourse(courseIndex, courseId) {
+    if (!courseId) return;
+    
+    const semester = document.getElementById('semester')?.value;
+    const academicYear = document.getElementById('academic_year')?.value;
+    
+    fetch(`<?= htmlspecialchars($url('it/schedule')) ?>?action=get_sections&course_id=${courseId}&semester=${semester}&year=${academicYear}`)
+        .then(response => response.json())
+        .then(data => {
+            const sectionsList = document.querySelector(`.sections-list-${courseIndex}`);
+            if (!sectionsList) return;
+            
+            const placeholder = sectionsList.querySelector(`.section-numbers-placeholder-${courseIndex}`);
+            if (placeholder) placeholder.remove();
+            
+            if (data.sections && data.sections.length > 0) {
+                let html = '';
+                data.sections.forEach(section => {
+                    html += `
+                        <label class="checkbox-item" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 
+                               onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'"
+                               onmouseout="this.style.backgroundColor='transparent'">
+                            <input type="checkbox" name="courses[${courseIndex}][section_numbers][]" value="${section}" class="section-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
+                            <div style="font-weight: 500; color: var(--text-primary);">${section}</div>
+                        </label>
+                    `;
+                });
+                sectionsList.innerHTML = html;
+            } else {
+                sectionsList.innerHTML = `<div class="section-numbers-placeholder-${courseIndex}" style="text-align: center; padding: 2rem; color: var(--text-muted);"><i class="fas fa-info-circle"></i> No existing sections found. Add new section numbers below.</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading sections:', error);
+        });
+}
+
+function addNewSectionNumberForCourse(courseIndex) {
+    const input = document.querySelector(`.new-section-input-${courseIndex}`);
+    if (!input) return;
+    
+    const sectionNumber = input.value.trim();
+    if (!sectionNumber) {
+        alert('Please enter a section number');
+        return;
+    }
+    
+    const sectionsList = document.querySelector(`.sections-list-${courseIndex}`);
+    if (!sectionsList) return;
+    
+    const existingCheckboxes = sectionsList.querySelectorAll(`input[name="courses[${courseIndex}][section_numbers][]"]`);
+    for (let checkbox of existingCheckboxes) {
+        if (checkbox.value === sectionNumber) {
+            alert('This section number already exists');
+            input.value = '';
+            return;
+        }
+    }
+    
+    const placeholder = sectionsList.querySelector(`.section-numbers-placeholder-${courseIndex}`);
+    if (placeholder) placeholder.remove();
+    
+    const label = document.createElement('label');
+    label.className = 'checkbox-item';
+    label.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;';
+    label.onmouseover = function() { this.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; };
+    label.onmouseout = function() { this.style.backgroundColor = 'transparent'; };
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.name = `courses[${courseIndex}][section_numbers][]`;
+    checkbox.value = sectionNumber;
+    checkbox.className = 'section-checkbox';
+    checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
+    checkbox.checked = true;
+    
+    const div = document.createElement('div');
+    div.style.cssText = 'font-weight: 500; color: var(--text-primary);';
+    div.textContent = sectionNumber;
+    
+    label.appendChild(checkbox);
+    label.appendChild(div);
+    sectionsList.appendChild(label);
+    input.value = '';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     toggleView('timetable');
     switchMode('single');
+    
+    // Initialize with one course entry
+    addCourseEntry();
     
     // Initialize quick schedule mode with one row if needed
     const quickForm = document.getElementById('quickEntryForm');
@@ -1493,31 +1802,7 @@ function validateSingleForm(event) {
     
     console.log('Form found, validating...');
     
-    // Validate required fields FIRST
-    const courseId = form.querySelector('#course_id')?.value;
-    if (!courseId) {
-        alert('Please select a course.');
-        return false;
-    }
-    
-    const selectedDoctors = Array.from(form.querySelectorAll('input[name="doctor_ids[]"]:checked'));
-    if (selectedDoctors.length === 0) {
-        alert('Please select at least one doctor.');
-        return false;
-    }
-    
-    const selectedSections = Array.from(form.querySelectorAll('input[name="section_numbers[]"]:checked'));
-    if (selectedSections.length === 0) {
-        alert('Please select at least one section number.');
-        return false;
-    }
-    
-    const room = form.querySelector('#room')?.value?.trim();
-    if (!room) {
-        alert('Please enter a room number.');
-        return false;
-    }
-    
+    // Validate semester and academic year
     const semester = form.querySelector('#semester')?.value;
     const academicYear = form.querySelector('#academic_year')?.value?.trim();
     if (!semester || !academicYear) {
@@ -1525,44 +1810,98 @@ function validateSingleForm(event) {
         return false;
     }
     
-    const selectedDays = Array.from(form.querySelectorAll('input[name="days[]"]:checked'));
-    if (selectedDays.length === 0) {
-        alert('Please select at least one day for the schedule.');
+    // Validate all course entries
+    const courseEntries = form.querySelectorAll('.course-entry');
+    if (courseEntries.length === 0) {
+        alert('Please add at least one course entry.');
         return false;
     }
     
-    let allTimesValid = true;
-    let missingTimes = [];
+    let allCoursesValid = true;
+    let courseErrors = [];
     
-    selectedDays.forEach(dayCheckbox => {
-        const day = dayCheckbox.value;
-        const startTime = form.querySelector(`input[name="start_time[${day}]"]`);
-        const endTime = form.querySelector(`input[name="end_time[${day}]"]`);
-        
-        if (!startTime || !startTime.value || !endTime || !endTime.value) {
-            allTimesValid = false;
-            missingTimes.push(day);
-        } else if (startTime.value >= endTime.value) {
-            allTimesValid = false;
-            missingTimes.push(day + ' (end time must be after start time)');
+    courseEntries.forEach((courseEntry, arrayIndex) => {
+        // Get the actual course index from the form field name
+        const courseSelect = courseEntry.querySelector('select[name^="courses["][name$="][course_id]"]');
+        if (!courseSelect) {
+            allCoursesValid = false;
+            courseErrors.push(`Course Entry ${arrayIndex + 1}: Course select field not found`);
+            return;
         }
+        
+        // Extract index from name like "courses[0][course_id]"
+        const nameMatch = courseSelect.name.match(/courses\[(\d+)\]/);
+        const courseIndex = nameMatch ? nameMatch[1] : arrayIndex;
+        const courseId = courseSelect.value;
+        
+        if (!courseId) {
+            allCoursesValid = false;
+            courseErrors.push(`Course Entry ${arrayIndex + 1}: Please select a course.`);
+            return;
+        }
+        
+        const selectedDoctors = Array.from(courseEntry.querySelectorAll(`input[name="courses[${courseIndex}][doctor_ids][]"]:checked`));
+        if (selectedDoctors.length === 0) {
+            allCoursesValid = false;
+            courseErrors.push(`Course Entry ${arrayIndex + 1}: Please select at least one doctor.`);
+            return;
+        }
+        
+        const selectedSections = Array.from(courseEntry.querySelectorAll(`input[name="courses[${courseIndex}][section_numbers][]"]:checked`));
+        if (selectedSections.length === 0) {
+            allCoursesValid = false;
+            courseErrors.push(`Course Entry ${arrayIndex + 1}: Please select at least one section number.`);
+            return;
+        }
+        
+        const room = courseEntry.querySelector(`input[name="courses[${courseIndex}][room]"]`)?.value?.trim();
+        if (!room) {
+            allCoursesValid = false;
+            courseErrors.push(`Course Entry ${arrayIndex + 1}: Please enter a room number.`);
+            return;
+        }
+        
+        const selectedDays = Array.from(courseEntry.querySelectorAll(`input[name="courses[${courseIndex}][days][]"]:checked`));
+        if (selectedDays.length === 0) {
+            allCoursesValid = false;
+            courseErrors.push(`Course Entry ${arrayIndex + 1}: Please select at least one day.`);
+            return;
+        }
+        
+        // Validate sessions for each day
+        selectedDays.forEach(dayCheckbox => {
+            const day = dayCheckbox.value.toLowerCase();
+            const sessionsContainer = courseEntry.querySelector(`#schedule_${courseIndex}_${day} .sessions-container`);
+            
+            if (!sessionsContainer || sessionsContainer.children.length === 0) {
+                allCoursesValid = false;
+                courseErrors.push(`Course Entry ${arrayIndex + 1} - ${dayCheckbox.value}: No sessions added`);
+                return;
+            }
+            
+            const sessionItems = sessionsContainer.querySelectorAll('.session-item');
+            sessionItems.forEach((sessionItem, sessionIndex) => {
+                const startTime = sessionItem.querySelector(`input[name="courses[${courseIndex}][start_time][${day}][]"]`);
+                const endTime = sessionItem.querySelector(`input[name="courses[${courseIndex}][end_time][${day}][]"]`);
+                const sessionType = sessionItem.querySelector(`select[name="courses[${courseIndex}][session_type][${day}][]"]`);
+                
+                if (!startTime || !startTime.value || !endTime || !endTime.value || !sessionType || !sessionType.value) {
+                    allCoursesValid = false;
+                    courseErrors.push(`Course Entry ${arrayIndex + 1} - ${dayCheckbox.value} - Session ${sessionIndex + 1}: Incomplete`);
+                } else if (startTime.value >= endTime.value) {
+                    allCoursesValid = false;
+                    courseErrors.push(`Course Entry ${arrayIndex + 1} - ${dayCheckbox.value} - Session ${sessionIndex + 1}: End time must be after start time`);
+                }
+            });
+        });
     });
     
-    if (!allTimesValid) {
-        alert('Please fill in valid start time and end time for all selected days: ' + missingTimes.join(', '));
+    if (!allCoursesValid) {
+        alert('Please fix the following errors:\n\n' + courseErrors.join('\n'));
         return false;
     }
     
     console.log('Validation passed, submitting form...');
-    console.log('Form data:', {
-        courseId: courseId,
-        doctors: selectedDoctors.map(d => d.value),
-        sections: selectedSections.map(s => s.value),
-        days: selectedDays.map(d => d.value),
-        room: room,
-        semester: semester,
-        academicYear: academicYear
-    });
     
     // Submit form via AJAX
     const formData = new FormData(form);
@@ -1936,8 +2275,45 @@ function createDatabaseTables() {
     });
 }
 
+function clearAllSchedules() {
+    if (!confirm('⚠️ WARNING: This will permanently delete ALL schedules from the schedule table!\n\nThis action cannot be undone.\n\nAre you sure you want to continue?')) {
+        return;
+    }
+    
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
+    
+    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=clear_all_schedules', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+        if (data.success) {
+            alert('✓ ' + data.message + '\n\nDeleted: ' + data.deleted_count + ' schedule(s)\nRemaining: ' + data.remaining_count);
+            // Reload the page to refresh the schedule list
+            window.location.reload();
+        } else {
+            alert('✗ Error: ' + (data.error || 'Failed to clear schedules'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('Error clearing schedules: ' + error.message);
+    });
+}
+
 function runMigration() {
-    if (!confirm('This will run the migration to create/update the sections table. Continue?')) {
+    if (!confirm('This will:\n1. Create the schedule table\n2. Remove the sections table\n\nContinue?')) {
         return;
     }
     
@@ -1960,9 +2336,12 @@ function runMigration() {
         if (data.success) {
             let message = '✓ Migration completed successfully!\n\n';
             if (data.table_exists) {
-                message += 'Table: sections\n';
+                message += 'Table: schedule\n';
                 message += 'Columns: ' + (data.columns ? data.columns.join(', ') : 'N/A') + '\n';
                 message += 'Statements executed: ' + (data.executed || 0);
+            }
+            if (data.sections_removed !== undefined) {
+                message += '\n\nSections table: ' + (data.sections_removed ? '✓ Removed' : '⚠ Still exists');
             }
             if (data.errors && data.errors.length > 0) {
                 message += '\n\nWarnings:\n' + data.errors.join('\n');

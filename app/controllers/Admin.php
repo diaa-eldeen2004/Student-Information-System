@@ -139,7 +139,7 @@ class Admin extends Controller
         $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
         $stmt = $db->prepare("
             SELECT COUNT(DISTINCT course_id) 
-            FROM sections 
+            FROM schedule 
             WHERE semester = :semester 
             AND academic_year = :year
         ");

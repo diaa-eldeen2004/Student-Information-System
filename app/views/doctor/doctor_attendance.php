@@ -31,9 +31,17 @@ $sections = $sections ?? [];
                                 <i class="fas fa-user-graduate"></i> Total Students: <?= $section['student_count'] ?? 0 ?>
                             </p>
                         </div>
-                        <a href="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . ($section['section_id'] ?? ''))) ?>" class="btn btn-primary">
+                        <?php 
+                        $scheduleId = $section['schedule_id'] ?? $section['section_id'] ?? null;
+                        if ($scheduleId): ?>
+                        <a href="<?= htmlspecialchars($url('doctor/take-attendance?section_id=' . $scheduleId)) ?>" class="btn btn-primary">
                             <i class="fas fa-plus"></i> Take Attendance
                         </a>
+                        <?php else: ?>
+                        <span class="btn btn-primary" style="opacity: 0.5; cursor: not-allowed;" title="Schedule ID missing">
+                            <i class="fas fa-plus"></i> Take Attendance
+                        </span>
+                        <?php endif; ?>
                     </div>
                     <div class="section-body">
                         <?php if (isset($section['attendance_stats'])): ?>

@@ -25,6 +25,9 @@ class NotificationObserver implements Observer
             case 'enrollment.rejected':
                 $this->handleEnrollmentRejected($data);
                 break;
+            case 'enrollment.requested':
+                $this->handleEnrollmentRequested($data);
+                break;
             case 'section.created':
                 $this->handleSectionCreated($data);
                 break;
@@ -57,6 +60,14 @@ class NotificationObserver implements Observer
                 'related_type' => 'enrollment_request',
             ]);
         }
+    }
+
+    private function handleEnrollmentRequested(array $data): void
+    {
+        // Notify IT officers about new enrollment request
+        // This would typically notify all IT officers, but for now we'll just log it
+        // You can extend this to fetch IT officers and notify them
+        error_log("Enrollment requested: " . json_encode($data));
     }
 
     private function handleSectionCreated(array $data): void

@@ -16,7 +16,7 @@ class Assignment extends Model
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name
             FROM {$this->table} a
             JOIN courses c ON a.course_id = c.course_id
-            JOIN sections s ON a.section_id = s.section_id
+            JOIN schedule s ON a.section_id = s.schedule_id
             JOIN doctors d ON a.doctor_id = d.doctor_id
             JOIN users u ON d.user_id = u.id
             WHERE a.assignment_id = :assignment_id LIMIT 1
@@ -54,7 +54,7 @@ class Assignment extends Model
                    s.section_number, s.semester, s.academic_year
             FROM {$this->table} a
             JOIN courses c ON a.course_id = c.course_id
-            JOIN sections s ON a.section_id = s.section_id
+            JOIN schedule s ON a.section_id = s.schedule_id
             WHERE {$whereClause}
             ORDER BY a.due_date DESC
         ");
@@ -132,7 +132,7 @@ class Assignment extends Model
                    s.section_number, s.semester, s.academic_year
             FROM {$this->table} a
             JOIN courses c ON a.course_id = c.course_id
-            JOIN sections s ON a.section_id = s.section_id
+            JOIN schedule s ON a.section_id = s.schedule_id
             WHERE a.doctor_id = :doctor_id 
             AND (a.semester = :semester OR s.semester = :semester)
             AND (a.academic_year = :academic_year OR s.academic_year = :academic_year)

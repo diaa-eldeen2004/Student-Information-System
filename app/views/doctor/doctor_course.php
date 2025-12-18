@@ -185,7 +185,7 @@ $messageType = $messageType ?? 'info';
                                         <div class="section-card">
                                             <div class="section-header">
                                                 <h4><?= htmlspecialchars($section['section_name'] ?? 'Section') ?></h4>
-                                                <span class="section-id">ID: <?= htmlspecialchars($section['section_id'] ?? 'N/A') ?></span>
+                                                <span class="section-id">ID: <?= htmlspecialchars($section['schedule_id'] ?? $section['section_id'] ?? 'N/A') ?></span>
                                             </div>
                                             <div class="section-details">
                                                 <div class="detail-item">
@@ -202,7 +202,7 @@ $messageType = $messageType ?? 'info';
                                                 </div>
                                             </div>
                                             <div class="section-actions">
-                                                <a href="<?= htmlspecialchars($url('doctor/attendance?section_id=' . ($section['section_id'] ?? ''))) ?>" class="btn btn-sm btn-primary">
+                                                <a href="<?= htmlspecialchars($url('doctor/attendance?section_id=' . ($section['schedule_id'] ?? $section['section_id'] ?? ''))) ?>" class="btn btn-sm btn-primary">
                                                     <i class="fas fa-calendar-check"></i> Take Attendance
                                                 </a>
                                             </div>

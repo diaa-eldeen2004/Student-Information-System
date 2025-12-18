@@ -43,10 +43,10 @@ class DoctorAvailabilityStrategy implements ConflictDetectionStrategy
             return true;
         }
 
-        // Check if doctor has conflicting sections
+        // Check if doctor has conflicting schedules
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
-            FROM sections s
+            FROM schedule s
             WHERE s.doctor_id = :doctor_id
             AND s.semester = :semester
             AND s.academic_year = :academic_year
