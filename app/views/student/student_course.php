@@ -12,32 +12,44 @@ $assignments = $assignments ?? [];
         <p>View course materials and assignments</p>
     </div>
 
-    <div style="display: flex; gap: 2rem;">
-        <div style="flex: 0 0 300px;">
+    <div>
+        <?php if (empty($enrolledCourses)): ?>
             <div class="card">
+                <div style="padding: 3rem; text-align: center;">
+                    <i class="fas fa-book fa-3x" style="color: var(--text-secondary); margin-bottom: 1rem;"></i>
+                    <h3>No Courses Enrolled</h3>
+                    <p class="text-muted">You haven't enrolled in any courses yet</p>
+                </div>
+            </div>
+        <?php else: ?>
+            <div class="card" style="margin-bottom: 2rem;">
                 <div class="card-header">
                     <h3>Enrolled Courses</h3>
                 </div>
-                <div style="padding: 1rem;">
-                    <?php if (empty($enrolledCourses)): ?>
-                        <p class="text-muted">No courses enrolled</p>
-                    <?php else: ?>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <?php foreach ($enrolledCourses as $course): ?>
-                                <a href="<?= htmlspecialchars($url('student/course?course_id=' . $course['course_id'])) ?>" 
-                                   class="btn <?= $selectedCourse && $selectedCourse['course_id'] == $course['course_id'] ? 'btn-primary' : 'btn-outline' ?>"
-                                   style="text-align: left; text-decoration: none;">
-                                    <strong><?= htmlspecialchars($course['course_code'] ?? '') ?></strong><br>
-                                    <small><?= htmlspecialchars($course['course_name'] ?? '') ?></small>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
+                <div style="padding: 1.5rem;">
+                    <div class="courses-grid">
+                        <?php foreach ($enrolledCourses as $course): ?>
+                            <a href="<?= htmlspecialchars($url('student/course?course_id=' . $course['course_id'])) ?>" 
+                               class="course-card <?= $selectedCourse && $selectedCourse['course_id'] == $course['course_id'] ? 'course-card-active' : '' ?>"
+                               style="text-decoration: none;">
+                                <div class="course-card-icon">
+                                    <i class="fas fa-book"></i>
+                                </div>
+                                <div class="course-card-content">
+                                    <strong class="course-card-code"><?= htmlspecialchars($course['course_code'] ?? '') ?></strong>
+                                    <p class="course-card-name"><?= htmlspecialchars($course['course_name'] ?? '') ?></p>
+                                    <?php if (!empty($course['section_number'])): ?>
+                                        <small class="course-card-section">Section: <?= htmlspecialchars($course['section_number']) ?></small>
+                                    <?php endif; ?>
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             </div>
-        </div>
+        <?php endif; ?>
 
-        <div style="flex: 1;">
+        <div>
             <?php if ($selectedCourse): ?>
                 <div class="card" style="margin-bottom: 1.5rem;">
                     <div class="card-header">
@@ -332,6 +344,86 @@ function hideSubmissionModal() {
 
 .btn-outline:hover {
     background: var(--bg-secondary);
+}
+
+.courses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.course-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    border: 2px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    background: var(--bg-secondary, #f8fafc);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    min-height: 140px;
+}
+
+.course-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary-color, #3b82f6);
+}
+
+.course-card-active {
+    border-color: var(--primary-color, #3b82f6);
+    background: var(--primary-color, #3b82f6);
+    color: white;
+}
+
+.course-card-active .course-card-code,
+.course-card-active .course-card-name,
+.course-card-active .course-card-section {
+    color: white;
+}
+
+.course-card-icon {
+    font-size: 2.5rem;
+    color: var(--primary-color, #3b82f6);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.course-card-active .course-card-icon {
+    color: white;
+}
+
+.course-card-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.course-card-code {
+    font-size: 1.25rem;
+    color: var(--text-primary, #1e293b);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.course-card-name {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.95rem;
+    margin: 0 0 0.5rem 0;
+    line-height: 1.4;
+    flex: 1;
+}
+
+.course-card-section {
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.85rem;
+    margin-top: auto;
+}
+
+@media (max-width: 768px) {
+    .courses-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 

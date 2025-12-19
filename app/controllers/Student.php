@@ -388,13 +388,27 @@ class Student extends Controller
 
     public function previewTimetable(): void
     {
+        // Clear any previous output
+        if (ob_get_level()) {
+            ob_clean();
+        }
+        
+        // Set JSON header first to prevent any output before JSON
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-cache, must-revalidate');
+        
+        // Log that the method was called
+        error_log("previewTimetable method called. GET params: " . json_encode($_GET));
+        error_log("REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
+        
         try {
-            // Set JSON header first
-            header('Content-Type: application/json');
+            // Start output buffering to catch any unexpected output
+            ob_start();
             
             $userId = $_SESSION['user']['id'] ?? null;
             
             if (!$userId) {
+                ob_clean();
                 echo json_encode(['success' => false, 'error' => 'Access denied']);
                 exit;
             }
@@ -402,14 +416,17 @@ class Student extends Controller
             $scheduleId = isset($_GET['schedule_id']) ? (int)$_GET['schedule_id'] : 0;
             
             if (!$scheduleId || $scheduleId <= 0) {
-                echo json_encode(['success' => false, 'error' => 'Invalid schedule ID']);
+                ob_clean();
+                echo json_encode(['success' => false, 'error' => 'Invalid schedule ID: ' . ($_GET['schedule_id'] ?? 'not provided')]);
                 exit;
             }
             
             // Get the schedule entry
             $schedule = $this->sectionModel->findById($scheduleId);
             if (!$schedule) {
-                echo json_encode(['success' => false, 'error' => 'Schedule not found']);
+                ob_clean();
+                error_log("Schedule not found for ID: " . $scheduleId);
+                echo json_encode(['success' => false, 'error' => 'Schedule not found for ID: ' . $scheduleId]);
                 exit;
             }
             
@@ -421,20 +438,34 @@ class Student extends Controller
                 $timetable = [];
             }
             
+            // Clean any output buffer
+            ob_clean();
+            
             echo json_encode([
                 'success' => true,
                 'timetable' => $timetable,
                 'schedule' => $schedule
-            ]);
+            ], JSON_PRETTY_PRINT);
             exit;
         } catch (\Exception $e) {
+            ob_clean();
             error_log("Preview timetable error: " . $e->getMessage());
             error_log("Preview timetable trace: " . $e->getTraceAsString());
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => false, 
-                'error' => 'An error occurred: ' . $e->getMessage()
-            ]);
+                'error' => 'An error occurred: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], JSON_PRETTY_PRINT);
+            exit;
+        } catch (\Error $e) {
+            ob_clean();
+            error_log("Preview timetable fatal error: " . $e->getMessage());
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false, 
+                'error' => 'A fatal error occurred: ' . $e->getMessage()
+            ], JSON_PRETTY_PRINT);
             exit;
         }
     }

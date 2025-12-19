@@ -14,3 +14,403 @@
     "searched_email": "it@gmail.com",
     "match": true
 }
+[2025-12-19 14:37:27] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 14:37:27] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 14:37:27] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 15:18:49] findByEmail called | Context: {
+    "email": "doctor@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 15:18:49] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 15:18:49] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 3,
+    "found_email": "doctor@gmail.com",
+    "found_role": "doctor",
+    "searched_email": "doctor@gmail.com",
+    "match": true
+}
+[2025-12-19 16:02:27] findByEmail called | Context: {
+    "email": "it@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 16:02:27] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 16:02:27] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 2,
+    "found_email": "it@gmail.com",
+    "found_role": "it",
+    "searched_email": "it@gmail.com",
+    "match": true
+}
+[2025-12-19 22:46:27] findByEmail called | Context: {
+    "email": "doctor@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:46:27] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:46:27] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 3,
+    "found_email": "doctor@gmail.com",
+    "found_role": "doctor",
+    "searched_email": "doctor@gmail.com",
+    "match": true
+}
+[2025-12-19 22:51:05] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:51:05] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:51:05] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 22:51:41] findByEmail called | Context: {
+    "email": "doctor@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:51:41] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:51:41] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 3,
+    "found_email": "doctor@gmail.com",
+    "found_role": "doctor",
+    "searched_email": "doctor@gmail.com",
+    "match": true
+}
+[2025-12-19 22:52:59] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:52:59] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:52:59] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 22:53:25] findByEmail called | Context: {
+    "email": "doctor@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:53:25] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:53:25] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 3,
+    "found_email": "doctor@gmail.com",
+    "found_role": "doctor",
+    "searched_email": "doctor@gmail.com",
+    "match": true
+}
+[2025-12-19 22:56:22] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:56:22] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:56:22] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 22:57:40] findByEmail called | Context: {
+    "email": "doctor@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:57:40] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:57:40] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 3,
+    "found_email": "doctor@gmail.com",
+    "found_role": "doctor",
+    "searched_email": "doctor@gmail.com",
+    "match": true
+}
+[2025-12-19 22:59:04] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:59:04] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 22:59:04] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 23:05:50] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:05:50] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:05:50] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 23:06:33] findByEmail called | Context: {
+    "email": "admin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:06:33] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:06:33] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "admin@gmail.com"
+}
+[2025-12-19 23:06:50] findByEmail called | Context: {
+    "email": "admin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:06:50] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:06:50] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "admin@gmail.com"
+}
+[2025-12-19 23:06:56] findByEmail called | Context: {
+    "email": "admin@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:06:56] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:06:56] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "admin@gmail.com"
+}
+[2025-12-19 23:08:53] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:08:53] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:08:53] findByEmail RESULT: NOT FOUND | Context: {
+    "searched_email": "student1@gmail.com"
+}
+[2025-12-19 23:08:53] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:08:53] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:08:53] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 10,
+    "found_email": "student1@gmail.com",
+    "found_role": "user",
+    "searched_email": "student1@gmail.com",
+    "match": true
+}
+[2025-12-19 23:09:57] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:09:57] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:09:57] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 10,
+    "found_email": "student1@gmail.com",
+    "found_role": "student",
+    "searched_email": "student1@gmail.com",
+    "match": true
+}
+[2025-12-19 23:24:59] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:24:59] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:24:59] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 23:38:20] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:38:20] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:38:20] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 10,
+    "found_email": "student1@gmail.com",
+    "found_role": "student",
+    "searched_email": "student1@gmail.com",
+    "match": true
+}
+[2025-12-19 23:45:42] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:45:42] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:45:42] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 10,
+    "found_email": "student1@gmail.com",
+    "found_role": "student",
+    "searched_email": "student1@gmail.com",
+    "match": true
+}
+[2025-12-19 23:48:06] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:48:07] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:48:07] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}
+[2025-12-19 23:49:01] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:49:01] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:49:01] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 10,
+    "found_email": "student1@gmail.com",
+    "found_role": "student",
+    "searched_email": "student1@gmail.com",
+    "match": true
+}
+[2025-12-19 23:51:43] findByEmail called | Context: {
+    "email": "it@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:51:43] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:51:43] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 2,
+    "found_email": "it@gmail.com",
+    "found_role": "it",
+    "searched_email": "it@gmail.com",
+    "match": true
+}
+[2025-12-19 23:52:04] findByEmail called | Context: {
+    "email": "student1@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:52:04] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:52:04] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 10,
+    "found_email": "student1@gmail.com",
+    "found_role": "student",
+    "searched_email": "student1@gmail.com",
+    "match": true
+}
+[2025-12-19 23:54:24] findByEmail called | Context: {
+    "email": "student@gmail.com",
+    "was_in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:54:24] After ensureCleanState | Context: {
+    "in_transaction": false,
+    "connection_state": "CLEAN"
+}
+[2025-12-19 23:54:24] findByEmail RESULT: FOUND | Context: {
+    "found_user_id": 4,
+    "found_email": "student@gmail.com",
+    "found_role": "student",
+    "searched_email": "student@gmail.com",
+    "match": true
+}

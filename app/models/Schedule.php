@@ -339,12 +339,12 @@ class Schedule extends Model
                                 $timetableEntry['room'] = $session['room'] ?? $entry['room'] ?? '';
                                 $timetableEntry['session_type'] = $session['session_type'] ?? $entry['session_type'] ?? 'lecture';
                                 
-                                // Ensure start_time and end_time are in proper format
-                                if (!empty($timetableEntry['start_time']) && strlen($timetableEntry['start_time']) == 5) {
-                                    $timetableEntry['start_time'] .= ':00';
+                                // Normalize time format to HH:MM (remove seconds if present)
+                                if (!empty($timetableEntry['start_time'])) {
+                                    $timetableEntry['start_time'] = substr($timetableEntry['start_time'], 0, 5);
                                 }
-                                if (!empty($timetableEntry['end_time']) && strlen($timetableEntry['end_time']) == 5) {
-                                    $timetableEntry['end_time'] .= ':00';
+                                if (!empty($timetableEntry['end_time'])) {
+                                    $timetableEntry['end_time'] = substr($timetableEntry['end_time'], 0, 5);
                                 }
                                 
                                 // If session has course_id, get course details for it
@@ -375,14 +375,39 @@ class Schedule extends Model
             // Regular single-day schedule entry
             $day = $entry['day_of_week'] ?? '';
             if ($day && isset($timetable[$day])) {
-                $timetable[$day][] = $entry;
+                // Normalize time format for regular schedules too
+                $normalizedEntry = $entry;
+                if (!empty($normalizedEntry['start_time'])) {
+                    // Convert HH:MM:SS to HH:MM if needed
+                    $normalizedEntry['start_time'] = substr($normalizedEntry['start_time'], 0, 5);
+                }
+                if (!empty($normalizedEntry['end_time'])) {
+                    // Convert HH:MM:SS to HH:MM if needed
+                    $normalizedEntry['end_time'] = substr($normalizedEntry['end_time'], 0, 5);
+                }
+                // Ensure all required fields are present
+                if (empty($normalizedEntry['section_number']) && !empty($normalizedEntry['section_id'])) {
+                    // Try to get section number if not present
+                    $sectionStmt = $this->db->prepare("SELECT section_number FROM sections WHERE section_id = :section_id");
+                    $sectionStmt->execute(['section_id' => $normalizedEntry['section_id']]);
+                    $section = $sectionStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($section) {
+                        $normalizedEntry['section_number'] = $section['section_number'];
+                    }
+                }
+                $timetable[$day][] = $normalizedEntry;
             }
         }
         
         // Sort each day by start time
         foreach ($timetable as $day => &$dayEntries) {
             usort($dayEntries, function($a, $b) {
-                return strcmp($a['start_time'] ?? '', $b['start_time'] ?? '');
+                $timeA = $a['start_time'] ?? '';
+                $timeB = $b['start_time'] ?? '';
+                // Normalize times for comparison (remove seconds if present)
+                $timeA = substr($timeA, 0, 5);
+                $timeB = substr($timeB, 0, 5);
+                return strcmp($timeA, $timeB);
             });
         }
         
