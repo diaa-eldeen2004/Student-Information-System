@@ -18,7 +18,7 @@ $rejectedEnrollmentsCount = $rejectedEnrollmentsCount ?? 0;
 
     <div class="dashboard-stats">
         <div class="stat-card">
-            <div class="stat-icon" style="background-color: #3b82f6;">
+            <div class="stat-icon" style="background-color: #14b8a6;">
                 <i class="fas fa-user-check"></i>
             </div>
             <div class="stat-content">
@@ -114,8 +114,28 @@ $rejectedEnrollmentsCount = $rejectedEnrollmentsCount ?? 0;
 </div>
 
 <style>
-/* Dark Mode CSS Variables */
+/* Light Mode CSS Variables (Default) */
 :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --border-light: #cbd5e1;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.1);
+    --shadow-md: rgba(0, 0, 0, 0.15);
+    --shadow-lg: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark Mode CSS Variables */
+[data-theme="dark"] {
     --bg-primary: #0f172a;
     --bg-secondary: #1e293b;
     --bg-tertiary: #334155;
