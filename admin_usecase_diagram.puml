@@ -1,0 +1,946 @@
+' ============================================
+' ADMIN USE CASE DIAGRAMS
+' This file contains PlantUML use case diagrams for all admin scenarios
+' Each diagram is separated by comments and can be rendered independently
+' ============================================
+
+!theme plain
+skinparam actorStyle awesome
+skinparam useCaseStyle rectangle
+
+' ============================================
+' DASHBOARD SCENARIOS
+' ============================================
+
+' Scenario 1.1: View Dashboard Statistics
+@startuml Scenario_1_1
+actor Admin
+rectangle "Admin Dashboard System" {
+  Admin --> (View Dashboard Statistics)
+  (View Dashboard Statistics) --> (Display Student Count)
+  (View Dashboard Statistics) --> (Display Doctor Count)
+  (View Dashboard Statistics) --> (Display Course Count)
+  (View Dashboard Statistics) --> (Display System Alerts)
+  (View Dashboard Statistics) --> (Display Recent Activity)
+  (View Dashboard Statistics) --> (Display Charts)
+}
+@enduml
+
+' ============================================
+
+' Scenario 1.2: View System Alerts
+@startuml Scenario_1_2
+actor Admin
+rectangle "Admin Dashboard System" {
+  Admin --> (View System Alerts)
+  (View System Alerts) --> (Check Missing Tables)
+  (View System Alerts) --> (Check System Errors)
+  (View System Alerts) --> (Display Alerts)
+}
+@enduml
+
+' ============================================
+
+' Scenario 1.3: View Recent Activity
+@startuml Scenario_1_3
+actor Admin
+rectangle "Admin Dashboard System" {
+  Admin --> (View Recent Activity)
+  (View Recent Activity) --> (Retrieve Activity Log)
+  (View Recent Activity) --> (Display Activities)
+  (View Recent Activity) --> (Show Timestamps)
+}
+@enduml
+
+' ============================================
+' PROFILE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 2.1: View Admin Profile
+@startuml Scenario_2_1
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (View Admin Profile)
+  (View Admin Profile) --> (Display Profile Information)
+  (View Admin Profile) --> (Display Account Statistics)
+}
+@enduml
+
+' ============================================
+
+' Scenario 2.2: Update Profile Information
+@startuml Scenario_2_2
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (Update Profile Information)
+  (Update Profile Information) --> (Validate Input)
+  (Update Profile Information) --> (Update Database)
+  (Update Profile Information) --> (Update Session)
+}
+@enduml
+
+' ============================================
+
+' Scenario 2.3: Update Profile - Invalid Email
+@startuml Scenario_2_3
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (Update Profile with Invalid Email)
+  (Update Profile with Invalid Email) --> (Validate Email Format)
+  (Update Profile with Invalid Email) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 2.4: Change Password
+@startuml Scenario_2_4
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (Change Password)
+  (Change Password) --> (Validate Current Password)
+  (Change Password) --> (Validate New Password)
+  (Change Password) --> (Update Password)
+}
+@enduml
+
+' ============================================
+
+' Scenario 2.5: Change Password - Wrong Current Password
+@startuml Scenario_2_5
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (Change Password with Wrong Current)
+  (Change Password with Wrong Current) --> (Validate Current Password)
+  (Change Password with Wrong Current) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 2.6: Change Password - Password Mismatch
+@startuml Scenario_2_6
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (Change Password with Mismatch)
+  (Change Password with Mismatch) --> (Validate Password Match)
+  (Change Password with Mismatch) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 2.7: Change Password - Too Short
+@startuml Scenario_2_7
+actor Admin
+rectangle "Profile Management System" {
+  Admin --> (Change Password Too Short)
+  (Change Password Too Short) --> (Validate Password Length)
+  (Change Password Too Short) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+' STUDENT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 3.1: View All Students
+@startuml Scenario_3_1
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (View All Students)
+  (View All Students) --> (Retrieve Student List)
+  (View All Students) --> (Display Student Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.2: Create New Student
+@startuml Scenario_3_2
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (Create New Student)
+  (Create New Student) --> (Validate Required Fields)
+  (Create New Student) --> (Validate Email Uniqueness)
+  (Create New Student) --> (Create User Account)
+  (Create New Student) --> (Create Student Record)
+  (Create New Student) --> (Generate Password)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.3: Create Student - Duplicate Email
+@startuml Scenario_3_3
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (Create Student with Duplicate Email)
+  (Create Student with Duplicate Email) --> (Check Email Uniqueness)
+  (Create Student with Duplicate Email) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.4: Create Student - Missing Required Fields
+@startuml Scenario_3_4
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (Create Student Missing Fields)
+  (Create Student Missing Fields) --> (Validate Required Fields)
+  (Create Student Missing Fields) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.5: Edit Student Information
+@startuml Scenario_3_5
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (Edit Student Information)
+  (Edit Student Information) --> (Validate Input)
+  (Edit Student Information) --> (Update Student Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.6: View Student Details
+@startuml Scenario_3_6
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (View Student Details)
+  (View Student Details) --> (Retrieve Student Data)
+  (View Student Details) --> (Display Complete Information)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.7: Delete Student
+@startuml Scenario_3_7
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (Delete Student)
+  (Delete Student) --> (Confirm Deletion)
+  (Delete Student) --> (Delete Student Record)
+  (Delete Student) --> (Delete User Account)
+}
+@enduml
+
+' ============================================
+
+' Scenario 3.8: Search/Filter Students
+@startuml Scenario_3_8
+actor Admin
+rectangle "Student Management System" {
+  Admin --> (Search/Filter Students)
+  (Search/Filter Students) --> (Process Search Query)
+  (Search/Filter Students) --> (Filter Results)
+  (Search/Filter Students) --> (Display Filtered List)
+}
+@enduml
+
+' ============================================
+' DOCTOR MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 4.1: View All Doctors
+@startuml Scenario_4_1
+actor Admin
+rectangle "Doctor Management System" {
+  Admin --> (View All Doctors)
+  (View All Doctors) --> (Retrieve Doctor List)
+  (View All Doctors) --> (Display Doctor Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 4.2: Create New Doctor
+@startuml Scenario_4_2
+actor Admin
+rectangle "Doctor Management System" {
+  Admin --> (Create New Doctor)
+  (Create New Doctor) --> (Validate Required Fields)
+  (Create New Doctor) --> (Validate Email Uniqueness)
+  (Create New Doctor) --> (Create User Account)
+  (Create New Doctor) --> (Create Doctor Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 4.3: Edit Doctor Information
+@startuml Scenario_4_3
+actor Admin
+rectangle "Doctor Management System" {
+  Admin --> (Edit Doctor Information)
+  (Edit Doctor Information) --> (Validate Input)
+  (Edit Doctor Information) --> (Update Doctor Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 4.4: Delete Doctor
+@startuml Scenario_4_4
+actor Admin
+rectangle "Doctor Management System" {
+  Admin --> (Delete Doctor)
+  (Delete Doctor) --> (Confirm Deletion)
+  (Delete Doctor) --> (Delete Doctor Record)
+  (Delete Doctor) --> (Delete User Account)
+}
+@enduml
+
+' ============================================
+
+' Scenario 4.5: View Doctor Details
+@startuml Scenario_4_5
+actor Admin
+rectangle "Doctor Management System" {
+  Admin --> (View Doctor Details)
+  (View Doctor Details) --> (Retrieve Doctor Data)
+  (View Doctor Details) --> (Display Complete Information)
+}
+@enduml
+
+' ============================================
+' COURSE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 5.1: View All Courses
+@startuml Scenario_5_1
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (View All Courses)
+  (View All Courses) --> (Retrieve Course List)
+  (View All Courses) --> (Display Course Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 5.2: Create New Course
+@startuml Scenario_5_2
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (Create New Course)
+  (Create New Course) --> (Validate Required Fields)
+  (Create New Course) --> (Validate Course Code Uniqueness)
+  (Create New Course) --> (Create Course Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 5.3: Create Course - Duplicate Course Code
+@startuml Scenario_5_3
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (Create Course with Duplicate Code)
+  (Create Course with Duplicate Code) --> (Check Course Code Uniqueness)
+  (Create Course with Duplicate Code) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 5.4: Edit Course Information
+@startuml Scenario_5_4
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (Edit Course Information)
+  (Edit Course Information) --> (Validate Input)
+  (Edit Course Information) --> (Update Course Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 5.5: Delete Course
+@startuml Scenario_5_5
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (Delete Course)
+  (Delete Course) --> (Confirm Deletion)
+  (Delete Course) --> (Check Dependencies)
+  (Delete Course) --> (Delete Course Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 5.6: Manage Course Sections
+@startuml Scenario_5_6
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (Manage Course Sections)
+  (Manage Course Sections) --> (View Existing Sections)
+  (Manage Course Sections) --> (Create New Section)
+  (Manage Course Sections) --> (Assign Doctors)
+  (Manage Course Sections) --> (Set Section Capacity)
+  (Manage Course Sections) --> (Set Section Schedule)
+}
+@enduml
+
+' ============================================
+
+' Scenario 5.7: Assign Doctor to Course
+@startuml Scenario_5_7
+actor Admin
+rectangle "Course Management System" {
+  Admin --> (Assign Doctor to Course)
+  (Assign Doctor to Course) --> (Select Doctor)
+  (Assign Doctor to Course) --> (Confirm Assignment)
+  (Assign Doctor to Course) --> (Create Assignment Record)
+}
+@enduml
+
+' ============================================
+' IT OFFICER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 6.1: View All IT Officers
+@startuml Scenario_6_1
+actor Admin
+rectangle "IT Officer Management System" {
+  Admin --> (View All IT Officers)
+  (View All IT Officers) --> (Retrieve IT Officer List)
+  (View All IT Officers) --> (Display IT Officer Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 6.2: Create New IT Officer
+@startuml Scenario_6_2
+actor Admin
+rectangle "IT Officer Management System" {
+  Admin --> (Create New IT Officer)
+  (Create New IT Officer) --> (Validate Required Fields)
+  (Create New IT Officer) --> (Validate Email Uniqueness)
+  (Create New IT Officer) --> (Create User Account)
+  (Create New IT Officer) --> (Create IT Officer Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 6.3: Edit IT Officer Information
+@startuml Scenario_6_3
+actor Admin
+rectangle "IT Officer Management System" {
+  Admin --> (Edit IT Officer Information)
+  (Edit IT Officer Information) --> (Validate Input)
+  (Edit IT Officer Information) --> (Update IT Officer Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 6.4: Delete IT Officer
+@startuml Scenario_6_4
+actor Admin
+rectangle "IT Officer Management System" {
+  Admin --> (Delete IT Officer)
+  (Delete IT Officer) --> (Confirm Deletion)
+  (Delete IT Officer) --> (Delete IT Officer Record)
+  (Delete IT Officer) --> (Delete User Account)
+}
+@enduml
+
+' ============================================
+
+' Scenario 6.5: Fix IT Officer Auto-Increment
+@startuml Scenario_6_5
+actor Admin
+rectangle "IT Officer Management System" {
+  Admin --> (Fix IT Officer Auto-Increment)
+  (Fix IT Officer Auto-Increment) --> (Run Fix Script)
+  (Fix IT Officer Auto-Increment) --> (Update Auto-Increment Value)
+}
+@enduml
+
+' ============================================
+' ADMIN USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 7.1: View All Admins
+@startuml Scenario_7_1
+actor Admin
+rectangle "Admin User Management System" {
+  Admin --> (View All Admins)
+  (View All Admins) --> (Retrieve Admin List)
+  (View All Admins) --> (Display Admin Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 7.2: Create New Admin
+@startuml Scenario_7_2
+actor Admin
+rectangle "Admin User Management System" {
+  Admin --> (Create New Admin)
+  (Create New Admin) --> (Validate Required Fields)
+  (Create New Admin) --> (Validate Email Uniqueness)
+  (Create New Admin) --> (Create User Account)
+  (Create New Admin) --> (Create Admin Role Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 7.3: Edit Admin Information
+@startuml Scenario_7_3
+actor Admin
+rectangle "Admin User Management System" {
+  Admin --> (Edit Admin Information)
+  (Edit Admin Information) --> (Validate Input)
+  (Edit Admin Information) --> (Update Admin Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 7.4: Delete Admin
+@startuml Scenario_7_4
+actor Admin
+rectangle "Admin User Management System" {
+  Admin --> (Delete Admin)
+  (Delete Admin) --> (Confirm Deletion)
+  (Delete Admin) --> (Check Last Admin)
+  (Delete Admin) --> (Delete Admin Record)
+  (Delete Admin) --> (Delete User Account)
+}
+@enduml
+
+' ============================================
+
+' Scenario 7.5: Change Admin Level
+@startuml Scenario_7_5
+actor Admin
+rectangle "Admin User Management System" {
+  Admin --> (Change Admin Level)
+  (Change Admin Level) --> (Select Admin Level)
+  (Change Admin Level) --> (Update Admin Level)
+}
+@enduml
+
+' ============================================
+' GENERAL USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 8.1: View All Users
+@startuml Scenario_8_1
+actor Admin
+rectangle "General User Management System" {
+  Admin --> (View All Users)
+  (View All Users) --> (Retrieve User List)
+  (View All Users) --> (Display User Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 8.2: Create New User
+@startuml Scenario_8_2
+actor Admin
+rectangle "General User Management System" {
+  Admin --> (Create New User)
+  (Create New User) --> (Validate Required Fields)
+  (Create New User) --> (Validate Email Uniqueness)
+  (Create New User) --> (Create User Account)
+}
+@enduml
+
+' ============================================
+
+' Scenario 8.3: Edit User Information
+@startuml Scenario_8_3
+actor Admin
+rectangle "General User Management System" {
+  Admin --> (Edit User Information)
+  (Edit User Information) --> (Validate Input)
+  (Edit User Information) --> (Update User Record)
+}
+@enduml
+
+' ============================================
+
+' Scenario 8.4: Delete User
+@startuml Scenario_8_4
+actor Admin
+rectangle "General User Management System" {
+  Admin --> (Delete User)
+  (Delete User) --> (Confirm Deletion)
+  (Delete User) --> (Check Dependencies)
+  (Delete User) --> (Delete User Record)
+}
+@enduml
+
+' ============================================
+' REPORT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 9.1: View All Reports
+@startuml Scenario_9_1
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (View All Reports)
+  (View All Reports) --> (Retrieve Report List)
+  (View All Reports) --> (Display Report Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.2: Create New Report
+@startuml Scenario_9_2
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Create New Report)
+  (Create New Report) --> (Validate Required Fields)
+  (Create New Report) --> (Create Report Record)
+  (Create New Report) --> (Store File if Uploaded)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.3: Create Report with File Upload
+@startuml Scenario_9_3
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Create Report with File Upload)
+  (Create Report with File Upload) --> (Validate File Size)
+  (Create Report with File Upload) --> (Validate File Type)
+  (Create Report with File Upload) --> (Store File as BLOB)
+  (Create Report with File Upload) --> (Store File Metadata)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.4: Create Report - File Too Large
+@startuml Scenario_9_4
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Create Report File Too Large)
+  (Create Report File Too Large) --> (Validate File Size)
+  (Create Report File Too Large) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.5: Create Report - Invalid File Type
+@startuml Scenario_9_5
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Create Report Invalid File Type)
+  (Create Report Invalid File Type) --> (Validate File Type)
+  (Create Report Invalid File Type) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.6: Edit Report
+@startuml Scenario_9_6
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Edit Report)
+  (Edit Report) --> (Validate Input)
+  (Edit Report) --> (Update Report Record)
+  (Edit Report) --> (Update File if New Upload)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.7: Delete Report
+@startuml Scenario_9_7
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Delete Report)
+  (Delete Report) --> (Confirm Deletion)
+  (Delete Report) --> (Delete Report Record)
+  (Delete Report) --> (Delete Associated File)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.8: Download Report File
+@startuml Scenario_9_8
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Download Report File)
+  (Download Report File) --> (Retrieve File from Database)
+  (Download Report File) --> (Serve File for Download)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.9: View Report Details
+@startuml Scenario_9_9
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (View Report Details)
+  (View Report Details) --> (Retrieve Report Data)
+  (View Report Details) --> (Display Complete Information)
+}
+@enduml
+
+' ============================================
+
+' Scenario 9.10: Run Report Migration
+@startuml Scenario_9_10
+actor Admin
+rectangle "Report Management System" {
+  Admin --> (Run Report Migration)
+  (Run Report Migration) --> (Detect Missing Table)
+  (Run Report Migration) --> (Run Migration Script)
+  (Run Report Migration) --> (Create Reports Table)
+}
+@enduml
+
+' ============================================
+' NOTIFICATION SCENARIOS
+' ============================================
+
+' Scenario 10.1: View All Notifications
+@startuml Scenario_10_1
+actor Admin
+rectangle "Notification System" {
+  Admin --> (View All Notifications)
+  (View All Notifications) --> (Retrieve Notification List)
+  (View All Notifications) --> (Display Notification Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.2: View Unread Notifications
+@startuml Scenario_10_2
+actor Admin
+rectangle "Notification System" {
+  Admin --> (View Unread Notifications)
+  (View Unread Notifications) --> (Count Unread Notifications)
+  (View Unread Notifications) --> (Display Unread Count)
+  (View Unread Notifications) --> (Highlight Unread Items)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.3: Mark Notification as Read
+@startuml Scenario_10_3
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Mark Notification as Read)
+  (Mark Notification as Read) --> (Update Notification Status)
+  (Mark Notification as Read) --> (Update Unread Count)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.4: Send Notification to All Users
+@startuml Scenario_10_4
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Send Notification to All Users)
+  (Send Notification to All Users) --> (Select All Users)
+  (Send Notification to All Users) --> (Create Notifications)
+  (Send Notification to All Users) --> (Notify All Users)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.5: Send Notification to Specific Users
+@startuml Scenario_10_5
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Send Notification to Specific Users)
+  (Send Notification to Specific Users) --> (Select Specific Users)
+  (Send Notification to Specific Users) --> (Create Notifications)
+  (Send Notification to Specific Users) --> (Notify Selected Users)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.6: Send Notification to Students Only
+@startuml Scenario_10_6
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Send Notification to Students Only)
+  (Send Notification to Students Only) --> (Select Only Students)
+  (Send Notification to Students Only) --> (Create Notifications)
+  (Send Notification to Students Only) --> (Notify Students)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.7: Send Notification to Doctors Only
+@startuml Scenario_10_7
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Send Notification to Doctors Only)
+  (Send Notification to Doctors Only) --> (Select Only Doctors)
+  (Send Notification to Doctors Only) --> (Create Notifications)
+  (Send Notification to Doctors Only) --> (Notify Doctors)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.8: Send Notification - Missing Recipients
+@startuml Scenario_10_8
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Send Notification Missing Recipients)
+  (Send Notification Missing Recipients) --> (Validate Recipients)
+  (Send Notification Missing Recipients) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 10.9: Send Notification - Missing Required Fields
+@startuml Scenario_10_9
+actor Admin
+rectangle "Notification System" {
+  Admin --> (Send Notification Missing Fields)
+  (Send Notification Missing Fields) --> (Validate Required Fields)
+  (Send Notification Missing Fields) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+' SYSTEM ADMINISTRATION SCENARIOS
+' ============================================
+
+' Scenario 11.1: Run Database Migration
+@startuml Scenario_11_1
+actor Admin
+rectangle "System Administration" {
+  Admin --> (Run Database Migration)
+  (Run Database Migration) --> (Detect Missing Table)
+  (Run Database Migration) --> (Run Migration Script)
+  (Run Database Migration) --> (Create Required Table)
+}
+@enduml
+
+' ============================================
+
+' Scenario 11.2: Check Table Existence
+@startuml Scenario_11_2
+actor Admin
+rectangle "System Administration" {
+  Admin --> (Check Table Existence)
+  (Check Table Existence) --> (Query Database)
+  (Check Table Existence) --> (Display Table Status)
+}
+@enduml
+
+' ============================================
+
+' Scenario 11.3: View System Logs
+@startuml Scenario_11_3
+actor Admin
+rectangle "System Administration" {
+  Admin --> (View System Logs)
+  (View System Logs) --> (Retrieve Activity Log)
+  (View System Logs) --> (Display Log Entries)
+}
+@enduml
+
+' ============================================
+
+' Scenario 11.4: Handle Authentication Failure
+@startuml Scenario_11_4
+actor "Unauthenticated User" as User
+rectangle "Authentication System" {
+  User --> (Access Admin Page)
+  (Access Admin Page) --> (Check Authentication)
+  (Check Authentication) --> (Redirect to Login)
+}
+@enduml
+
+' ============================================
+
+' Scenario 11.5: Handle Session Expiry
+@startuml Scenario_11_5
+actor Admin
+rectangle "Session Management System" {
+  Admin --> (Perform Action with Expired Session)
+  (Perform Action with Expired Session) --> (Detect Expired Session)
+  (Perform Action with Expired Session) --> (Clear Session)
+  (Perform Action with Expired Session) --> (Redirect to Login)
+}
+@enduml
+
+' ============================================
+
+' Scenario 11.6: Access Denied for Non-Admin
+@startuml Scenario_11_6
+actor "Non-Admin User" as User
+rectangle "Access Control System" {
+  User --> (Access Admin Page)
+  (Access Admin Page) --> (Check User Role)
+  (Access Admin Page) --> (Deny Access)
+  (Access Admin Page) --> (Redirect to Appropriate Page)
+}
+@enduml
+
+' ============================================
+' ERROR HANDLING SCENARIOS
+' ============================================
+
+' Scenario 12.1: Database Connection Error
+@startuml Scenario_12_1
+actor Admin
+rectangle "Error Handling System" {
+  Admin --> (Access System)
+  (Access System) --> (Attempt Database Connection)
+  (Attempt Database Connection) --> (Detect Connection Error)
+  (Attempt Database Connection) --> (Display Error Message)
+  (Attempt Database Connection) --> (Log Error)
+}
+@enduml
+
+' ============================================
+
+' Scenario 12.2: Missing Required Data
+@startuml Scenario_12_2
+actor Admin
+rectangle "Error Handling System" {
+  Admin --> (Perform Operation Missing Data)
+  (Perform Operation Missing Data) --> (Validate Required Data)
+  (Perform Operation Missing Data) --> (Display Error Message)
+}
+@enduml
+
+' ============================================
+
+' Scenario 12.3: Validation Error
+@startuml Scenario_12_3
+actor Admin
+rectangle "Error Handling System" {
+  Admin --> (Submit Invalid Data)
+  (Submit Invalid Data) --> (Validate Input)
+  (Submit Invalid Data) --> (Detect Validation Error)
+  (Submit Invalid Data) --> (Display Validation Error)
+}
+@enduml
+
