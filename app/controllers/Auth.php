@@ -51,7 +51,6 @@ class Auth extends Controller
                     'doctor' => 'doctor/dashboard',
                     'admin' => 'admin/dashboard',
                     'student' => 'student/dashboard',
-                    'advisor' => 'advisor/dashboard',
                     'it' => 'it/dashboard',
                     'user' => '',
                 ];

@@ -19,6 +19,8 @@ use models\AuditLog;
 use models\Notification;
 use models\Material;
 use models\CalendarEvent;
+use models\User;
+use models\Doctor;
 
 class Student extends Controller
 {
@@ -32,6 +34,8 @@ class Student extends Controller
     private Notification $notificationModel;
     private Material $materialModel;
     private CalendarEvent $calendarEventModel;
+    private User $userModel;
+    private Doctor $doctorModel;
     
     // Observer Pattern
     private EnrollmentSubject $enrollmentSubject;
@@ -70,6 +74,8 @@ class Student extends Controller
         $this->notificationModel = ModelFactory::create('Notification');
         $this->materialModel = ModelFactory::create('Material');
         $this->calendarEventModel = ModelFactory::create('CalendarEvent');
+        $this->userModel = ModelFactory::create('User');
+        $this->doctorModel = ModelFactory::create('Doctor');
 
         // Adapter Pattern - Notification service with database adapter
         $notificationAdapter = new DatabaseNotificationAdapter($this->notificationModel);
@@ -974,6 +980,137 @@ class Student extends Controller
                 'unread' => $unread,
                 'unreadNotificationsCount' => $unreadNotificationsCount,
                 'byType' => $byType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Notifications error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load notifications: ' . $e->getMessage()]);
+        }
+    }
+
+    public function sendNotification(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'] ?? null;
+            
+            if (!$userId) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+            
+            $student = $this->studentModel->findByUserId($userId);
+            if (!$student) {
+                $this->view->render('errors/404', ['title' => 'Not Found']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $userIds = $_POST['user_ids'] ?? [];
+                $title = trim($_POST['title'] ?? '');
+                $content = trim($_POST['message'] ?? '');
+                $type = trim($_POST['type'] ?? 'info');
+
+                if (!empty($userIds) && $title && $content) {
+                    $successCount = 0;
+                    $errorCount = 0;
+                    
+                    foreach ($userIds as $targetUserId) {
+                        $targetUserId = (int)$targetUserId;
+                        if ($targetUserId > 0) {
+                            if ($this->notificationModel->create([
+                                'user_id' => $targetUserId,
+                                'title' => $title,
+                                'message' => $content,
+                                'type' => $type,
+                                'related_id' => $student['student_id'],
+                                'related_type' => 'student'
+                            ])) {
+                                $successCount++;
+                            } else {
+                                $errorCount++;
+                            }
+                        }
+                    }
+                    
+                    if ($successCount > 0) {
+                        $message = "Message sent successfully to {$successCount} recipient(s)";
+                        if ($errorCount > 0) {
+                            $message .= ". {$errorCount} failed.";
+                        }
+                        $messageType = 'success';
+                    } else {
+                        $message = 'Error sending messages';
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = 'Please select at least one recipient and fill all required fields';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get doctors from student's enrolled courses
+            $studentId = $student['student_id'];
+            $enrolledCourses = $this->studentModel->getEnrolledCourses($studentId);
+            $doctors = [];
+            $doctorUserIds = [];
+
+            foreach ($enrolledCourses as $course) {
+                $courseId = $course['course_id'] ?? null;
+                if ($courseId) {
+                    // Get doctors assigned to this course
+                    $courseDoctors = $this->courseModel->getAssignedDoctors($courseId);
+                    foreach ($courseDoctors as $doctor) {
+                        $doctorId = $doctor['doctor_id'] ?? null;
+                        if ($doctorId) {
+                            // Get doctor record to get user_id
+                            $doctorRecord = $this->doctorModel->findById($doctorId);
+                            if ($doctorRecord && isset($doctorRecord['user_id'])) {
+                                $doctorUserId = $doctorRecord['user_id'];
+                                if (!in_array($doctorUserId, $doctorUserIds)) {
+                                    $doctors[] = [
+                                        'user_id' => $doctorUserId,
+                                        'first_name' => $doctor['first_name'] ?? $doctorRecord['first_name'] ?? '',
+                                        'last_name' => $doctor['last_name'] ?? $doctorRecord['last_name'] ?? '',
+                                        'email' => $doctor['email'] ?? $doctorRecord['email'] ?? '',
+                                        'role' => 'doctor',
+                                        'doctor_id' => $doctorId,
+                                        'course_code' => $course['course_code'] ?? '',
+                                        'course_name' => $course['name'] ?? ''
+                                    ];
+                                    $doctorUserIds[] = $doctorUserId;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Also allow sending to admins
+            $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT * FROM users WHERE role = 'admin'");
+            $stmt->execute();
+            $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($admins as $admin) {
+                if (!in_array($admin['id'], $doctorUserIds)) {
+                    $doctors[] = [
+                        'user_id' => $admin['id'],
+                        'first_name' => $admin['first_name'] ?? '',
+                        'last_name' => $admin['last_name'] ?? '',
+                        'email' => $admin['email'] ?? '',
+                        'role' => 'admin'
+                    ];
+                }
+            }
+
+            $this->view->render('student/student_send_notification', [
+                'title' => 'Send Message',
+                'student' => $student,
+                'recipients' => $doctors,
+                'message' => $message,
+                'messageType' => $messageType,
                 'showSidebar' => true,
             ]);
         } catch (\Exception $e) {

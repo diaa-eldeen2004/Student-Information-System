@@ -2,7 +2,6 @@
 namespace controllers;
 
 use core\Controller;
-use models\Advisor;
 use models\User;
 use models\Student;
 use models\Doctor;
@@ -11,12 +10,11 @@ use models\AuditLog;
 use models\ItOfficer;
 use models\AdminRole;
 use models\Report;
-use models\CalendarEvent;
+use models\Notification;
 use PDO;
 
 class Admin extends Controller
 {
-    private Advisor $advisorModel;
     private User $userModel;
     private Student $studentModel;
     private Doctor $doctorModel;
@@ -25,7 +23,7 @@ class Admin extends Controller
     private ItOfficer $itOfficerModel;
     private AdminRole $adminRoleModel;
     private Report $reportModel;
-    private CalendarEvent $calendarEventModel;
+    private Notification $notificationModel;
 
     public function __construct()
     {
@@ -40,7 +38,6 @@ class Admin extends Controller
             $this->redirectTo('auth/login');
         }
 
-        $this->advisorModel = new Advisor();
         $this->userModel = new User();
         $this->studentModel = new Student();
         $this->doctorModel = new Doctor();
@@ -49,7 +46,7 @@ class Admin extends Controller
         $this->itOfficerModel = new ItOfficer();
         $this->adminRoleModel = new AdminRole();
         $this->reportModel = new Report();
-        $this->calendarEventModel = new CalendarEvent();
+        $this->notificationModel = new Notification();
     }
 
     private function redirectTo(string $path): void
@@ -242,216 +239,12 @@ class Admin extends Controller
         $stmt = $db->query("
             SELECT role, COUNT(*) as count 
             FROM users 
-            WHERE role IN ('student', 'doctor', 'advisor', 'it', 'admin')
+            WHERE role IN ('student', 'doctor', 'it', 'admin')
             GROUP BY role
         ");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    public function calendar(): void
-    {
-        $message = null;
-        $messageType = 'info';
 
-        // Check if calendar_events table exists
-        $tableExists = $this->calendarEventModel->tableExists();
-
-        // Get current month/year for calendar display
-        $currentMonth = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
-        $currentYear = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
-
-        // Read filters from query params
-        $search = trim($_GET['search'] ?? '');
-        $eventTypeFilter = trim($_GET['eventType'] ?? '');
-        $departmentFilter = trim($_GET['department'] ?? '');
-        $monthFilter = trim($_GET['monthFilter'] ?? '');
-
-        // Initialize default values
-        $eventsThisMonth = 0;
-        $examsScheduled = 0;
-        $conflicts = 0;
-        $peopleAffected = 0;
-        $events = [];
-        $upcomingEvents = [];
-        $calendarEvents = [];
-        $eventsByDay = [];
-        $departments = [];
-        $editEvent = null;
-
-        if ($tableExists) {
-            // Get statistics
-            $eventsThisMonth = $this->calendarEventModel->getCountThisMonth($currentMonth, $currentYear);
-            $examsScheduled = $this->calendarEventModel->getExamsScheduledCount();
-            $conflicts = $this->calendarEventModel->getConflictsCount();
-            $peopleAffected = $this->calendarEventModel->getPeopleAffectedCount();
-
-            // Build filters for getAll
-            $filters = [];
-            if ($search) $filters['search'] = $search;
-            if ($eventTypeFilter) $filters['eventType'] = $eventTypeFilter;
-            if ($departmentFilter) $filters['department'] = $departmentFilter;
-            if ($monthFilter) $filters['month'] = (int)$monthFilter;
-
-            // Get events with filters
-            $events = $this->calendarEventModel->getAll($filters);
-
-            // Get upcoming events (next 7 days)
-            $upcomingEvents = $this->calendarEventModel->getUpcomingEvents(7, 10);
-
-            // Get events for current month for calendar grid
-            $calendarEvents = $this->calendarEventModel->getEventsForMonth($currentMonth, $currentYear, 'active');
-
-            // Group events by day for calendar display
-            foreach ($calendarEvents as $event) {
-                $day = (int)date('j', strtotime($event['start_date']));
-                if (!isset($eventsByDay[$day])) {
-                    $eventsByDay[$day] = [];
-                }
-                $eventsByDay[$day][] = $event;
-            }
-
-            // Get unique departments for filter
-            $departments = $this->calendarEventModel->getUniqueDepartments();
-
-            // Handle POST requests (Create, Update, Delete)
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $action = $_POST['action'] ?? '';
-
-                if ($action === 'create' || $action === 'update') {
-                    $title = trim($_POST['title'] ?? '');
-                    $description = trim($_POST['description'] ?? '');
-                    $eventType = trim($_POST['event_type'] ?? 'other');
-                    $status = trim($_POST['status'] ?? 'active');
-                    $startDate = trim($_POST['start_date'] ?? '');
-                    $endDate = trim($_POST['end_date'] ?? '');
-                    $department = trim($_POST['department'] ?? '');
-                    $location = trim($_POST['location'] ?? '');
-                    $courseId = !empty($_POST['course_id']) ? (int)$_POST['course_id'] : null;
-
-                    // Validate required fields
-                    if (empty($title)) {
-                        $message = 'Event title is required';
-                        $messageType = 'error';
-                    } elseif (empty($startDate)) {
-                        $message = 'Start date is required';
-                        $messageType = 'error';
-                    } elseif (empty($eventType)) {
-                        $message = 'Event type is required';
-                        $messageType = 'error';
-                    } else {
-                        // Convert datetime-local format (YYYY-MM-DDTHH:MM) to MySQL DATETIME format (YYYY-MM-DD HH:MM:SS)
-                        $startDateFormatted = str_replace('T', ' ', $startDate);
-                        if (strlen($startDateFormatted) === 16) {
-                            $startDateFormatted .= ':00'; // Add seconds
-                        }
-                        
-                        $endDateFormatted = null;
-                        if (!empty($endDate)) {
-                            $endDateFormatted = str_replace('T', ' ', $endDate);
-                            if (strlen($endDateFormatted) === 16) {
-                                $endDateFormatted .= ':00'; // Add seconds
-                            }
-                        }
-                        
-                        // Prepare data
-                        $data = [
-                            'title' => $title,
-                            'description' => $description,
-                            'event_type' => $eventType,
-                            'status' => $status,
-                            'start_date' => $startDateFormatted,
-                            'department' => $department ?: null,
-                            'location' => $location ?: null,
-                            'course_id' => $courseId,
-                        ];
-
-                        if (!empty($endDateFormatted)) {
-                            $data['end_date'] = $endDateFormatted;
-                        }
-
-                        if ($action === 'create') {
-                            if ($this->calendarEventModel->create($data)) {
-                                $message = 'Event created successfully';
-                                $messageType = 'success';
-                                $this->redirectTo('admin/calendar?success=1');
-                            } else {
-                                $message = 'Failed to create event';
-                                $messageType = 'error';
-                            }
-                        } else {
-                            $eventId = (int)($_POST['id'] ?? 0);
-                            if ($eventId > 0 && $this->calendarEventModel->update($eventId, $data)) {
-                                $message = 'Event updated successfully';
-                                $messageType = 'success';
-                                $this->redirectTo('admin/calendar?success=1');
-                            } else {
-                                $message = 'Failed to update event';
-                                $messageType = 'error';
-                            }
-                        }
-                    }
-                } elseif ($action === 'delete') {
-                    $eventId = (int)($_POST['id'] ?? $_POST['event_id'] ?? 0);
-                    if ($eventId > 0 && $this->calendarEventModel->delete($eventId)) {
-                        $message = 'Event deleted successfully';
-                        $messageType = 'success';
-                        $this->redirectTo('admin/calendar?success=1');
-                    } else {
-                        $message = 'Failed to delete event';
-                        $messageType = 'error';
-                    }
-                }
-            }
-
-            // Check if editing an event
-            if (isset($_GET['edit'])) {
-                $editId = (int)$_GET['edit'];
-                $editEvent = $this->calendarEventModel->findById($editId);
-                if (!$editEvent) {
-                    $message = 'Event not found';
-                    $messageType = 'error';
-                }
-            }
-        }
-
-        // Generate calendar grid data
-        $firstDay = mktime(0, 0, 0, $currentMonth, 1, $currentYear);
-        $daysInMonth = date('t', $firstDay);
-        $dayOfWeek = date('w', $firstDay); // 0 = Sunday, 6 = Saturday
-        $monthName = date('F', $firstDay);
-
-        // Check for success message
-        if (isset($_GET['success'])) {
-            $message = 'Operation completed successfully';
-            $messageType = 'success';
-        }
-
-        $this->view->render('admin/admin_calendar', [
-            'title' => 'Calendar Management',
-            'tableExists' => $tableExists,
-            'eventsThisMonth' => $eventsThisMonth,
-            'examsScheduled' => $examsScheduled,
-            'conflicts' => $conflicts,
-            'peopleAffected' => $peopleAffected,
-            'events' => $events,
-            'upcomingEvents' => $upcomingEvents,
-            'eventsByDay' => $eventsByDay,
-            'departments' => $departments,
-            'currentMonth' => $currentMonth,
-            'currentYear' => $currentYear,
-            'monthName' => $monthName,
-            'daysInMonth' => $daysInMonth,
-            'dayOfWeek' => $dayOfWeek,
-            'firstDay' => $firstDay,
-            'search' => $search,
-            'eventTypeFilter' => $eventTypeFilter,
-            'departmentFilter' => $departmentFilter,
-            'monthFilter' => $monthFilter,
-            'message' => $message,
-            'messageType' => $messageType,
-            'editEvent' => $editEvent ?? null,
-            'showSidebar' => true,
-        ]);
-    }
     public function profile(): void
     {
         $message = null;
@@ -619,8 +412,15 @@ class Admin extends Controller
         $tableExists = $this->reportModel->tableExists();
 
         // Handle POST requests (Create, Update, Delete)
+        error_log("=== REPORT POST REQUEST START ===");
+        error_log("REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
+        error_log("Table exists: " . ($tableExists ? 'YES' : 'NO'));
+        error_log("POST data: " . print_r($_POST, true));
+        error_log("FILES data: " . print_r($_FILES, true));
+        
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tableExists) {
             $action = $_POST['action'] ?? '';
+            error_log("Action: " . $action);
 
             if ($action === 'create' || $action === 'update') {
                 $title = trim($_POST['title'] ?? $_POST['report_name'] ?? '');
@@ -630,9 +430,12 @@ class Admin extends Controller
                 $file_path = trim($_POST['file_path'] ?? '');
                 $parameters = $_POST['parameters'] ?? '';
 
+                error_log("Extracted values - Title: '{$title}', Type: '{$type}', Period: '{$period}', Status: '{$status}'");
+
                 if (empty($title)) {
                     $message = 'Report title is required';
                     $messageType = 'error';
+                    error_log("ERROR: Title is empty");
                 } else {
                     $reportData = [
                         'title' => $title,
@@ -641,6 +444,56 @@ class Admin extends Controller
                         'status' => $status,
                         'file_path' => $file_path ?: null,
                     ];
+
+                    // Handle file upload if file_data column exists
+                    $hasFileDataColumn = $this->reportModel->columnExists('file_data');
+                    error_log("File_data column exists: " . ($hasFileDataColumn ? 'YES' : 'NO'));
+                    
+                    if ($hasFileDataColumn) {
+                        if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] === UPLOAD_ERR_OK) {
+                            $file = $_FILES['report_file'];
+                            $maxFileSize = 5 * 1024 * 1024; // 5MB limit to avoid MySQL issues
+                            
+                            error_log("File upload detected: " . $file['name'] . " (" . $file['size'] . " bytes)");
+                            
+                            // Check file size
+                            if ($file['size'] > $maxFileSize) {
+                                $message = 'File is too large. Maximum file size is 5MB. Your file is ' . round($file['size'] / 1024 / 1024, 2) . 'MB.';
+                                $messageType = 'error';
+                                error_log("File too large: " . $file['size'] . " bytes (max: " . $maxFileSize . ")");
+                            } else {
+                                try {
+                                    $fileContents = file_get_contents($file['tmp_name']);
+                                    if ($fileContents === false) {
+                                        throw new \Exception("Failed to read file contents");
+                                    }
+                                    $reportData['file_data'] = $fileContents;
+                                    $reportData['file_name'] = $file['name'];
+                                    $reportData['file_type'] = $file['type'];
+                                    $reportData['file_size'] = $file['size'];
+                                    error_log("File loaded successfully: " . strlen($fileContents) . " bytes");
+                                } catch (\Exception $e) {
+                                    $message = 'Failed to read uploaded file: ' . $e->getMessage();
+                                    $messageType = 'error';
+                                    error_log("File read error: " . $e->getMessage());
+                                }
+                            }
+                        } elseif (isset($_FILES['report_file'])) {
+                            $uploadError = $_FILES['report_file']['error'];
+                            $errorMessages = [
+                                UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize directive',
+                                UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE directive',
+                                UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
+                                UPLOAD_ERR_NO_FILE => 'No file was uploaded',
+                                UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+                                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                                UPLOAD_ERR_EXTENSION => 'File upload stopped by extension',
+                            ];
+                            $errorMsg = $errorMessages[$uploadError] ?? 'Unknown upload error (' . $uploadError . ')';
+                            error_log("File upload error: " . $errorMsg);
+                            // Don't set message here - file upload is optional
+                        }
+                    }
 
                     if (!empty($parameters)) {
                         try {
@@ -652,16 +505,34 @@ class Admin extends Controller
                             }
                         } catch (\Exception $e) {
                             $reportData['parameters'] = $parameters;
+                            error_log("JSON decode error: " . $e->getMessage());
                         }
                     }
 
+                    error_log("Final report data (without file_data): " . print_r(array_merge($reportData, ['file_data' => isset($reportData['file_data']) ? '[BINARY DATA ' . strlen($reportData['file_data']) . ' bytes]' : 'NULL']), true));
+
                     if ($action === 'create') {
-                        $success = $this->reportModel->create($reportData);
-                        if ($success) {
-                            $message = 'Report created successfully';
-                            $messageType = 'success';
-                        } else {
-                            $message = 'Failed to create report';
+                        error_log("Calling reportModel->create()...");
+                        try {
+                            $success = $this->reportModel->create($reportData);
+                            error_log("create() returned: " . ($success ? 'TRUE' : 'FALSE'));
+                            
+                            if ($success) {
+                                $message = 'Report created successfully';
+                                $messageType = 'success';
+                                error_log("SUCCESS: Report created");
+                            } else {
+                                // Get the actual error from the model
+                                $errorMsg = $this->reportModel->lastError ?? 'Unknown error occurred';
+                                $message = 'Failed to create report: ' . htmlspecialchars($errorMsg);
+                                $messageType = 'error';
+                                error_log("ERROR: Report creation returned FALSE - Error: {$errorMsg}");
+                                error_log("ERROR: Report creation returned FALSE - Data: " . print_r(array_merge($reportData, ['file_data' => isset($reportData['file_data']) ? '[BINARY DATA]' : 'NULL']), true));
+                            }
+                        } catch (\Exception $e) {
+                            error_log("EXCEPTION in create(): " . $e->getMessage());
+                            error_log("Stack trace: " . $e->getTraceAsString());
+                            $message = 'Failed to create report: ' . htmlspecialchars($e->getMessage());
                             $messageType = 'error';
                         }
                     } else {
@@ -673,7 +544,8 @@ class Admin extends Controller
                                 $message = 'Report updated successfully';
                                 $messageType = 'success';
                             } else {
-                                $message = 'Failed to update report';
+                                $errorMsg = $this->reportModel->lastError ?? 'Unknown error occurred';
+                                $message = 'Failed to update report: ' . htmlspecialchars($errorMsg);
                                 $messageType = 'error';
                             }
                         } else {
@@ -701,13 +573,20 @@ class Admin extends Controller
 
             // Redirect to avoid resubmission
             if ($message) {
-                $config = require dirname(__DIR__) . '/config/config.php';
-                $base = rtrim($config['base_url'] ?? '', '/');
-                $redirectUrl = $base . '/admin/reports?message=' . urlencode($message) . '&type=' . urlencode($messageType);
-                header('Location: ' . $redirectUrl);
-                exit;
+                error_log("Redirecting with message: {$message} (type: {$messageType})");
+                $this->redirectTo('admin/reports?message=' . urlencode($message) . '&type=' . urlencode($messageType));
+            } else {
+                error_log("No message set, not redirecting");
+            }
+        } else {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                error_log("POST request but table doesn't exist or method mismatch");
+                if (!$tableExists) {
+                    error_log("ERROR: Reports table does not exist!");
+                }
             }
         }
+        error_log("=== REPORT POST REQUEST END ===");
 
         // Get filter parameters
         $search = trim($_GET['search'] ?? '');
@@ -752,6 +631,9 @@ class Admin extends Controller
             $editReport = $this->reportModel->findById((int)$_GET['edit']);
         }
 
+        // Check if file_data column exists (for migration button)
+        $fileDataColumnExists = $tableExists && $this->reportModel->columnExists('file_data');
+
         $this->view->render('admin/admin_reports', [
             'title' => 'Reports & Analytics',
             'reports' => $reports,
@@ -769,6 +651,7 @@ class Admin extends Controller
             'messageType' => $messageType,
             'editReport' => $editReport,
             'tableExists' => $tableExists,
+            'fileDataColumnExists' => $fileDataColumnExists,
             'showSidebar' => true,
         ]);
     }
@@ -1258,8 +1141,23 @@ class Admin extends Controller
         if (!empty($search)) $filters['search'] = $search;
         if (!empty($departmentFilter)) $filters['department'] = $departmentFilter;
 
-        // Get courses with filters
-        $courses = $this->courseModel->getCoursesWithDoctorInfo($filters);
+        // Check if sections table exists first
+        $sectionsTableExists = $this->checkTableExists('sections');
+        
+        // Get courses with filters - handle gracefully if sections table doesn't exist
+        try {
+            $courses = $this->courseModel->getCoursesWithDoctorInfo($filters);
+        } catch (\PDOException $e) {
+            // If sections table doesn't exist, get courses without doctor info
+            error_log("Error getting courses with doctor info: " . $e->getMessage());
+            $courses = $this->courseModel->getAll();
+            // Add empty doctor and student count fields
+            foreach ($courses as &$course) {
+                $course['doctors'] = '';
+                $course['student_count'] = 0;
+            }
+        }
+        
         $totalCourses = $this->courseModel->getCount($filters);
         $coursesThisSemester = $this->courseModel->getThisMonthCount();
         $activeCourses = $this->courseModel->getActiveCount();
@@ -1275,6 +1173,9 @@ class Admin extends Controller
             $editCourse = $this->courseModel->findById((int)$_GET['edit']);
         }
 
+        // Check if sections table exists
+        $sectionsTableExists = $this->checkTableExists('sections');
+
         $this->view->render('admin/admin_manage_course', [
             'title' => 'Manage Courses',
             'courses' => $courses,
@@ -1287,158 +1188,7 @@ class Admin extends Controller
             'message' => $message,
             'messageType' => $messageType,
             'editCourse' => $editCourse,
-            'showSidebar' => true,
-        ]);
-    }
-
-    public function manageAdvisor(): void
-    {
-        $message = null;
-        $messageType = 'info';
-
-        // Handle POST requests (Create, Update, Delete)
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $action = $_POST['action'] ?? '';
-
-            if ($action === 'create' || $action === 'update') {
-                $first_name = trim($_POST['first_name'] ?? '');
-                $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim(strtolower($_POST['email'] ?? '')); // Normalize email to lowercase
-                $phone = trim($_POST['phone'] ?? '');
-                $department = trim($_POST['department'] ?? '');
-                $password = $_POST['password'] ?? '';
-
-                if (empty($first_name) || empty($last_name) || empty($email)) {
-                    $message = 'First name, last name, and email are required';
-                    $messageType = 'error';
-                } else {
-                    $userData = [
-                        'first_name' => $first_name,
-                        'last_name' => $last_name,
-                        'email' => $email,
-                        'phone' => $phone,
-                    ];
-
-                    $advisorData = [
-                        'department' => $department ?: null,
-                    ];
-
-                    if ($action === 'create') {
-                        // CRITICAL: Use singleton's ensureCleanState method to ensure clean connection state
-                        // This properly handles transaction state without interfering with model operations
-                        $dbSingleton = \patterns\Singleton\DatabaseConnection::getInstance();
-                        $dbSingleton->ensureCleanState();
-                        
-                        // Check if email already exists (case-insensitive)
-                        error_log("Checking email existence for advisor: " . $email);
-                        $existingUser = $this->userModel->findByEmail($email);
-                        if ($existingUser) {
-                            $message = 'Email already exists: ' . htmlspecialchars($email) . ' (Found in database with ID: ' . ($existingUser['id'] ?? 'N/A') . ')';
-                            $messageType = 'error';
-                            error_log("Email check FAILED - Found existing user: ID={$existingUser['id']}, Email='{$existingUser['email']}', Role={$existingUser['role']}, Searching for: '{$email}'");
-                        } else {
-                            error_log("Email check PASSED - No existing user found for: '{$email}'");
-                            // Generate password if not provided
-                            if (empty($password)) {
-                                $password = bin2hex(random_bytes(8)); // Generate random password
-                            }
-                            $userData['password'] = password_hash($password, PASSWORD_DEFAULT);
-
-                            $success = $this->advisorModel->createAdvisor($userData, $advisorData);
-                            if ($success) {
-                                // CRITICAL: Ensure clean state after successful creation
-                                $dbSingleton->ensureCleanState();
-                                $message = 'Advisor created successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to create advisor';
-                                $messageType = 'error';
-                            }
-                        }
-                    } else {
-                        // Update
-                        $advisorId = (int)($_POST['advisor_id'] ?? 0);
-                        if ($advisorId > 0) {
-                            if (!empty($password)) {
-                                $userData['password'] = $password; // Will be hashed in model
-                            }
-                            $success = $this->advisorModel->updateAdvisor($advisorId, $userData, $advisorData);
-                            if ($success) {
-                                $message = 'Advisor updated successfully';
-                                $messageType = 'success';
-                            } else {
-                                $message = 'Failed to update advisor';
-                                $messageType = 'error';
-                            }
-                        } else {
-                            $message = 'Invalid advisor ID';
-                            $messageType = 'error';
-                        }
-                    }
-                }
-            } elseif ($action === 'delete') {
-                $advisorId = (int)($_POST['advisor_id'] ?? 0);
-                if ($advisorId > 0) {
-                    $success = $this->advisorModel->deleteAdvisor($advisorId);
-                    if ($success) {
-                        $message = 'Advisor deleted successfully';
-                        $messageType = 'success';
-                    } else {
-                        $message = 'Failed to delete advisor';
-                        $messageType = 'error';
-                    }
-                } else {
-                    $message = 'Invalid advisor ID';
-                    $messageType = 'error';
-                }
-            }
-
-            // Redirect to avoid resubmission
-            if ($message) {
-                $config = require dirname(__DIR__) . '/config/config.php';
-                $base = rtrim($config['base_url'] ?? '', '/');
-                $redirectUrl = $base . '/admin/manage-advisor?message=' . urlencode($message) . '&type=' . urlencode($messageType);
-                header('Location: ' . $redirectUrl);
-                exit;
-            }
-        }
-
-        // Get filter parameters
-        $search = trim($_GET['search'] ?? '');
-        $departmentFilter = trim($_GET['department'] ?? '');
-
-        // Build filters array
-        $filters = [];
-        if (!empty($search)) $filters['search'] = $search;
-        if (!empty($departmentFilter)) $filters['department'] = $departmentFilter;
-
-        // Get advisors with filters
-        $advisors = $this->advisorModel->getAll($filters);
-        $totalAdvisors = $this->advisorModel->getCount($filters);
-        $advisorsThisMonth = $this->advisorModel->getThisMonthCount();
-        $departments = $this->advisorModel->getUniqueDepartments();
-
-        // Get message from URL if redirected
-        $message = $message ?? $_GET['message'] ?? null;
-        $messageType = $messageType ?? $_GET['type'] ?? 'info';
-
-        // Get advisor for edit if requested
-        $editAdvisor = null;
-        if (isset($_GET['edit']) && !empty($_GET['edit'])) {
-            $editAdvisor = $this->advisorModel->findByAdvisorId((int)$_GET['edit']);
-        }
-
-        $this->view->render('admin/admin_manage_advisor', [
-            'title' => 'Manage Advisors',
-            'advisors' => $advisors,
-            'totalAdvisors' => $totalAdvisors,
-            'advisorsThisMonth' => $advisorsThisMonth,
-            'departments' => $departments,
-            'search' => $search,
-            'departmentFilter' => $departmentFilter,
-            'message' => $message,
-            'messageType' => $messageType,
-            'editAdvisor' => $editAdvisor,
+            'sectionsTableExists' => $sectionsTableExists,
             'showSidebar' => true,
         ]);
     }
@@ -2096,21 +1846,6 @@ class Admin extends Controller
         }
     }
 
-    public function getAdvisorDetails(): void
-    {
-        header('Content-Type: application/json');
-        $advisorId = (int)($_GET['id'] ?? 0);
-        if ($advisorId <= 0) {
-            echo json_encode(['success' => false, 'message' => 'Invalid advisor ID']);
-            return;
-        }
-        $advisor = $this->advisorModel->findByAdvisorId($advisorId);
-        if ($advisor) {
-            echo json_encode(['success' => true, 'data' => $advisor]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Advisor not found']);
-        }
-    }
 
     public function getItOfficerDetails(): void
     {
@@ -2188,6 +1923,330 @@ class Admin extends Controller
                 'success' => false,
                 'message' => 'Unexpected error: ' . $e->getMessage()
             ]);
+        }
+    }
+
+    /**
+     * Check if a table exists in the database
+     */
+    private function checkTableExists(string $tableName): bool
+    {
+        try {
+            $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+            $stmt = $db->query("SHOW TABLES LIKE '{$tableName}'");
+            return $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log("Error checking table existence: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Run a specific migration file
+     */
+    public function runTableMigration(): void
+    {
+        // Start output buffering to catch any unwanted output
+        ob_start();
+        
+        // Security: Only allow admins
+        if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+            ob_end_clean();
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+            exit;
+        }
+
+        // Clear any output buffer and set headers
+        ob_end_clean();
+        header('Content-Type: application/json');
+        header('Cache-Control: no-cache, must-revalidate');
+        
+        $migrationFile = $_POST['file'] ?? $_GET['file'] ?? '';
+        if (empty($migrationFile)) {
+            echo json_encode(['success' => false, 'message' => 'No migration file specified']);
+            exit;
+        }
+
+        $dbConfig = require dirname(__DIR__) . '/config/database.php';
+        
+        $host = $dbConfig['host'];
+        $port = $dbConfig['port'];
+        $database = $dbConfig['database'];
+        $username = $dbConfig['username'];
+        $password = $dbConfig['password'];
+        $charset = $dbConfig['charset'];
+        
+        $messages = [];
+        $success = false;
+        
+        try {
+            // Connect to the database
+            $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', $host, $port, $database, $charset);
+            $pdo = new PDO($dsn, $username, $password, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ]);
+            
+            // Read migration file
+            $migrationPath = dirname(__DIR__, 2) . '/database/migrations/' . basename($migrationFile);
+            
+            if (!file_exists($migrationPath)) {
+                throw new \Exception("Migration file not found: {$migrationFile}");
+            }
+            
+            $messages[] = "Reading migration file: {$migrationFile}";
+            $sql = file_get_contents($migrationPath);
+            
+            // Remove comments
+            $sql = preg_replace('/--.*$/m', '', $sql);
+            
+            // Split SQL into individual statements
+            $statements = [];
+            $currentStatement = '';
+            $lines = explode("\n", $sql);
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (empty($line) || strpos($line, '--') === 0) {
+                    continue;
+                }
+                
+                $currentStatement .= $line . " ";
+                
+                if (substr(rtrim($line), -1) === ';') {
+                    $stmt = trim($currentStatement);
+                    if (!empty($stmt)) {
+                        $statements[] = rtrim($stmt, ';');
+                    }
+                    $currentStatement = '';
+                }
+            }
+            
+            if (!empty(trim($currentStatement))) {
+                $statements[] = trim($currentStatement);
+            }
+            
+            $statements = array_filter($statements, function($stmt) {
+                return !empty(trim($stmt));
+            });
+            
+            $messages[] = "Found " . count($statements) . " SQL statement(s)";
+            
+            // Execute each statement
+            foreach ($statements as $statement) {
+                $statement = trim($statement);
+                if (empty($statement)) {
+                    continue;
+                }
+                
+                $statement = rtrim($statement, ';');
+                $pdo->exec($statement);
+            }
+            
+            $success = true;
+            $messages[] = "Migration completed successfully!";
+            
+        } catch (\PDOException $e) {
+            $messages[] = "Migration failed: " . $e->getMessage();
+            error_log("Migration error: " . $e->getMessage());
+        } catch (\Exception $e) {
+            $messages[] = "Error: " . $e->getMessage();
+            error_log("Migration error: " . $e->getMessage());
+        }
+        
+        // Ensure no output before JSON
+        if (ob_get_level()) {
+            ob_clean();
+        }
+        
+        echo json_encode([
+            'success' => $success,
+            'messages' => $messages
+        ]);
+        exit;
+    }
+
+    public function notifications(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            
+            if (!$userId) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            // Handle mark as read action
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_read') {
+                $notificationId = (int)($_POST['notification_id'] ?? 0);
+                if ($notificationId) {
+                    $this->notificationModel->markAsRead($notificationId, $userId);
+                }
+                $this->redirectTo('admin/notifications');
+                return;
+            }
+
+            // Get notifications for the admin
+            $notifications = $this->notificationModel->getByUserId($userId, 50);
+            $unreadNotifications = $this->notificationModel->getUnreadByUserId($userId);
+            $unreadCount = count($unreadNotifications);
+            $unreadNotificationsCount = $unreadCount;
+
+            $this->view->render('admin/admin_notifications', [
+                'title' => 'Notifications',
+                'notifications' => $notifications,
+                'unreadCount' => $unreadCount,
+                'unreadNotificationsCount' => $unreadNotificationsCount,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Notifications error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to load notifications: ' . $e->getMessage()]);
+        }
+    }
+
+    public function sendNotification(): void
+    {
+        try {
+            $userId = $_SESSION['user']['id'];
+            
+            if (!$userId) {
+                $this->view->render('errors/403', ['title' => 'Access Denied']);
+                return;
+            }
+
+            $message = null;
+            $messageType = 'info';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $userIds = $_POST['user_ids'] ?? [];
+                $title = trim($_POST['title'] ?? '');
+                $content = trim($_POST['message'] ?? '');
+                $type = trim($_POST['type'] ?? 'info');
+
+                if (!empty($userIds) && $title && $content) {
+                    $successCount = 0;
+                    $errorCount = 0;
+                    
+                    foreach ($userIds as $targetUserId) {
+                        $targetUserId = (int)$targetUserId;
+                        if ($targetUserId > 0) {
+                            if ($this->notificationModel->create([
+                                'user_id' => $targetUserId,
+                                'title' => $title,
+                                'message' => $content,
+                                'type' => $type,
+                                'related_id' => $userId,
+                                'related_type' => 'admin'
+                            ])) {
+                                $successCount++;
+                            } else {
+                                $errorCount++;
+                            }
+                        }
+                    }
+                    
+                    if ($successCount > 0) {
+                        $message = "Notification sent successfully to {$successCount} user(s)";
+                        if ($errorCount > 0) {
+                            $message .= ". {$errorCount} failed.";
+                        }
+                        $messageType = 'success';
+                    } else {
+                        $message = 'Error sending notifications';
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = 'Please select at least one user and fill all required fields';
+                    $messageType = 'error';
+                }
+            }
+
+            // Get all users (students, doctors, IT officers, admins) for admin to send notifications to
+            $allUsers = [];
+            
+            // Get all students
+            $students = $this->studentModel->getAll();
+            foreach ($students as $student) {
+                if (isset($student['user_id']) && $student['user_id']) {
+                    $user = $this->userModel->findById($student['user_id']);
+                    if ($user && !isset($allUsers[$user['id']])) {
+                        $allUsers[$user['id']] = [
+                            'user_id' => $user['id'],
+                            'first_name' => $user['first_name'] ?? '',
+                            'last_name' => $user['last_name'] ?? '',
+                            'email' => $user['email'] ?? '',
+                            'role' => 'student',
+                            'student_number' => $student['student_number'] ?? ''
+                        ];
+                    }
+                }
+            }
+            
+            // Get all doctors
+            $doctors = $this->doctorModel->getAll();
+            foreach ($doctors as $doctor) {
+                if (isset($doctor['user_id']) && $doctor['user_id']) {
+                    $user = $this->userModel->findById($doctor['user_id']);
+                    if ($user && !isset($allUsers[$user['id']])) {
+                        $allUsers[$user['id']] = [
+                            'user_id' => $user['id'],
+                            'first_name' => $user['first_name'] ?? '',
+                            'last_name' => $user['last_name'] ?? '',
+                            'email' => $user['email'] ?? '',
+                            'role' => 'doctor',
+                            'doctor_id' => $doctor['doctor_id'] ?? ''
+                        ];
+                    }
+                }
+            }
+            
+            // Get all IT officers
+            $itOfficers = $this->itOfficerModel->getAll();
+            foreach ($itOfficers as $itOfficer) {
+                if (isset($itOfficer['user_id']) && $itOfficer['user_id']) {
+                    $user = $this->userModel->findById($itOfficer['user_id']);
+                    if ($user && !isset($allUsers[$user['id']])) {
+                        $allUsers[$user['id']] = [
+                            'user_id' => $user['id'],
+                            'first_name' => $user['first_name'] ?? '',
+                            'last_name' => $user['last_name'] ?? '',
+                            'email' => $user['email'] ?? '',
+                            'role' => 'it',
+                            'it_officer_id' => $itOfficer['it_officer_id'] ?? ''
+                        ];
+                    }
+                }
+            }
+            
+            // Get all admins (excluding current admin) - query directly
+            $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT * FROM users WHERE role = 'admin'");
+            $stmt->execute();
+            $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($admins as $admin) {
+                if ($admin['id'] != $userId && !isset($allUsers[$admin['id']])) {
+                    $allUsers[$admin['id']] = [
+                        'user_id' => $admin['id'],
+                        'first_name' => $admin['first_name'] ?? '',
+                        'last_name' => $admin['last_name'] ?? '',
+                        'email' => $admin['email'] ?? '',
+                        'role' => 'admin'
+                    ];
+                }
+            }
+
+            $this->view->render('admin/admin_send_notification', [
+                'title' => 'Send Notification',
+                'users' => array_values($allUsers),
+                'message' => $message,
+                'messageType' => $messageType,
+                'showSidebar' => true,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Send notification error: " . $e->getMessage());
+            $this->view->render('errors/500', ['title' => 'Error', 'message' => 'Failed to send notification: ' . $e->getMessage()]);
         }
     }
 }

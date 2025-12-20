@@ -28,7 +28,6 @@ class Home extends Controller
             'doctor' => $buildPath('doctor/dashboard'),
             'admin' => $buildPath('admin/dashboard'),
             'student' => $buildPath('student/dashboard'),
-            'advisor' => $buildPath('advisor/dashboard'),
             'it' => $buildPath('it/dashboard'),
             'user' => $basePath === '' ? '/' : $basePath,
         ];
@@ -37,7 +36,6 @@ class Home extends Controller
             'doctor' => 'Doctor Dashboard',
             'admin' => 'Admin Dashboard',
             'student' => 'Student Dashboard',
-            'advisor' => 'Advisor Dashboard',
             'it' => 'IT Dashboard',
             'user' => 'Profile',
         ];

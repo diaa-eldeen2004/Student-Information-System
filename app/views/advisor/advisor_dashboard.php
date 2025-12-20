@@ -1,4 +1,0 @@
-<?php
-// Advisor Dashboard View
-?>
-

@@ -37,13 +37,26 @@
 <body>
     <?php
     // Check if we're on an IT, Doctor, Admin, or Student page (sidebar should be shown)
-    $showSidebar = isset($showSidebar) ? $showSidebar : (strpos($_SERVER['REQUEST_URI'] ?? '', '/it/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/doctor/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false || strpos($_SERVER['REQUEST_URI'] ?? '', '/student/') !== false);
+    // Check authentication before showing sidebar
+    $isAuthenticated = isset($_SESSION['user']) && isset($_SESSION['user']['role']);
+    $userRole = $isAuthenticated ? $_SESSION['user']['role'] : null;
+    
     $currentPage = $_SERVER['REQUEST_URI'] ?? '';
     $currentPath = parse_url($currentPage, PHP_URL_PATH) ?? '';
     $isDoctorPage = strpos($currentPath, '/doctor/') !== false;
     $isItPage = strpos($currentPath, '/it/') !== false;
     $isAdminPage = strpos($currentPath, '/admin/') !== false;
     $isStudentPage = strpos($currentPath, '/student/') !== false;
+    
+    // Only show sidebar if authenticated and role matches the page
+    $showSidebar = isset($showSidebar) ? $showSidebar : (
+        $isAuthenticated && (
+            ($isItPage && $userRole === 'it') ||
+            ($isDoctorPage && $userRole === 'doctor') ||
+            ($isAdminPage && $userRole === 'admin') ||
+            ($isStudentPage && $userRole === 'student')
+        )
+    );
     
     // Get pending enrollment requests count for IT pages
     $pendingEnrollmentRequestsCount = 0;
@@ -112,9 +125,6 @@
                 <a href="<?= htmlspecialchars($url('admin/manage-course')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-course') !== false ? 'active' : '' ?>">
                     <i class="fas fa-book"></i> Manage Courses
                 </a>
-                <a href="<?= htmlspecialchars($url('admin/manage-advisor')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-advisor') !== false ? 'active' : '' ?>">
-                    <i class="fas fa-user-tie"></i> Manage Advisors
-                </a>
                 <a href="<?= htmlspecialchars($url('admin/manage-it')) ?>" class="nav-item <?= strpos($currentPath, '/admin/manage-it') !== false ? 'active' : '' ?>">
                     <i class="fas fa-laptop-code"></i> Manage IT
                 </a>
@@ -127,8 +137,27 @@
                 <a href="<?= htmlspecialchars($url('admin/reports')) ?>" class="nav-item <?= strpos($currentPath, '/admin/reports') !== false ? 'active' : '' ?>">
                     <i class="fas fa-chart-bar"></i> Reports
                 </a>
-                <a href="<?= htmlspecialchars($url('admin/calendar')) ?>" class="nav-item <?= strpos($currentPath, '/admin/calendar') !== false ? 'active' : '' ?>">
-                    <i class="fas fa-calendar-alt"></i> Calendar
+                <a href="<?= htmlspecialchars($url('admin/notifications')) ?>" class="nav-item <?= (strpos($currentPath, '/admin/notifications') !== false || strpos($currentPath, '/admin/send-notification') !== false) ? 'active' : '' ?>" style="position: relative;">
+                    <i class="fas fa-bell"></i> Notifications
+                    <?php if (isset($unreadNotificationsCount) && $unreadNotificationsCount > 0): ?>
+                        <span class="notification-badge" style="
+                            position: absolute;
+                            top: 50%;
+                            right: 1rem;
+                            transform: translateY(-50%);
+                            background-color: #ef4444;
+                            color: white;
+                            border-radius: 50%;
+                            min-width: 20px;
+                            height: 20px;
+                            padding: 0 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 11px;
+                            font-weight: bold;
+                        "><?= $unreadNotificationsCount > 99 ? '99+' : $unreadNotificationsCount ?></span>
+                    <?php endif; ?>
                 </a>
                 <a href="<?= htmlspecialchars($url('admin/profile')) ?>" class="nav-item <?= strpos($currentPath, '/admin/profile') !== false ? 'active' : '' ?>">
                     <i class="fas fa-user"></i> Profile

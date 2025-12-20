@@ -7,8 +7,15 @@ $byType = $byType ?? ['info' => [], 'success' => [], 'warning' => [], 'error' =>
 
 <div class="dashboard-container">
     <div class="dashboard-header">
-        <h1><i class="fas fa-bell"></i> Notifications</h1>
-        <p>Stay updated with important information</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h1><i class="fas fa-bell"></i> Notifications</h1>
+                <p>Stay updated with important information</p>
+            </div>
+            <a href="<?= htmlspecialchars($url('student/send-notification')) ?>" class="btn btn-primary">
+                <i class="fas fa-paper-plane"></i> Send Message
+            </a>
+        </div>
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
@@ -91,5 +98,40 @@ $byType = $byType ?? ['info' => [], 'success' => [], 'warning' => [], 'error' =>
 <style>
 .notification-item:hover {
     background-color: var(--background-color) !important;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.btn-outline:hover {
+    background: var(--bg-secondary);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
 }
 </style>

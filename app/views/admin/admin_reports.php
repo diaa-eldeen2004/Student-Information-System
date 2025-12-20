@@ -26,10 +26,11 @@ $message = $message ?? null;
 $messageType = $messageType ?? 'info';
 $editReport = $editReport ?? null;
 $tableExists = $tableExists ?? false;
+$fileDataColumnExists = $fileDataColumnExists ?? false;
 ?>
 
-<div class="admin-container">
-    <div class="admin-header">
+<div class="dashboard-container">
+    <div class="dashboard-header">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <div>
                 <h1><i class="fas fa-chart-bar"></i> Reports & Analytics</h1>
@@ -45,7 +46,7 @@ $tableExists = $tableExists ?? false;
         </div>
     </div>
 
-    <div class="admin-content">
+    <div class="dashboard-content">
         <!-- Error Message if table doesn't exist -->
         <?php if (!$tableExists): ?>
             <div class="alert alert-error" style="margin-bottom: 2rem; padding: 2rem; border-radius: 8px; background-color: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--error-color);">
@@ -53,7 +54,24 @@ $tableExists = $tableExists ?? false;
                     <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--error-color);"></i>
                     <div>
                         <h3 style="margin: 0 0 0.5rem 0; color: var(--error-color);">Reports Table Not Found</h3>
-                        <p style="margin: 0; color: var(--text-secondary);">The reports table doesn't exist yet. Please create it in your database to use this feature.</p>
+                        <p style="margin: 0 0 1rem 0; color: var(--text-secondary);">The reports table doesn't exist yet. Please create it in your database to use this feature.</p>
+                        <button class="btn btn-primary" onclick="runMigration('create_reports_table.sql', this)">
+                            <i class="fas fa-database"></i> Create Reports Table
+                        </button>
+                    </div>
+                </div>
+            </div>
+        <?php elseif ($tableExists && !$fileDataColumnExists): ?>
+            <!-- Migration Alert for file_data column -->
+            <div class="alert alert-warning" style="margin-bottom: 2rem; padding: 2rem; border-radius: 8px; background-color: rgba(245, 158, 11, 0.1); border-left: 4px solid var(--warning-color);">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--warning-color);"></i>
+                    <div>
+                        <h3 style="margin: 0 0 0.5rem 0; color: var(--warning-color);">Database Update Required</h3>
+                        <p style="margin: 0 0 1rem 0; color: var(--text-secondary);">The reports table needs to be updated to support file storage. This will add file_data, file_name, file_type, and file_size columns.</p>
+                        <button class="btn btn-primary" onclick="runMigration('update_reports_table_add_file_data.sql', this)">
+                            <i class="fas fa-database"></i> Update Reports Table
+                        </button>
                     </div>
                 </div>
             </div>
@@ -395,40 +413,6 @@ $tableExists = $tableExists ?? false;
                             </div>
                         </div>
                     </div>
-
-                    <!-- Performance Metrics -->
-                    <div style="text-align: center;">
-                        <h3 style="margin-bottom: 1rem; color: var(--text-primary);">Performance Metrics</h3>
-                        <div style="display: flex; flex-direction: column; gap: 1rem;">
-                            <div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="font-size: 0.9rem; color: var(--text-secondary);">Avg Generation Time</span>
-                                    <span style="font-size: 0.9rem; color: var(--text-secondary);">2.3 min</span>
-                                </div>
-                                <div class="progress" style="height: 8px; background-color: var(--border-color); border-radius: 4px; overflow: hidden;">
-                                    <div class="progress-bar" style="width: 46%; background-color: var(--success-color); height: 100%;"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="font-size: 0.9rem; color: var(--text-secondary);">Success Rate</span>
-                                    <span style="font-size: 0.9rem; color: var(--text-secondary);">94%</span>
-                                </div>
-                                <div class="progress" style="height: 8px; background-color: var(--border-color); border-radius: 4px; overflow: hidden;">
-                                    <div class="progress-bar" style="width: 94%; background-color: var(--success-color); height: 100%;"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="font-size: 0.9rem; color: var(--text-secondary);">Storage Used</span>
-                                    <span style="font-size: 0.9rem; color: var(--text-secondary);">68%</span>
-                                </div>
-                                <div class="progress" style="height: 8px; background-color: var(--border-color); border-radius: 4px; overflow: hidden;">
-                                    <div class="progress-bar" style="width: 68%; background-color: var(--warning-color); height: 100%;"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -444,7 +428,7 @@ $tableExists = $tableExists ?? false;
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form id="reportForm" method="POST" action="<?= htmlspecialchars($url('admin/reports')) ?>" onsubmit="return handleReportFormSubmit(event)">
+        <form id="reportForm" method="POST" action="<?= htmlspecialchars($url('admin/reports')) ?>" enctype="multipart/form-data" onsubmit="return handleReportFormSubmit(event)">
             <input type="hidden" name="action" id="formAction" value="create">
             <input type="hidden" name="report_id" id="reportId" value="">
             <div class="form-group">
@@ -484,10 +468,19 @@ $tableExists = $tableExists ?? false;
                     <option value="failed">Failed</option>
                 </select>
             </div>
+            <?php if ($fileDataColumnExists): ?>
+                <div class="form-group">
+                    <label class="form-label">Upload Report File (optional)</label>
+                    <input type="file" name="report_file" id="reportFile" class="form-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" onchange="validateFileSize(this)">
+                    <small style="color: var(--text-secondary); font-size: 0.9rem;">Supported formats: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT (Max 5MB recommended)</small>
+                </div>
+            <?php else: ?>
             <div class="form-group">
                 <label class="form-label">File Path (optional)</label>
                 <input type="text" name="file_path" id="filePath" class="form-input" placeholder="e.g., /reports/enrollment_2024.pdf">
+                    <small style="color: var(--text-secondary); font-size: 0.9rem;">Note: Update the database to enable file uploads</small>
             </div>
+            <?php endif; ?>
             <div class="form-group">
                 <label class="form-label">Parameters (JSON, optional)</label>
                 <textarea name="parameters" id="reportParameters" class="form-input" rows="3" placeholder='{"department": "Computer Science", "year": 2024}'></textarea>
@@ -709,7 +702,28 @@ function closeReportFormModal() {
     }
 }
 
+function validateFileSize(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            alert('File is too large. Maximum file size is 5MB. Your file is ' + (file.size / 1024 / 1024).toFixed(2) + 'MB.');
+            input.value = '';
+            return false;
+        }
+    }
+    return true;
+}
+
 function handleReportFormSubmit(e) {
+    // Validate file size before submit
+    const fileInput = document.getElementById('reportFile');
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        if (!validateFileSize(fileInput)) {
+            e.preventDefault();
+            return false;
+        }
+    }
     // Form validation is handled by HTML5 required attributes
     // The form will submit normally to the controller
     return true;
@@ -741,4 +755,399 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 <?php endif; ?>
+</script>
+
+<style>
+/* Light Mode CSS Variables (Default) */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --border-light: #cbd5e1;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.1);
+    --shadow-md: rgba(0, 0, 0, 0.15);
+    --shadow-lg: rgba(0, 0, 0, 0.2);
+    --surface-color: var(--bg-primary);
+}
+
+/* Dark Mode CSS Variables */
+[data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+    --surface-color: var(--bg-secondary);
+}
+
+.dashboard-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: var(--bg-primary);
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+.dashboard-header {
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border-radius: 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
+}
+
+.dashboard-header h1 {
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: var(--text-primary);
+}
+
+.dashboard-header h1 i {
+    font-size: 2rem;
+}
+
+.dashboard-header p {
+    font-size: 1.1rem;
+    margin: 0;
+    opacity: 0.95;
+    color: var(--text-secondary);
+}
+
+.dashboard-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1d4ed8;
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-outline:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+}
+
+.btn-danger {
+    background: var(--error-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+}
+
+.card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 4px 12px var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+}
+
+.card:hover::before {
+    transform: translateX(100%);
+}
+
+.card:hover {
+    box-shadow: 0 12px 32px var(--shadow-lg);
+    transform: translateY(-8px) scale(1.02);
+    border-color: var(--primary-color);
+}
+
+.card-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-input, .form-select {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    transform: translateY(-1px);
+}
+
+.grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.alert-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.alert-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.alert-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: transform 0.2s ease;
+}
+
+.badge:hover {
+    transform: scale(1.05);
+}
+
+.modal {
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+
+table tbody tr {
+    transition: all 0.2s ease;
+}
+
+table tbody tr:hover {
+    background: var(--bg-tertiary);
+    transform: scale(1.01);
+}
+
+@media (max-width: 1200px) {
+    .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 1rem;
+    }
+    
+    .dashboard-header {
+        padding: 1.5rem;
+    }
+    
+    .dashboard-header h1 {
+        font-size: 2rem;
+    }
+    
+    .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+    }
+    
+    .card-header {
+        padding: 1rem;
+    }
+}
+</style>
+
+<script>
+function runMigration(migrationFile, buttonElement) {
+    if (!confirm(`Are you sure you want to run the migration for ${migrationFile}? This will update the database table.`)) {
+        return;
+    }
+
+    const btn = buttonElement || event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Migration...';
+
+    fetch('<?= htmlspecialchars($url('admin/api/run-migration')) ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'file=' + encodeURIComponent(migrationFile)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert('Migration completed successfully: ' + (data.messages ? data.messages.join('\n') : 'Success'));
+            window.location.reload();
+        } else {
+            alert('Migration failed: ' + (data.messages ? data.messages.join('\n') : data.message || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error running migration:', error);
+        alert('Error running migration: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
 </script>

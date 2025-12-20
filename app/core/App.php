@@ -64,6 +64,20 @@ class App
         );
 
         if (!$controllerName || !$method) {
+            // If it's an admin route, redirect to login instead of showing 404
+            if (strpos($requestUri, '/admin/') !== false || strpos($requestUri, '/admin') !== false) {
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+                    $config = require dirname(__DIR__) . '/config/config.php';
+                    $base = rtrim($config['base_url'] ?? '', '/');
+                    $target = $base . '/auth/login';
+                    header("Location: {$target}");
+                    exit;
+                }
+            }
+            
             // Debug information
             $debugInfo = [
                 'URI' => $_SERVER['REQUEST_URI'] ?? 'N/A',
@@ -78,8 +92,35 @@ class App
         $controllerClass = '\\controllers\\' . $controllerName;
 
         if (!class_exists($controllerClass)) {
+            // If it's an admin route, redirect to login instead of showing 404
+            if (strpos($requestUri, '/admin/') !== false || strpos($requestUri, '/admin') !== false) {
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+                    $config = require dirname(__DIR__) . '/config/config.php';
+                    $base = rtrim($config['base_url'] ?? '', '/');
+                    $target = $base . '/auth/login';
+                    header("Location: {$target}");
+                    exit;
+                }
+            }
             $this->renderError(404, "Controller {$controllerName} not found");
             return;
+        }
+
+        // Check authentication for admin routes before instantiating controller
+        if (strpos($requestUri, '/admin/') !== false || strpos($requestUri, '/admin') !== false) {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+                $config = require dirname(__DIR__) . '/config/config.php';
+                $base = rtrim($config['base_url'] ?? '', '/');
+                $target = $base . '/auth/login';
+                header("Location: {$target}");
+                exit;
+            }
         }
 
         try {
@@ -91,6 +132,19 @@ class App
         }
 
         if (!method_exists($controller, $method)) {
+            // If it's an admin route, redirect to login instead of showing 404
+            if (strpos($requestUri, '/admin/') !== false || strpos($requestUri, '/admin') !== false) {
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+                    $config = require dirname(__DIR__) . '/config/config.php';
+                    $base = rtrim($config['base_url'] ?? '', '/');
+                    $target = $base . '/auth/login';
+                    header("Location: {$target}");
+                    exit;
+                }
+            }
             $this->renderError(404, "Method {$method} not found");
             return;
         }
@@ -105,11 +159,27 @@ class App
 
     private function renderError(int $code, string $message): void
     {
+        // If it's an admin route and user is not authenticated, redirect to login instead of showing error
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+        if ((strpos($requestUri, '/admin/') !== false || strpos($requestUri, '/admin') !== false) && $code === 404) {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+                $config = require dirname(__DIR__) . '/config/config.php';
+                $base = rtrim($config['base_url'] ?? '', '/');
+                $target = $base . '/auth/login';
+                header("Location: {$target}");
+                exit;
+            }
+        }
+        
         http_response_code($code);
         $view = new View();
         $view->render("errors/{$code}", [
             'message' => $message,
-            'title' => "Error {$code}"
+            'title' => "Error {$code}",
+            'showSidebar' => false, // Don't show sidebar on error pages
         ]);
     }
 }

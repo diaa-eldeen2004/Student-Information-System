@@ -91,10 +91,10 @@ class Migrate extends Controller
             $messages[] = "✓ Found " . count($tables) . " tables in database";
             
             $expectedTables = [
-                'users', 'students', 'doctors', 'advisors', 'it_officers', 'admins',
+                'users', 'students', 'doctors', 'it_officers', 'admins',
                 'courses', 'course_prerequisites', 'sections', 'enrollments',
                 'enrollment_requests', 'assignments', 'assignment_submissions',
-                'materials', 'attendance', 'notifications', 'student_notes', 'audit_logs'
+                'materials', 'attendance', 'notifications', 'audit_logs'
             ];
             
             foreach ($expectedTables as $table) {

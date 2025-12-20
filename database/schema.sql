@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `email` VARCHAR(255) NOT NULL UNIQUE,
     `phone` VARCHAR(20) DEFAULT NULL,
     `password` VARCHAR(255) NOT NULL,
-    `role` ENUM('admin', 'student', 'doctor', 'advisor', 'it', 'user') NOT NULL DEFAULT 'user',
+    `role` ENUM('admin', 'student', 'doctor', 'it', 'user') NOT NULL DEFAULT 'user',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS `students` (
     `midterm_cardinality` VARCHAR(255) DEFAULT NULL COMMENT 'Password for midterm quiz access',
     `final_cardinality` VARCHAR(255) DEFAULT NULL COMMENT 'Password for final quiz access',
     `status` ENUM('active', 'inactive', 'graduated', 'suspended') DEFAULT 'active',
-    `advisor_id` INT(11) DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`student_id`),
@@ -50,18 +49,6 @@ CREATE TABLE IF NOT EXISTS `doctors` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`doctor_id`),
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-    INDEX `idx_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Advisors table (extends users)
-CREATE TABLE IF NOT EXISTS `advisors` (
-    `advisor_id` INT(11) NOT NULL AUTO_INCREMENT,
-    `user_id` INT(11) NOT NULL,
-    `department` VARCHAR(100) DEFAULT NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`advisor_id`),
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
     INDEX `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -287,23 +274,6 @@ CREATE TABLE IF NOT EXISTS `notifications` (
     INDEX `idx_user_id` (`user_id`),
     INDEX `idx_is_read` (`is_read`),
     INDEX `idx_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Student Notes/Warnings table (for Advisors)
-CREATE TABLE IF NOT EXISTS `student_notes` (
-    `note_id` INT(11) NOT NULL AUTO_INCREMENT,
-    `student_id` INT(11) NOT NULL,
-    `advisor_id` INT(11) NOT NULL,
-    `note_type` ENUM('note', 'warning', 'achievement') DEFAULT 'note',
-    `title` VARCHAR(255) NOT NULL,
-    `content` TEXT NOT NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`note_id`),
-    FOREIGN KEY (`student_id`) REFERENCES `students`(`student_id`) ON DELETE CASCADE,
-    FOREIGN KEY (`advisor_id`) REFERENCES `advisors`(`advisor_id`) ON DELETE CASCADE,
-    INDEX `idx_student_id` (`student_id`),
-    INDEX `idx_advisor_id` (`advisor_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Audit Logs table

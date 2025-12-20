@@ -33,8 +33,8 @@ class Student extends Model
     public function createStudent(array $data): bool
     {
         try {
-            $sql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status, advisor_id)
-                    VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status, :advisor_id)";
+            $sql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status)
+                    VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status)";
             $stmt = $this->db->prepare($sql);
             return $stmt->execute([
                 'user_id' => $data['user_id'],
@@ -46,7 +46,6 @@ class Student extends Model
                 'midterm_cardinality' => $data['midterm_cardinality'] ?? null,
                 'final_cardinality' => $data['final_cardinality'] ?? null,
                 'status' => $data['status'] ?? 'active',
-                'advisor_id' => $data['advisor_id'] ?? null,
             ]) && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log("Student creation failed: " . $e->getMessage());
@@ -268,13 +267,8 @@ class Student extends Model
                 $admissionDate = $studentData['year_enrolled'] . '-01-01';
             }
             
-            // Convert advisor_id to null if it's 0 or empty
-            $advisorId = !empty($studentData['advisor_id']) && $studentData['advisor_id'] > 0 
-                ? (int)$studentData['advisor_id'] 
-                : null;
-            
-            $studentSql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status, advisor_id)
-                          VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status, :advisor_id)";
+            $studentSql = "INSERT INTO {$this->table} (user_id, student_number, gpa, admission_date, major, minor, midterm_cardinality, final_cardinality, status)
+                          VALUES (:user_id, :student_number, :gpa, :admission_date, :major, :minor, :midterm_cardinality, :final_cardinality, :status)";
             $studentStmt = $this->db->prepare($studentSql);
             $studentStmt->execute([
                 'user_id' => $userId,
@@ -286,7 +280,6 @@ class Student extends Model
                 'midterm_cardinality' => $studentData['midterm_cardinality'] ?? null,
                 'final_cardinality' => $studentData['final_cardinality'] ?? null,
                 'status' => $studentData['status'] ?? 'active',
-                'advisor_id' => $advisorId,
             ]);
 
             $this->db->commit();
@@ -353,8 +346,7 @@ class Student extends Model
                 'admission_date = :admission_date',
                 'major = :major',
                 'minor = :minor',
-                'status = :status',
-                'advisor_id = :advisor_id'
+                'status = :status'
             ];
             
             $params = [
@@ -364,7 +356,6 @@ class Student extends Model
                 'major' => $studentData['major'] ?? null,
                 'minor' => $studentData['minor'] ?? null,
                 'status' => $studentData['status'] ?? 'active',
-                'advisor_id' => $studentData['advisor_id'] ?? null,
                 'student_id' => $studentId,
             ];
             

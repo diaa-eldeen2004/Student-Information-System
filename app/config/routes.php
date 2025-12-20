@@ -27,6 +27,8 @@ return [
     ['GET', '/student/calendar', 'Student@calendar'],
     ['GET', '/student/course', 'Student@course'],
     ['GET', '/student/notifications', 'Student@notifications'],
+    ['GET', '/student/send-notification', 'Student@sendNotification'],
+    ['POST', '/student/send-notification', 'Student@sendNotification'],
     ['GET', '/student/profile', 'Student@profile'],
     ['POST', '/student/enroll', 'Student@enroll'],
     ['GET', '/student/preview-timetable', 'Student@previewTimetable'],
@@ -58,9 +60,6 @@ return [
     ['GET', '/doctor/edit-material', 'Doctor@editMaterial'],
     ['POST', '/doctor/edit-material', 'Doctor@editMaterial'],
 
-    // Advisor routes
-    ['GET', '/advisor/dashboard', 'Advisor@dashboard'],
-
     // IT Officer routes
     ['GET', '/it/dashboard', 'ItOfficer@dashboard'],
     ['GET', '/it/schedule', 'ItOfficer@schedule'],
@@ -83,35 +82,36 @@ return [
 
     // Admin routes
     ['GET', '/admin/dashboard', 'Admin@dashboard'],
-    ['GET', '/admin/calendar', 'Admin@calendar'],
-    ['POST', '/admin/calendar', 'Admin@calendar'],
     ['GET', '/admin/profile', 'Admin@profile'],
     ['POST', '/admin/profile', 'Admin@profile'],
     ['GET', '/admin/reports', 'Admin@reports'],
+    ['POST', '/admin/reports', 'Admin@reports'],
     ['GET', '/admin/manage-student', 'Admin@manageStudent'],
     ['POST', '/admin/manage-student', 'Admin@manageStudent'],
     ['GET', '/admin/manage-doctor', 'Admin@manageDoctor'],
     ['POST', '/admin/manage-doctor', 'Admin@manageDoctor'],
     ['GET', '/admin/manage-course', 'Admin@manageCourse'],
     ['POST', '/admin/manage-course', 'Admin@manageCourse'],
-    ['GET', '/admin/manage-advisor', 'Admin@manageAdvisor'],
-    ['POST', '/admin/manage-advisor', 'Admin@manageAdvisor'],
     ['GET', '/admin/manage-it', 'Admin@manageIt'],
     ['POST', '/admin/manage-it', 'Admin@manageIt'],
     ['GET', '/admin/manage-admin', 'Admin@manageAdmin'],
     ['POST', '/admin/manage-admin', 'Admin@manageAdmin'],
     ['GET', '/admin/manage-user', 'Admin@manageUser'],
     ['POST', '/admin/manage-user', 'Admin@manageUser'],
+    ['GET', '/admin/notifications', 'Admin@notifications'],
+    ['POST', '/admin/notifications', 'Admin@notifications'],
+    ['GET', '/admin/send-notification', 'Admin@sendNotification'],
+    ['POST', '/admin/send-notification', 'Admin@sendNotification'],
     
     // Admin API endpoints for AJAX
     ['GET', '/admin/api/student', 'Admin@getStudentDetails'],
     ['GET', '/admin/api/doctor', 'Admin@getDoctorDetails'],
-    ['GET', '/admin/api/advisor', 'Admin@getAdvisorDetails'],
     ['GET', '/admin/api/it', 'Admin@getItOfficerDetails'],
     ['GET', '/admin/api/admin', 'Admin@getAdminDetails'],
     ['GET', '/admin/api/user', 'Admin@getUserDetails'],
     ['GET', '/admin/api/course', 'Admin@getCourseDetails'],
     ['POST', '/admin/api/fix-it-autoincrement', 'Admin@fixItAutoIncrement'],
+    ['POST', '/admin/api/run-migration', 'Admin@runTableMigration'],
     
     // Debug routes (admin only)
     ['GET', '/debug/log', 'Debug@viewLog'],

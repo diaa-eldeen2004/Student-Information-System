@@ -545,20 +545,42 @@ class Course extends Model
         
         $whereClause = implode(' AND ', $where);
         
-        $sql = "
-            SELECT c.*, 
-                   GROUP_CONCAT(DISTINCT CONCAT(u.first_name, ' ', u.last_name) SEPARATOR ', ') as doctors,
-                   COUNT(DISTINCT e.student_id) as student_count
-            FROM {$this->table} c
-            LEFT JOIN sections s ON c.course_id = s.course_id
-            LEFT JOIN doctors d ON s.doctor_id = d.doctor_id
-            LEFT JOIN users u ON d.user_id = u.id
-            LEFT JOIN enrollments e ON s.section_id = e.section_id
-            WHERE {$whereClause}
-            GROUP BY c.course_id
-            ORDER BY c.created_at DESC
-            LIMIT 100
-        ";
+        // Check if sections table exists, otherwise use schedule table
+        $sectionsTableExists = false;
+        try {
+            $checkStmt = $this->db->query("SHOW TABLES LIKE 'sections'");
+            $sectionsTableExists = $checkStmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            // Table doesn't exist
+        }
+
+        if ($sectionsTableExists) {
+            $sql = "
+                SELECT c.*, 
+                       GROUP_CONCAT(DISTINCT CONCAT(u.first_name, ' ', u.last_name) SEPARATOR ', ') as doctors,
+                       COUNT(DISTINCT e.student_id) as student_count
+                FROM {$this->table} c
+                LEFT JOIN sections s ON c.course_id = s.course_id
+                LEFT JOIN doctors d ON s.doctor_id = d.doctor_id
+                LEFT JOIN users u ON d.user_id = u.id
+                LEFT JOIN enrollments e ON s.section_id = e.section_id
+                WHERE {$whereClause}
+                GROUP BY c.course_id
+                ORDER BY c.created_at DESC
+                LIMIT 100
+            ";
+        } else {
+            // Fallback: use schedule table or just courses without joins
+            $sql = "
+                SELECT c.*, 
+                       '' as doctors,
+                       0 as student_count
+                FROM {$this->table} c
+                WHERE {$whereClause}
+                ORDER BY c.created_at DESC
+                LIMIT 100
+            ";
+        }
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

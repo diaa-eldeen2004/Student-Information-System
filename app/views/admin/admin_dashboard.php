@@ -15,128 +15,87 @@ $userDistribution = $userDistribution ?? [];
 $totalUsers = array_sum(array_column($userDistribution, 'count'));
 ?>
 
-<div class="admin-container">
-    <!-- Content Header -->
-    <header class="content-header">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div>
-                <h1 style="margin: 0; color: var(--text-primary);"><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h1>
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h1>
+        <p>Welcome to the administration panel</p>
+    </div>
+
+    <div class="dashboard-stats">
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: #3b82f6;">
+                <i class="fas fa-user-graduate"></i>
+            </div>
+            <div class="stat-content">
+                <h3><?= htmlspecialchars($totalStudents) ?></h3>
+                <p>Total Students</p>
+                <?php if ($studentsThisMonth > 0): ?>
+                    <a href="<?= htmlspecialchars($url('admin/manage-student')) ?>" class="stat-link">+<?= htmlspecialchars($studentsThisMonth) ?> this month →</a>
+                <?php else: ?>
+                    <a href="<?= htmlspecialchars($url('admin/manage-student')) ?>" class="stat-link">Manage Students →</a>
+                <?php endif; ?>
             </div>
         </div>
-    </header>
 
-    <div class="content-body">
-        <!-- System Overview -->
-        <section class="system-overview" style="margin-bottom: 2rem;">
-            <div class="grid grid-3">
-                <div class="card" style="text-align: center; padding: 1.5rem;">
-                    <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
-                        <i class="fas fa-user-graduate"></i>
-                    </div>
-                    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?= htmlspecialchars($totalStudents) ?></div>
-                    <div style="color: var(--text-secondary);">Total Students</div>
-                    <?php if ($studentsThisMonth > 0): ?>
-                        <div style="font-size: 0.8rem; color: var(--success-color); margin-top: 0.25rem;">+<?= htmlspecialchars($studentsThisMonth) ?> this month</div>
-                    <?php endif; ?>
-                </div>
-                <div class="card" style="text-align: center; padding: 1.5rem;">
-                    <div style="font-size: 2.5rem; color: var(--accent-color); margin-bottom: 0.5rem;">
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: #8b5cf6;">
                         <i class="fas fa-chalkboard-teacher"></i>
                     </div>
-                    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?= htmlspecialchars($totalDoctors) ?></div>
-                    <div style="color: var(--text-secondary);">Faculty Members</div>
+            <div class="stat-content">
+                <h3><?= htmlspecialchars($totalDoctors) ?></h3>
+                <p>Faculty Members</p>
                     <?php if ($doctorsThisMonth > 0): ?>
-                        <div style="font-size: 0.8rem; color: var(--success-color); margin-top: 0.25rem;">+<?= htmlspecialchars($doctorsThisMonth) ?> this month</div>
+                    <a href="<?= htmlspecialchars($url('admin/manage-doctor')) ?>" class="stat-link">+<?= htmlspecialchars($doctorsThisMonth) ?> this month →</a>
+                <?php else: ?>
+                    <a href="<?= htmlspecialchars($url('admin/manage-doctor')) ?>" class="stat-link">Manage Doctors →</a>
                     <?php endif; ?>
                 </div>
-                <div class="card" style="text-align: center; padding: 1.5rem;">
-                    <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: #10b981;">
                         <i class="fas fa-book"></i>
                     </div>
-                    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?= htmlspecialchars($totalCourses) ?></div>
-                    <div style="color: var(--text-secondary);">Active Courses</div>
+            <div class="stat-content">
+                <h3><?= htmlspecialchars($totalCourses) ?></h3>
+                <p>Active Courses</p>
                     <?php if ($coursesThisSemester > 0): ?>
-                        <div style="font-size: 0.8rem; color: var(--success-color); margin-top: 0.25rem;"><?= htmlspecialchars($coursesThisSemester) ?> this semester</div>
+                    <a href="<?= htmlspecialchars($url('admin/manage-course')) ?>" class="stat-link"><?= htmlspecialchars($coursesThisSemester) ?> this semester →</a>
+                <?php else: ?>
+                    <a href="<?= htmlspecialchars($url('admin/manage-course')) ?>" class="stat-link">Manage Courses →</a>
                     <?php endif; ?>
                 </div>
             </div>
-        </section>
-
-        <!-- Recent Activity -->
-        <section class="recent-activity" style="margin-bottom: 2rem;">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <i class="fas fa-history" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
-                        Recent System Activity
-                    </h2>
                 </div>
+
+    <div class="dashboard-sections">
+        <div class="dashboard-section">
+            <h2><i class="fas fa-history"></i> Recent Activity</h2>
                 <div class="activity-list">
-                    <?php if (!empty($recentActivity)): ?>
-                        <?php foreach ($recentActivity as $activity): ?>
-                            <div class="activity-item" style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border-color);">
-                                <div style="width: 40px; height: 40px; background-color: <?= htmlspecialchars($activity['color']) ?>; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                    <i class="fas <?= htmlspecialchars($activity['icon']) ?>"></i>
+                <?php if (empty($recentActivity)): ?>
+                    <p class="text-muted">No recent activity</p>
+                <?php else: ?>
+                    <?php foreach (array_slice($recentActivity, 0, 10) as $activity): ?>
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="fas fa-circle"></i>
                                 </div>
-                                <div style="flex: 1;">
-                                    <h4 style="margin: 0 0 0.25rem 0; color: var(--text-primary);"><?= htmlspecialchars($activity['title']) ?></h4>
-                                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;"><?= htmlspecialchars($activity['message']) ?></p>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="font-size: 0.8rem; color: var(--text-secondary);"><?= htmlspecialchars($activity['time']) ?></div>
-                                </div>
+                            <div class="activity-content">
+                                <p><strong><?= htmlspecialchars($activity['title']) ?></strong></p>
+                                <p class="text-muted">
+                                    <?= htmlspecialchars($activity['message']) ?>
+                                    <span class="activity-time"><?= htmlspecialchars($activity['time']) ?></span>
+                                </p>
                             </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
-                            <i class="fas fa-history" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
-                            <p>No recent activity</p>
                         </div>
+                    <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
             </div>
-        </section>
 
-        <!-- Quick Management -->
-        <section class="quick-management" style="margin-top: 2rem;">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <i class="fas fa-cogs" style="color: var(--accent-color); margin-right: 0.5rem;"></i>
-                        Quick Management
-                    </h2>
-                </div>
-                <div class="grid grid-4">
-                    <a href="<?= htmlspecialchars($url('admin/manage-student')) ?>" class="btn btn-primary" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-decoration: none;">
-                        <i class="fas fa-user-graduate" style="font-size: 2rem;"></i>
-                        <span>Manage Students</span>
-                    </a>
-                    <a href="<?= htmlspecialchars($url('admin/manage-doctor')) ?>" class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-decoration: none;">
-                        <i class="fas fa-chalkboard-teacher" style="font-size: 2rem;"></i>
-                        <span>Manage Doctors</span>
-                    </a>
-                    <a href="<?= htmlspecialchars($url('admin/manage-advisor')) ?>" class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-decoration: none;">
-                        <i class="fas fa-user-tie" style="font-size: 2rem;"></i>
-                        <span>Manage Advisors</span>
-                    </a>
-                    <a href="<?= htmlspecialchars($url('admin/reports')) ?>" class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-decoration: none;">
-                        <i class="fas fa-chart-bar" style="font-size: 2rem;"></i>
-                        <span>View Reports</span>
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- System Statistics -->
-        <section class="system-statistics" style="margin-top: 2rem;">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <i class="fas fa-chart-pie" style="color: var(--success-color); margin-right: 0.5rem;"></i>
-                        System Statistics
-                    </h2>
-                </div>
-                <div class="grid grid-2">
+        <div class="dashboard-section">
+            <h2><i class="fas fa-chart-pie"></i> System Statistics</h2>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem;">
                     <!-- User Distribution -->
                     <div style="text-align: center;">
                         <h3 style="margin-bottom: 1rem; color: var(--text-primary);">User Distribution</h3>
@@ -145,7 +104,6 @@ $totalUsers = array_sum(array_column($userDistribution, 'count'));
                             // Calculate percentages
                             $studentCount = 0;
                             $doctorCount = 0;
-                            $advisorCount = 0;
                             $itCount = 0;
                             $adminCount = 0;
                             foreach ($userDistribution as $dist) {
@@ -155,9 +113,6 @@ $totalUsers = array_sum(array_column($userDistribution, 'count'));
                                         break;
                                     case 'doctor':
                                         $doctorCount = (int)$dist['count'];
-                                        break;
-                                    case 'advisor':
-                                        $advisorCount = (int)$dist['count'];
                                         break;
                                     case 'it':
                                         $itCount = (int)$dist['count'];
@@ -169,55 +124,48 @@ $totalUsers = array_sum(array_column($userDistribution, 'count'));
                             }
                             $studentDeg = ($studentCount / $totalUsers) * 360;
                             $doctorDeg = ($doctorCount / $totalUsers) * 360;
-                            $advisorDeg = ($advisorCount / $totalUsers) * 360;
                             $itDeg = ($itCount / $totalUsers) * 360;
+                        $adminDeg = ($adminCount / $totalUsers) * 360;
                             $cumulative = 0;
                             ?>
                             <div style="width: 150px; height: 150px; margin: 0 auto; background: conic-gradient(
-                                var(--primary-color) 0deg <?= $cumulative += $studentDeg ?>deg,
-                                var(--accent-color) <?= $cumulative ?>deg <?= $cumulative += $doctorDeg ?>deg,
-                                var(--success-color) <?= $cumulative ?>deg <?= $cumulative += $advisorDeg ?>deg,
-                                var(--warning-color) <?= $cumulative ?>deg <?= $cumulative += $itDeg ?>deg,
-                                var(--error-color) <?= $cumulative ?>deg 360deg
+                            #3b82f6 0deg <?= $cumulative += $studentDeg ?>deg,
+                            #8b5cf6 <?= $cumulative ?>deg <?= $cumulative += $doctorDeg ?>deg,
+                            #f59e0b <?= $cumulative ?>deg <?= $cumulative += $itDeg ?>deg,
+                            #ef4444 <?= $cumulative ?>deg <?= $cumulative += $adminDeg ?>deg
                             ); border-radius: 50%; position: relative;">
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: var(--surface-color); width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: var(--bg-primary); width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                                     <span style="font-weight: 700; color: var(--text-primary);"><?= htmlspecialchars($totalUsers) ?></span>
                                 </div>
                             </div>
                             <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.25rem;">
                                 <?php if ($studentCount > 0): ?>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                        <div style="width: 12px; height: 12px; background-color: var(--primary-color); border-radius: 2px;"></div>
+                                    <div style="width: 12px; height: 12px; background-color: #3b82f6; border-radius: 2px;"></div>
                                         <span style="font-size: 0.9rem; color: var(--text-secondary);">Students: <?= htmlspecialchars($studentCount) ?></span>
                                     </div>
                                 <?php endif; ?>
                                 <?php if ($doctorCount > 0): ?>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                        <div style="width: 12px; height: 12px; background-color: var(--accent-color); border-radius: 2px;"></div>
+                                    <div style="width: 12px; height: 12px; background-color: #8b5cf6; border-radius: 2px;"></div>
                                         <span style="font-size: 0.9rem; color: var(--text-secondary);">Doctors: <?= htmlspecialchars($doctorCount) ?></span>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if ($advisorCount > 0): ?>
-                                    <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                        <div style="width: 12px; height: 12px; background-color: var(--success-color); border-radius: 2px;"></div>
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Advisors: <?= htmlspecialchars($advisorCount) ?></span>
                                     </div>
                                 <?php endif; ?>
                                 <?php if ($itCount > 0): ?>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                        <div style="width: 12px; height: 12px; background-color: var(--warning-color); border-radius: 2px;"></div>
+                                    <div style="width: 12px; height: 12px; background-color: #f59e0b; border-radius: 2px;"></div>
                                         <span style="font-size: 0.9rem; color: var(--text-secondary);">IT Officers: <?= htmlspecialchars($itCount) ?></span>
                                     </div>
                                 <?php endif; ?>
                                 <?php if ($adminCount > 0): ?>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                        <div style="width: 12px; height: 12px; background-color: var(--error-color); border-radius: 2px;"></div>
+                                    <div style="width: 12px; height: 12px; background-color: #ef4444; border-radius: 2px;"></div>
                                         <span style="font-size: 0.9rem; color: var(--text-secondary);">Admins: <?= htmlspecialchars($adminCount) ?></span>
                                     </div>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
-                            <div style="width: 150px; height: 150px; margin: 0 auto; background: var(--surface-color); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <div style="width: 150px; height: 150px; margin: 0 auto; background: var(--bg-secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                                 <span style="color: var(--text-secondary);">No data</span>
                             </div>
                         <?php endif; ?>
@@ -229,7 +177,7 @@ $totalUsers = array_sum(array_column($userDistribution, 'count'));
                         <?php if (!empty($courseDistribution)): ?>
                             <div style="display: flex; flex-direction: column; gap: 1rem;">
                                 <?php
-                                $colors = ['var(--primary-color)', 'var(--accent-color)', 'var(--success-color)', 'var(--error-color)', 'var(--warning-color)'];
+                            $colors = ['#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#f59e0b'];
                                 $maxCount = max(array_column($courseDistribution, 'count'));
                                 foreach (array_slice($courseDistribution, 0, 5) as $index => $dept):
                                     $percentage = $maxCount > 0 ? ($dept['count'] / $maxCount) * 100 : 0;
@@ -255,7 +203,362 @@ $totalUsers = array_sum(array_column($userDistribution, 'count'));
                     </div>
                 </div>
             </div>
-        </section>
     </div>
 </div>
+
+<style>
+/* Light Mode CSS Variables (Default) */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --border-light: #cbd5e1;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.1);
+    --shadow-md: rgba(0, 0, 0, 0.15);
+    --shadow-lg: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark Mode CSS Variables */
+[data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-light: #475569;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    --shadow-sm: rgba(0, 0, 0, 0.3);
+    --shadow-md: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+}
+
+.dashboard-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: var(--bg-primary);
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+.dashboard-header {
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border-radius: 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-md);
+}
+
+.dashboard-header h1 {
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.dashboard-header h1 i {
+    font-size: 2rem;
+}
+
+.dashboard-header p {
+    font-size: 1.1rem;
+    margin: 0;
+    opacity: 0.95;
+}
+
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.stat-card {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    box-shadow: 0 4px 12px var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+}
+
+.stat-card:hover::before {
+    transform: translateX(100%);
+}
+
+.stat-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 12px 32px var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.stat-card:hover .stat-icon {
+    transform: rotate(5deg) scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.stat-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.stat-content h3 {
+    font-size: 2rem;
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stat-content p {
+    margin: 0.5rem 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.stat-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.stat-link:hover {
+    color: var(--primary-hover);
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.dashboard-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 2rem;
+}
+
+.dashboard-section {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 12px var(--shadow-md);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.dashboard-section:hover {
+    box-shadow: 0 8px 24px var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.dashboard-section h2 {
+    font-size: 1.75rem;
+    margin: 0 0 1.5rem 0;
+    color: var(--text-primary);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.dashboard-section h2 i {
+    color: var(--primary-color);
+}
+
+.activity-list {
+    max-height: 450px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.activity-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.activity-list::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+    border-radius: 10px;
+}
+
+.activity-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 10px;
+}
+
+.activity-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+.activity-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.activity-item:hover {
+    background: var(--bg-tertiary);
+    margin: 0 -1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    border-radius: 8px;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-icon {
+    color: var(--primary-color);
+    font-size: 0.5rem;
+    margin-top: 0.5rem;
+    flex-shrink: 0;
+}
+
+.activity-content {
+    flex: 1;
+}
+
+.activity-content p {
+    margin: 0.25rem 0;
+    line-height: 1.5;
+}
+
+.activity-content p strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.activity-time {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-left: 0.75rem;
+    font-weight: 500;
+}
+
+.text-muted {
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+    padding: 2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .dashboard-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 1rem;
+    }
+    
+    .dashboard-header {
+        padding: 1.5rem;
+    }
+    
+    .dashboard-header h1 {
+        font-size: 2rem;
+    }
+    
+    .stat-card {
+        padding: 1.5rem;
+    }
+    
+    .stat-content h3 {
+        font-size: 2rem;
+    }
+    
+    .dashboard-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-sections {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animation for stat cards */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stat-card {
+    animation: fadeInUp 0.6s ease-out;
+    animation-fill-mode: both;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stat-card:nth-child(3) { animation-delay: 0.3s; }
+.stat-card:nth-child(4) { animation-delay: 0.4s; }
+.stat-card:nth-child(5) { animation-delay: 0.5s; }
+.stat-card:nth-child(6) { animation-delay: 0.6s; }
+</style>
 

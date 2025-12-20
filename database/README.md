@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `email` VARCHAR(255) NOT NULL UNIQUE,
     `phone` VARCHAR(20) DEFAULT NULL,
     `password` VARCHAR(255) NOT NULL,
-    `role` ENUM('admin', 'student', 'doctor', 'advisor', 'it', 'user') NOT NULL DEFAULT 'user',
+    `role` ENUM('admin', 'student', 'doctor', 'it', 'user') NOT NULL DEFAULT 'user',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -85,7 +85,7 @@ After setting up, try signing up a new user. The system will:
 ## Notes
 
 - All public signups default to role 'user'
-- Only admins can create accounts with other roles (admin, student, doctor, advisor, it, user)
+- Only admins can create accounts with other roles (admin, student, doctor, it, user)
 - Passwords are hashed using PHP's `password_hash()` function
 - Email addresses must be unique
 

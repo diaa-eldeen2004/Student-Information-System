@@ -2031,7 +2031,7 @@ class ItOfficer extends Controller
                     if ($sendToAll) {
                         // Get all users
                         $db = \patterns\Singleton\DatabaseConnection::getInstance()->getConnection();
-                        $stmt = $db->query("SELECT id FROM users WHERE role IN ('student', 'doctor', 'advisor', 'admin')");
+                        $stmt = $db->query("SELECT id FROM users WHERE role IN ('student', 'doctor', 'admin')");
                         $allUsers = $stmt->fetchAll(\PDO::FETCH_COLUMN);
                         
                         foreach ($allUsers as $targetUserId) {
@@ -2107,14 +2107,12 @@ class ItOfficer extends Controller
                        CASE 
                            WHEN u.role = 'student' THEN s.student_number
                            WHEN u.role = 'doctor' THEN d.doctor_id
-                           WHEN u.role = 'advisor' THEN a.advisor_id
                            ELSE NULL
                        END as identifier
                 FROM users u
                 LEFT JOIN students s ON u.id = s.user_id
                 LEFT JOIN doctors d ON u.id = d.user_id
-                LEFT JOIN advisors a ON u.id = a.user_id
-                WHERE u.role IN ('student', 'doctor', 'advisor', 'admin')
+                WHERE u.role IN ('student', 'doctor', 'admin')
                 ORDER BY u.role, u.first_name, u.last_name
             ");
             $allUsers = $stmt->fetchAll(\PDO::FETCH_ASSOC);

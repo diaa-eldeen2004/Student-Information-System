@@ -53,7 +53,7 @@ $messageType = $messageType ?? 'info';
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: var(--bg-tertiary); border-radius: 6px; margin-bottom: 0.5rem;">
                             <input type="checkbox" name="send_to_all" value="1" id="send_to_all" onchange="toggleUserSelection()" style="width: 18px; height: 18px;">
                             <strong style="color: var(--text-primary);">Send to All Users</strong>
-                            <small style="color: var(--text-secondary); margin-left: auto;">(All students, doctors, advisors, and admins)</small>
+                            <small style="color: var(--text-secondary); margin-left: auto;">(All students, doctors, and admins)</small>
                         </label>
                     </div>
                     <div id="userSelection" style="border: 1px solid var(--border-light); border-radius: 8px; padding: 1rem; max-height: 400px; overflow-y: auto; background-color: var(--bg-tertiary);">
@@ -72,13 +72,13 @@ $messageType = $messageType ?? 'info';
                             }
                             $usersByRole[$role][] = $user;
                         }
-                        $roleLabels = ['student' => 'Students', 'doctor' => 'Doctors', 'advisor' => 'Advisors', 'admin' => 'Admins'];
+                        $roleLabels = ['student' => 'Students', 'doctor' => 'Doctors', 'admin' => 'Admins'];
                         ?>
                         <?php foreach ($roleLabels as $role => $label): ?>
                             <?php if (!empty($usersByRole[$role])): ?>
                                 <div style="margin-bottom: 1rem;">
                                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.9rem; font-weight: 600;">
-                                        <i class="fas fa-<?= $role === 'student' ? 'user-graduate' : ($role === 'doctor' ? 'user-md' : ($role === 'advisor' ? 'user-tie' : 'user-shield')) ?>"></i> <?= $label ?>
+                                        <i class="fas fa-<?= $role === 'student' ? 'user-graduate' : ($role === 'doctor' ? 'user-md' : 'user-shield') ?>"></i> <?= $label ?>
                                     </h4>
                                     <?php foreach ($usersByRole[$role] as $user): ?>
                                         <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 

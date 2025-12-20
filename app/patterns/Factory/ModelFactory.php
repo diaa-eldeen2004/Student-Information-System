@@ -13,6 +13,7 @@ use models\Assignment;
 use models\Attendance;
 use models\Material;
 use models\CalendarEvent;
+use models\User;
 
 /**
  * Factory Method Pattern - Creational
@@ -46,6 +47,7 @@ class ModelFactory
             'Attendance' => new Attendance(),
             'Material' => new Material(),
             'CalendarEvent' => new CalendarEvent(),
+            'User' => new User(),
             default => throw new \InvalidArgumentException("Unknown model type: {$modelType}")
         };
 
