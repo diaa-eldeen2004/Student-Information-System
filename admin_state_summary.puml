@@ -1,0 +1,151 @@
+' ============================================
+' ADMIN SYSTEM - SUMMARY STATE DIAGRAM
+' This diagram provides a high-level overview of all essential admin system states
+' ============================================
+
+!theme plain
+skinparam state {
+  BackgroundColor #FFF3E0
+  BorderColor #E65100
+  FontColor #000000
+  ArrowColor #E65100
+}
+
+@startuml Admin_System_State_Summary
+
+[*] --> Unauthenticated
+
+state Unauthenticated {
+  [*] --> LoginPage
+  LoginPage --> Authenticating : submit credentials
+  Authenticating --> LoginFailed : invalid credentials
+  Authenticating --> Authenticated : valid credentials
+  LoginFailed --> LoginPage : retry
+}
+
+state Authenticated {
+  [*] --> Dashboard
+  
+  state Dashboard {
+    [*] --> LoadingStatistics
+    LoadingStatistics --> FetchingData
+    FetchingData --> DisplayingDashboard
+    DisplayingDashboard --> [*]
+  }
+  
+  state StudentManagement {
+    [*] --> ViewingStudents
+    ViewingStudents --> CreatingStudent : create
+    ViewingStudents --> EditingStudent : edit
+    ViewingStudents --> DeletingStudent : delete
+    
+    CreatingStudent --> ValidatingStudent : submit
+    ValidatingStudent --> StudentCreated : valid
+    ValidatingStudent --> StudentError : invalid
+    StudentCreated --> ViewingStudents
+    StudentError --> CreatingStudent : retry
+    
+    EditingStudent --> LoadingStudentData
+    LoadingStudentData --> UpdatingStudent : save
+    UpdatingStudent --> StudentUpdated : success
+    UpdatingStudent --> StudentError : failed
+    StudentUpdated --> ViewingStudents
+    StudentError --> EditingStudent : retry
+    
+    DeletingStudent --> ConfirmingDeletion
+    ConfirmingDeletion --> StudentDeleted : confirmed
+    ConfirmingDeletion --> ViewingStudents : cancelled
+    StudentDeleted --> ViewingStudents
+  }
+  
+  state ProfileManagement {
+    [*] --> ViewingProfile
+    ViewingProfile --> EditingProfile : edit
+    ViewingProfile --> ChangingPassword : change password
+    
+    EditingProfile --> ValidatingProfile : save
+    ValidatingProfile --> ProfileUpdated : valid
+    ValidatingProfile --> ProfileError : invalid
+    ProfileUpdated --> ViewingProfile
+    ProfileError --> EditingProfile : retry
+    
+    ChangingPassword --> ValidatingCurrentPassword
+    ValidatingCurrentPassword --> PasswordInvalid : wrong
+    ValidatingCurrentPassword --> ValidatingNewPassword : correct
+    PasswordInvalid --> ChangingPassword : retry
+    ValidatingNewPassword --> PasswordTooShort : too short
+    ValidatingNewPassword --> CheckingMatch : valid length
+    PasswordTooShort --> ChangingPassword : retry
+    CheckingMatch --> PasswordMismatch : don't match
+    CheckingMatch --> PasswordChanged : match
+    PasswordMismatch --> ChangingPassword : retry
+    PasswordChanged --> ViewingProfile
+  }
+  
+  state ReportManagement {
+    [*] --> ViewingReports
+    ViewingReports --> CreatingReport : create
+    
+    CreatingReport --> ValidatingReport : submit
+    ValidatingReport --> ValidatingFile : fields valid
+    ValidatingReport --> ReportError : fields invalid
+    ValidatingFile --> FileTooLarge : size > 5MB
+    ValidatingFile --> InvalidFileType : invalid type
+    ValidatingFile --> StoringReport : valid
+    FileTooLarge --> CreatingReport : retry
+    InvalidFileType --> CreatingReport : retry
+    StoringReport --> ReportCreated : success
+    ReportCreated --> ViewingReports
+    ReportError --> CreatingReport : retry
+  }
+  
+  state NotificationSystem {
+    [*] --> ViewingNotifications
+    ViewingNotifications --> SendingNotification : send
+    ViewingNotifications --> MarkingRead : click notification
+    
+    SendingNotification --> ValidatingNotification : submit
+    ValidatingNotification --> NotificationError : invalid
+    ValidatingNotification --> CreatingNotifications : valid
+    CreatingNotifications --> NotificationSent : success
+    NotificationSent --> ViewingNotifications
+    NotificationError --> SendingNotification : retry
+    
+    MarkingRead --> NotificationRead
+    NotificationRead --> ViewingNotifications
+  }
+  
+  state SystemAdministration {
+    [*] --> CheckingSystem
+    CheckingSystem --> TableMissing : table not found
+    CheckingSystem --> SystemReady : all tables exist
+    
+    TableMissing --> RunningMigration : run migration
+    RunningMigration --> MigrationFailed : error
+    RunningMigration --> MigrationSuccess : success
+    MigrationFailed --> TableMissing : retry
+    MigrationSuccess --> SystemReady
+    
+    SystemReady --> [*]
+  }
+  
+  Dashboard --> StudentManagement : manage students
+  Dashboard --> ProfileManagement : manage profile
+  Dashboard --> ReportManagement : manage reports
+  Dashboard --> NotificationSystem : view notifications
+  Dashboard --> SystemAdministration : system admin
+  
+  StudentManagement --> Dashboard : back
+  ProfileManagement --> Dashboard : back
+  ReportManagement --> Dashboard : back
+  NotificationSystem --> Dashboard : back
+  SystemAdministration --> Dashboard : back
+}
+
+Authenticated --> Unauthenticated : logout
+Authenticated --> Unauthenticated : session expired
+
+Unauthenticated --> [*] : exit
+
+@enduml
+

@@ -1,0 +1,1386 @@
+' ============================================
+' ADMIN CONTEXT DIAGRAMS
+' This file contains PlantUML context diagrams for all admin scenarios
+' Each diagram is separated by comments and can be rendered independently
+' ============================================
+
+!theme plain
+skinparam component {
+  BackgroundColor #F3E5F5
+  BorderColor #6A1B9A
+  FontColor #000000
+  ArrowColor #6A1B9A
+}
+
+' ============================================
+' DASHBOARD SCENARIOS
+' ============================================
+
+' Scenario 1.1: View Dashboard Statistics
+@startuml Scenario_1_1_Context
+actor Admin
+component "Admin Dashboard System" as Dashboard
+database "Database" as DB {
+  component "Students Table"
+  component "Doctors Table"
+  component "Courses Table"
+  component "Audit Log Table"
+}
+
+Admin --> Dashboard : views statistics
+Dashboard --> DB : queries data
+DB --> Dashboard : returns counts
+Dashboard --> Admin : displays statistics
+@enduml
+
+' ============================================
+
+' Scenario 1.2: View System Alerts
+@startuml Scenario_1_2_Context
+actor Admin
+component "Admin Dashboard System" as Dashboard
+database "Database" as DB {
+  component "System Tables"
+  component "Configuration"
+}
+
+Admin --> Dashboard : views dashboard
+Dashboard --> DB : checks tables
+Dashboard --> DB : checks errors
+DB --> Dashboard : returns status
+Dashboard --> Admin : displays alerts
+@enduml
+
+' ============================================
+
+' Scenario 1.3: View Recent Activity
+@startuml Scenario_1_3_Context
+actor Admin
+component "Admin Dashboard System" as Dashboard
+database "Database" as DB {
+  component "Audit Log Table"
+}
+
+Admin --> Dashboard : views dashboard
+Dashboard --> DB : queries activity log
+DB --> Dashboard : returns activities
+Dashboard --> Admin : displays activity log
+@enduml
+
+' ============================================
+' PROFILE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 2.1: View Admin Profile
+@startuml Scenario_2_1_Context
+actor Admin
+component "Profile Management System" as Profile
+database "Database" as DB {
+  component "Users Table"
+  component "Admins Table"
+}
+
+Admin --> Profile : navigates to profile
+Profile --> DB : queries user data
+Profile --> DB : queries admin data
+DB --> Profile : returns profile data
+Profile --> Admin : displays profile
+@enduml
+
+' ============================================
+
+' Scenario 2.2: Update Profile Information
+@startuml Scenario_2_2_Context
+actor Admin
+component "Profile Management System" as Profile
+database "Database" as DB {
+  component "Users Table"
+  component "Session Storage"
+}
+
+Admin --> Profile : updates profile
+Profile --> Profile : validates input
+Profile --> DB : updates user record
+Profile --> DB : updates session
+DB --> Profile : confirms update
+Profile --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 2.3: Update Profile - Invalid Email
+@startuml Scenario_2_3_Context
+actor Admin
+component "Profile Management System" as Profile
+component "Validation Service" as Validator
+
+Admin --> Profile : enters invalid email
+Profile --> Validator : validates email format
+Validator --> Profile : returns invalid
+Profile --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 2.4: Change Password
+@startuml Scenario_2_4_Context
+actor Admin
+component "Profile Management System" as Profile
+database "Database" as DB {
+  component "Users Table"
+}
+component "Password Service" as Password
+
+Admin --> Profile : changes password
+Profile --> DB : verifies current password
+DB --> Profile : confirms password
+Profile --> Password : hashes new password
+Password --> Profile : returns hash
+Profile --> DB : updates password
+DB --> Profile : confirms update
+Profile --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 2.5: Change Password - Wrong Current Password
+@startuml Scenario_2_5_Context
+actor Admin
+component "Profile Management System" as Profile
+database "Database" as DB {
+  component "Users Table"
+}
+
+Admin --> Profile : enters wrong password
+Profile --> DB : verifies current password
+DB --> Profile : returns invalid
+Profile --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 2.6: Change Password - Password Mismatch
+@startuml Scenario_2_6_Context
+actor Admin
+component "Profile Management System" as Profile
+component "Validation Service" as Validator
+
+Admin --> Profile : enters mismatched passwords
+Profile --> Validator : compares passwords
+Validator --> Profile : returns mismatch
+Profile --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 2.7: Change Password - Too Short
+@startuml Scenario_2_7_Context
+actor Admin
+component "Profile Management System" as Profile
+component "Validation Service" as Validator
+
+Admin --> Profile : enters short password
+Profile --> Validator : validates length
+Validator --> Profile : returns too short
+Profile --> Admin : displays error
+@enduml
+
+' ============================================
+' STUDENT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 3.1: View All Students
+@startuml Scenario_3_1_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Students Table"
+  component "Users Table"
+}
+
+Admin --> StudentMgmt : views students
+StudentMgmt --> DB : queries students
+StudentMgmt --> DB : joins with users
+DB --> StudentMgmt : returns student list
+StudentMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 3.2: Create New Student
+@startuml Scenario_3_2_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Users Table"
+  component "Students Table"
+}
+component "Password Generator" as PasswordGen
+
+Admin --> StudentMgmt : creates student
+StudentMgmt --> StudentMgmt : validates input
+StudentMgmt --> DB : checks email uniqueness
+DB --> StudentMgmt : confirms unique
+StudentMgmt --> PasswordGen : generates password
+PasswordGen --> StudentMgmt : returns password
+StudentMgmt --> DB : creates user
+StudentMgmt --> DB : creates student
+DB --> StudentMgmt : confirms creation
+StudentMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 3.3: Create Student - Duplicate Email
+@startuml Scenario_3_3_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Users Table"
+}
+
+Admin --> StudentMgmt : enters duplicate email
+StudentMgmt --> DB : checks email
+DB --> StudentMgmt : returns exists
+StudentMgmt --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 3.4: Create Student - Missing Required Fields
+@startuml Scenario_3_4_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+component "Validation Service" as Validator
+
+Admin --> StudentMgmt : submits incomplete form
+StudentMgmt --> Validator : validates fields
+Validator --> StudentMgmt : returns missing fields
+StudentMgmt --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 3.5: Edit Student Information
+@startuml Scenario_3_5_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Students Table"
+  component "Users Table"
+}
+
+Admin --> StudentMgmt : edits student
+StudentMgmt --> DB : loads student data
+DB --> StudentMgmt : returns data
+StudentMgmt --> StudentMgmt : validates changes
+StudentMgmt --> DB : updates student
+StudentMgmt --> DB : updates user
+DB --> StudentMgmt : confirms update
+StudentMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 3.6: View Student Details
+@startuml Scenario_3_6_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Students Table"
+  component "Users Table"
+  component "Courses Table"
+}
+
+Admin --> StudentMgmt : views details
+StudentMgmt --> DB : queries student
+StudentMgmt --> DB : joins user data
+StudentMgmt --> DB : joins course data
+DB --> StudentMgmt : returns complete data
+StudentMgmt --> Admin : displays details
+@enduml
+
+' ============================================
+
+' Scenario 3.7: Delete Student
+@startuml Scenario_3_7_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Students Table"
+  component "Users Table"
+  component "Dependencies"
+}
+
+Admin --> StudentMgmt : deletes student
+StudentMgmt --> DB : checks dependencies
+DB --> StudentMgmt : returns no dependencies
+StudentMgmt --> DB : deletes student
+StudentMgmt --> DB : deletes user
+DB --> StudentMgmt : confirms deletion
+StudentMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 3.8: Search/Filter Students
+@startuml Scenario_3_8_Context
+actor Admin
+component "Student Management System" as StudentMgmt
+database "Database" as DB {
+  component "Students Table"
+  component "Users Table"
+}
+
+Admin --> StudentMgmt : searches students
+StudentMgmt --> StudentMgmt : processes query
+StudentMgmt --> DB : applies filters
+DB --> StudentMgmt : returns results
+StudentMgmt --> Admin : displays filtered list
+@enduml
+
+' ============================================
+' DOCTOR MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 4.1: View All Doctors
+@startuml Scenario_4_1_Context
+actor Admin
+component "Doctor Management System" as DoctorMgmt
+database "Database" as DB {
+  component "Doctors Table"
+  component "Users Table"
+}
+
+Admin --> DoctorMgmt : views doctors
+DoctorMgmt --> DB : queries doctors
+DoctorMgmt --> DB : joins with users
+DB --> DoctorMgmt : returns doctor list
+DoctorMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 4.2: Create New Doctor
+@startuml Scenario_4_2_Context
+actor Admin
+component "Doctor Management System" as DoctorMgmt
+database "Database" as DB {
+  component "Users Table"
+  component "Doctors Table"
+}
+component "Password Generator" as PasswordGen
+
+Admin --> DoctorMgmt : creates doctor
+DoctorMgmt --> DoctorMgmt : validates input
+DoctorMgmt --> DB : checks email uniqueness
+DB --> DoctorMgmt : confirms unique
+DoctorMgmt --> PasswordGen : generates password
+PasswordGen --> DoctorMgmt : returns password
+DoctorMgmt --> DB : creates user
+DoctorMgmt --> DB : creates doctor
+DB --> DoctorMgmt : confirms creation
+DoctorMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 4.3: Edit Doctor Information
+@startuml Scenario_4_3_Context
+actor Admin
+component "Doctor Management System" as DoctorMgmt
+database "Database" as DB {
+  component "Doctors Table"
+  component "Users Table"
+}
+
+Admin --> DoctorMgmt : edits doctor
+DoctorMgmt --> DB : loads doctor data
+DB --> DoctorMgmt : returns data
+DoctorMgmt --> DoctorMgmt : validates changes
+DoctorMgmt --> DB : updates doctor
+DoctorMgmt --> DB : updates user
+DB --> DoctorMgmt : confirms update
+DoctorMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 4.4: Delete Doctor
+@startuml Scenario_4_4_Context
+actor Admin
+component "Doctor Management System" as DoctorMgmt
+database "Database" as DB {
+  component "Doctors Table"
+  component "Users Table"
+  component "Course Assignments"
+}
+
+Admin --> DoctorMgmt : deletes doctor
+DoctorMgmt --> DB : checks assignments
+DB --> DoctorMgmt : returns no assignments
+DoctorMgmt --> DB : deletes doctor
+DoctorMgmt --> DB : deletes user
+DB --> DoctorMgmt : confirms deletion
+DoctorMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 4.5: View Doctor Details
+@startuml Scenario_4_5_Context
+actor Admin
+component "Doctor Management System" as DoctorMgmt
+database "Database" as DB {
+  component "Doctors Table"
+  component "Users Table"
+  component "Courses Table"
+}
+
+Admin --> DoctorMgmt : views details
+DoctorMgmt --> DB : queries doctor
+DoctorMgmt --> DB : joins user data
+DoctorMgmt --> DB : retrieves courses
+DB --> DoctorMgmt : returns complete data
+DoctorMgmt --> Admin : displays details
+@enduml
+
+' ============================================
+' COURSE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 5.1: View All Courses
+@startuml Scenario_5_1_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Courses Table"
+}
+
+Admin --> CourseMgmt : views courses
+CourseMgmt --> DB : queries courses
+DB --> CourseMgmt : returns course list
+CourseMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 5.2: Create New Course
+@startuml Scenario_5_2_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Courses Table"
+}
+
+Admin --> CourseMgmt : creates course
+CourseMgmt --> CourseMgmt : validates input
+CourseMgmt --> DB : checks code uniqueness
+DB --> CourseMgmt : confirms unique
+CourseMgmt --> DB : creates course
+DB --> CourseMgmt : confirms creation
+CourseMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 5.3: Create Course - Duplicate Course Code
+@startuml Scenario_5_3_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Courses Table"
+}
+
+Admin --> CourseMgmt : enters duplicate code
+CourseMgmt --> DB : checks code
+DB --> CourseMgmt : returns exists
+CourseMgmt --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 5.4: Edit Course Information
+@startuml Scenario_5_4_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Courses Table"
+}
+
+Admin --> CourseMgmt : edits course
+CourseMgmt --> DB : loads course data
+DB --> CourseMgmt : returns data
+CourseMgmt --> CourseMgmt : validates changes
+CourseMgmt --> DB : updates course
+DB --> CourseMgmt : confirms update
+CourseMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 5.5: Delete Course
+@startuml Scenario_5_5_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Courses Table"
+  component "Enrollments"
+  component "Sections"
+}
+
+Admin --> CourseMgmt : deletes course
+CourseMgmt --> DB : checks enrollments
+CourseMgmt --> DB : checks sections
+DB --> CourseMgmt : returns no dependencies
+CourseMgmt --> DB : deletes course
+DB --> CourseMgmt : confirms deletion
+CourseMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 5.6: Manage Course Sections
+@startuml Scenario_5_6_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Courses Table"
+  component "Sections Table"
+}
+component "Migration Service" as Migration
+
+Admin --> CourseMgmt : manages sections
+CourseMgmt --> DB : checks table exists
+DB --> CourseMgmt : returns missing
+CourseMgmt --> Migration : runs migration
+Migration --> DB : creates table
+DB --> CourseMgmt : confirms table
+CourseMgmt --> DB : queries sections
+DB --> CourseMgmt : returns sections
+CourseMgmt --> Admin : displays sections
+@enduml
+
+' ============================================
+
+' Scenario 5.7: Assign Doctor to Course
+@startuml Scenario_5_7_Context
+actor Admin
+component "Course Management System" as CourseMgmt
+database "Database" as DB {
+  component "Doctors Table"
+  component "Courses Table"
+  component "Course Assignments"
+}
+
+Admin --> CourseMgmt : assigns doctor
+CourseMgmt --> DB : retrieves doctors
+DB --> CourseMgmt : returns doctors
+CourseMgmt --> DB : checks availability
+DB --> CourseMgmt : confirms available
+CourseMgmt --> DB : creates assignment
+DB --> CourseMgmt : confirms assignment
+CourseMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+' IT OFFICER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 6.1: View All IT Officers
+@startuml Scenario_6_1_Context
+actor Admin
+component "IT Officer Management System" as ItMgmt
+database "Database" as DB {
+  component "IT Officers Table"
+  component "Users Table"
+}
+
+Admin --> ItMgmt : views IT officers
+ItMgmt --> DB : queries IT officers
+ItMgmt --> DB : joins with users
+DB --> ItMgmt : returns IT officer list
+ItMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 6.2: Create New IT Officer
+@startuml Scenario_6_2_Context
+actor Admin
+component "IT Officer Management System" as ItMgmt
+database "Database" as DB {
+  component "Users Table"
+  component "IT Officers Table"
+}
+component "Password Generator" as PasswordGen
+
+Admin --> ItMgmt : creates IT officer
+ItMgmt --> ItMgmt : validates input
+ItMgmt --> DB : checks email uniqueness
+DB --> ItMgmt : confirms unique
+ItMgmt --> PasswordGen : generates password
+PasswordGen --> ItMgmt : returns password
+ItMgmt --> DB : creates user
+ItMgmt --> DB : creates IT officer
+DB --> ItMgmt : confirms creation
+ItMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 6.3: Edit IT Officer Information
+@startuml Scenario_6_3_Context
+actor Admin
+component "IT Officer Management System" as ItMgmt
+database "Database" as DB {
+  component "IT Officers Table"
+  component "Users Table"
+}
+
+Admin --> ItMgmt : edits IT officer
+ItMgmt --> DB : loads IT officer data
+DB --> ItMgmt : returns data
+ItMgmt --> ItMgmt : validates changes
+ItMgmt --> DB : updates IT officer
+ItMgmt --> DB : updates user
+DB --> ItMgmt : confirms update
+ItMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 6.4: Delete IT Officer
+@startuml Scenario_6_4_Context
+actor Admin
+component "IT Officer Management System" as ItMgmt
+database "Database" as DB {
+  component "IT Officers Table"
+  component "Users Table"
+}
+
+Admin --> ItMgmt : deletes IT officer
+ItMgmt --> DB : deletes IT officer
+ItMgmt --> DB : deletes user
+DB --> ItMgmt : confirms deletion
+ItMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 6.5: Fix IT Officer Auto-Increment
+@startuml Scenario_6_5_Context
+actor Admin
+component "IT Officer Management System" as ItMgmt
+database "Database" as DB {
+  component "IT Officers Table"
+}
+
+Admin --> ItMgmt : fixes auto-increment
+ItMgmt --> DB : calculates max ID
+DB --> ItMgmt : returns max ID
+ItMgmt --> DB : executes ALTER TABLE
+DB --> ItMgmt : confirms fix
+ItMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+' ADMIN USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 7.1: View All Admins
+@startuml Scenario_7_1_Context
+actor Admin
+component "Admin User Management System" as AdminMgmt
+database "Database" as DB {
+  component "Admins Table"
+  component "Users Table"
+}
+
+Admin --> AdminMgmt : views admins
+AdminMgmt --> DB : queries admins
+AdminMgmt --> DB : joins with users
+DB --> AdminMgmt : returns admin list
+AdminMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 7.2: Create New Admin
+@startuml Scenario_7_2_Context
+actor Admin
+component "Admin User Management System" as AdminMgmt
+database "Database" as DB {
+  component "Users Table"
+  component "Admins Table"
+}
+component "Password Generator" as PasswordGen
+
+Admin --> AdminMgmt : creates admin
+AdminMgmt --> AdminMgmt : validates input
+AdminMgmt --> DB : checks email uniqueness
+DB --> AdminMgmt : confirms unique
+AdminMgmt --> PasswordGen : generates password
+PasswordGen --> AdminMgmt : returns password
+AdminMgmt --> DB : creates user
+AdminMgmt --> DB : creates admin role
+DB --> AdminMgmt : confirms creation
+AdminMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 7.3: Edit Admin Information
+@startuml Scenario_7_3_Context
+actor Admin
+component "Admin User Management System" as AdminMgmt
+database "Database" as DB {
+  component "Admins Table"
+  component "Users Table"
+}
+
+Admin --> AdminMgmt : edits admin
+AdminMgmt --> DB : loads admin data
+DB --> AdminMgmt : returns data
+AdminMgmt --> AdminMgmt : validates changes
+AdminMgmt --> DB : updates admin
+AdminMgmt --> DB : updates user
+DB --> AdminMgmt : confirms update
+AdminMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 7.4: Delete Admin
+@startuml Scenario_7_4_Context
+actor Admin
+component "Admin User Management System" as AdminMgmt
+database "Database" as DB {
+  component "Admins Table"
+  component "Users Table"
+}
+
+Admin --> AdminMgmt : deletes admin
+AdminMgmt --> DB : counts admins
+DB --> AdminMgmt : returns count
+AdminMgmt --> AdminMgmt : checks last admin
+AdminMgmt --> DB : deletes admin
+AdminMgmt --> DB : deletes user
+DB --> AdminMgmt : confirms deletion
+AdminMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 7.5: Change Admin Level
+@startuml Scenario_7_5_Context
+actor Admin
+component "Admin User Management System" as AdminMgmt
+database "Database" as DB {
+  component "Admins Table"
+}
+
+Admin --> AdminMgmt : changes level
+AdminMgmt --> AdminMgmt : validates level
+AdminMgmt --> DB : updates admin level
+DB --> AdminMgmt : confirms update
+AdminMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+' GENERAL USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 8.1: View All Users
+@startuml Scenario_8_1_Context
+actor Admin
+component "General User Management System" as UserMgmt
+database "Database" as DB {
+  component "Users Table"
+}
+
+Admin --> UserMgmt : views users
+UserMgmt --> DB : queries users
+DB --> UserMgmt : returns user list
+UserMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 8.2: Create New User
+@startuml Scenario_8_2_Context
+actor Admin
+component "General User Management System" as UserMgmt
+database "Database" as DB {
+  component "Users Table"
+}
+component "Password Generator" as PasswordGen
+
+Admin --> UserMgmt : creates user
+UserMgmt --> UserMgmt : validates input
+UserMgmt --> DB : checks email uniqueness
+DB --> UserMgmt : confirms unique
+UserMgmt --> PasswordGen : generates password
+PasswordGen --> UserMgmt : returns password
+UserMgmt --> DB : creates user
+DB --> UserMgmt : confirms creation
+UserMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 8.3: Edit User Information
+@startuml Scenario_8_3_Context
+actor Admin
+component "General User Management System" as UserMgmt
+database "Database" as DB {
+  component "Users Table"
+}
+
+Admin --> UserMgmt : edits user
+UserMgmt --> DB : loads user data
+DB --> UserMgmt : returns data
+UserMgmt --> UserMgmt : validates changes
+UserMgmt --> DB : updates user
+DB --> UserMgmt : confirms update
+UserMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 8.4: Delete User
+@startuml Scenario_8_4_Context
+actor Admin
+component "General User Management System" as UserMgmt
+database "Database" as DB {
+  component "Users Table"
+  component "Role Tables"
+}
+
+Admin --> UserMgmt : deletes user
+UserMgmt --> DB : checks dependencies
+DB --> UserMgmt : returns no dependencies
+UserMgmt --> DB : deletes role record
+UserMgmt --> DB : deletes user
+DB --> UserMgmt : confirms deletion
+UserMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+' REPORT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 9.1: View All Reports
+@startuml Scenario_9_1_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+component "Migration Service" as Migration
+
+Admin --> ReportMgmt : views reports
+ReportMgmt --> DB : checks table exists
+DB --> ReportMgmt : returns missing
+ReportMgmt --> Migration : runs migration
+Migration --> DB : creates table
+DB --> ReportMgmt : confirms table
+ReportMgmt --> DB : queries reports
+DB --> ReportMgmt : returns reports
+ReportMgmt --> Admin : displays table
+@enduml
+
+' ============================================
+
+' Scenario 9.2: Create New Report
+@startuml Scenario_9_2_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+
+Admin --> ReportMgmt : creates report
+ReportMgmt --> ReportMgmt : validates input
+ReportMgmt --> DB : creates report
+ReportMgmt --> DB : stores data
+DB --> ReportMgmt : confirms creation
+ReportMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 9.3: Create Report with File Upload
+@startuml Scenario_9_3_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+component "File Upload Service" as FileService
+
+Admin --> ReportMgmt : uploads file
+ReportMgmt --> FileService : validates file size
+FileService --> ReportMgmt : confirms size valid
+ReportMgmt --> FileService : validates file type
+FileService --> ReportMgmt : confirms type valid
+ReportMgmt --> FileService : reads file
+FileService --> ReportMgmt : returns file data
+ReportMgmt --> DB : stores file as BLOB
+ReportMgmt --> DB : stores metadata
+DB --> ReportMgmt : confirms storage
+ReportMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 9.4: Create Report - File Too Large
+@startuml Scenario_9_4_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+component "File Upload Service" as FileService
+
+Admin --> ReportMgmt : uploads large file
+ReportMgmt --> FileService : validates file size
+FileService --> ReportMgmt : returns too large
+ReportMgmt --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 9.5: Create Report - Invalid File Type
+@startuml Scenario_9_5_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+component "File Upload Service" as FileService
+
+Admin --> ReportMgmt : uploads invalid file
+ReportMgmt --> FileService : validates file type
+FileService --> ReportMgmt : returns invalid type
+ReportMgmt --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 9.6: Edit Report
+@startuml Scenario_9_6_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+component "File Upload Service" as FileService
+
+Admin --> ReportMgmt : edits report
+ReportMgmt --> DB : loads report data
+DB --> ReportMgmt : returns data
+Admin --> ReportMgmt : uploads new file (optional)
+ReportMgmt --> FileService : validates new file
+FileService --> ReportMgmt : confirms valid
+ReportMgmt --> DB : updates report
+ReportMgmt --> DB : updates file
+DB --> ReportMgmt : confirms update
+ReportMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 9.7: Delete Report
+@startuml Scenario_9_7_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+
+Admin --> ReportMgmt : deletes report
+ReportMgmt --> DB : deletes report record
+ReportMgmt --> DB : deletes file data
+DB --> ReportMgmt : confirms deletion
+ReportMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 9.8: Download Report File
+@startuml Scenario_9_8_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+component "HTTP Response Service" as HTTP
+
+Admin --> ReportMgmt : downloads file
+ReportMgmt --> DB : retrieves file data
+ReportMgmt --> DB : retrieves metadata
+DB --> ReportMgmt : returns file data
+ReportMgmt --> HTTP : sets headers
+HTTP --> ReportMgmt : confirms headers
+ReportMgmt --> HTTP : outputs file
+HTTP --> Admin : serves download
+@enduml
+
+' ============================================
+
+' Scenario 9.9: View Report Details
+@startuml Scenario_9_9_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+database "Database" as DB {
+  component "Reports Table"
+}
+
+Admin --> ReportMgmt : views details
+ReportMgmt --> DB : queries report
+ReportMgmt --> DB : retrieves metadata
+DB --> ReportMgmt : returns report data
+ReportMgmt --> Admin : displays details
+@enduml
+
+' ============================================
+
+' Scenario 9.10: Run Report Migration
+@startuml Scenario_9_10_Context
+actor Admin
+component "Report Management System" as ReportMgmt
+component "Migration Service" as Migration
+database "Database" as DB {
+  component "Reports Table"
+}
+component "File System" as FileSystem
+
+Admin --> ReportMgmt : runs migration
+ReportMgmt --> Migration : reads SQL file
+Migration --> FileSystem : reads file
+FileSystem --> Migration : returns SQL
+Migration --> DB : executes SQL
+DB --> Migration : confirms creation
+Migration --> ReportMgmt : returns success
+ReportMgmt --> Admin : shows success
+@enduml
+
+' ============================================
+' NOTIFICATION SCENARIOS
+' ============================================
+
+' Scenario 10.1: View All Notifications
+@startuml Scenario_10_1_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Notifications Table"
+}
+component "Session Service" as Session
+
+Admin --> NotificationSys : views notifications
+NotificationSys --> Session : gets admin ID
+Session --> NotificationSys : returns admin ID
+NotificationSys --> DB : queries notifications
+DB --> NotificationSys : returns notifications
+NotificationSys --> Admin : displays list
+@enduml
+
+' ============================================
+
+' Scenario 10.2: View Unread Notifications
+@startuml Scenario_10_2_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Notifications Table"
+}
+component "Session Service" as Session
+
+Admin --> NotificationSys : views notifications
+NotificationSys --> Session : gets admin ID
+Session --> NotificationSys : returns admin ID
+NotificationSys --> DB : filters unread
+NotificationSys --> DB : counts unread
+DB --> NotificationSys : returns count
+NotificationSys --> Admin : displays badge
+NotificationSys --> Admin : highlights unread
+@enduml
+
+' ============================================
+
+' Scenario 10.3: Mark Notification as Read
+@startuml Scenario_10_3_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Notifications Table"
+}
+
+Admin --> NotificationSys : clicks notification
+NotificationSys --> DB : updates status
+NotificationSys --> DB : updates timestamp
+DB --> NotificationSys : confirms update
+NotificationSys --> DB : decrements count
+NotificationSys --> Admin : updates display
+@enduml
+
+' ============================================
+
+' Scenario 10.4: Send Notification to All Users
+@startuml Scenario_10_4_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Users Table"
+  component "Notifications Table"
+}
+
+Admin --> NotificationSys : sends to all
+NotificationSys --> NotificationSys : validates fields
+NotificationSys --> DB : retrieves all user IDs
+DB --> NotificationSys : returns user IDs
+NotificationSys --> DB : creates notifications
+DB --> NotificationSys : confirms creation
+NotificationSys --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 10.5: Send Notification to Specific Users
+@startuml Scenario_10_5_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Users Table"
+  component "Notifications Table"
+}
+
+Admin --> NotificationSys : selects users
+NotificationSys --> NotificationSys : validates recipients
+NotificationSys --> DB : retrieves user IDs
+DB --> NotificationSys : returns user IDs
+NotificationSys --> DB : creates notifications
+DB --> NotificationSys : confirms creation
+NotificationSys --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 10.6: Send Notification to Students Only
+@startuml Scenario_10_6_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Users Table"
+  component "Students Table"
+  component "Notifications Table"
+}
+
+Admin --> NotificationSys : sends to students
+NotificationSys --> NotificationSys : validates fields
+NotificationSys --> DB : retrieves student IDs
+DB --> NotificationSys : returns student IDs
+NotificationSys --> DB : creates notifications
+DB --> NotificationSys : confirms creation
+NotificationSys --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 10.7: Send Notification to Doctors Only
+@startuml Scenario_10_7_Context
+actor Admin
+component "Notification System" as NotificationSys
+database "Database" as DB {
+  component "Users Table"
+  component "Doctors Table"
+  component "Notifications Table"
+}
+
+Admin --> NotificationSys : sends to doctors
+NotificationSys --> NotificationSys : validates fields
+NotificationSys --> DB : retrieves doctor IDs
+DB --> NotificationSys : returns doctor IDs
+NotificationSys --> DB : creates notifications
+DB --> NotificationSys : confirms creation
+NotificationSys --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 10.8: Send Notification - Missing Recipients
+@startuml Scenario_10_8_Context
+actor Admin
+component "Notification System" as NotificationSys
+component "Validation Service" as Validator
+
+Admin --> NotificationSys : no recipients selected
+NotificationSys --> Validator : validates recipients
+Validator --> NotificationSys : returns no recipients
+NotificationSys --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 10.9: Send Notification - Missing Required Fields
+@startuml Scenario_10_9_Context
+actor Admin
+component "Notification System" as NotificationSys
+component "Validation Service" as Validator
+
+Admin --> NotificationSys : incomplete form
+NotificationSys --> Validator : validates fields
+Validator --> NotificationSys : returns missing fields
+NotificationSys --> Admin : displays error
+@enduml
+
+' ============================================
+' SYSTEM ADMINISTRATION SCENARIOS
+' ============================================
+
+' Scenario 11.1: Run Database Migration
+@startuml Scenario_11_1_Context
+actor Admin
+component "Admin System" as AdminSys
+component "Migration Service" as Migration
+database "Database" as DB
+component "File System" as FileSystem
+
+Admin --> AdminSys : runs migration
+AdminSys --> Migration : reads SQL file
+Migration --> FileSystem : reads file
+FileSystem --> Migration : returns SQL
+Migration --> DB : executes SQL
+DB --> Migration : confirms success
+Migration --> AdminSys : returns success
+AdminSys --> Admin : shows success
+@enduml
+
+' ============================================
+
+' Scenario 11.2: Check Table Existence
+@startuml Scenario_11_2_Context
+actor Admin
+component "Admin System" as AdminSys
+database "Database" as DB
+
+Admin --> AdminSys : accesses page
+AdminSys --> DB : queries table
+DB --> AdminSys : returns exists/not exists
+AdminSys --> Admin : displays status
+@enduml
+
+' ============================================
+
+' Scenario 11.3: View System Logs
+@startuml Scenario_11_3_Context
+actor Admin
+component "Admin System" as AdminSys
+component "Log Service" as LogService
+component "File System" as FileSystem
+
+Admin --> AdminSys : views logs
+AdminSys --> LogService : reads log files
+LogService --> FileSystem : reads files
+FileSystem --> LogService : returns log data
+LogService --> AdminSys : returns parsed logs
+AdminSys --> Admin : displays logs
+@enduml
+
+' ============================================
+
+' Scenario 11.4: Handle Authentication Failure
+@startuml Scenario_11_4_Context
+actor "Unauthenticated User" as User
+component "Authentication System" as Auth
+component "Session Service" as Session
+component "Routing Service" as Router
+
+User --> Auth : accesses admin page
+Auth --> Session : checks session
+Session --> Auth : returns not authenticated
+Auth --> Router : redirects to login
+Router --> User : shows login page
+@enduml
+
+' ============================================
+
+' Scenario 11.5: Handle Session Expiry
+@startuml Scenario_11_5_Context
+actor Admin
+component "Admin System" as AdminSys
+component "Session Service" as Session
+component "Routing Service" as Router
+
+Admin --> AdminSys : performs action
+AdminSys --> Session : checks session
+Session --> AdminSys : returns expired
+AdminSys --> Session : clears session
+AdminSys --> Router : redirects to login
+Router --> Admin : shows login page
+@enduml
+
+' ============================================
+
+' Scenario 11.6: Access Denied for Non-Admin
+@startuml Scenario_11_6_Context
+actor "Non-Admin User" as User
+component "Admin System" as AdminSys
+component "Session Service" as Session
+component "Routing Service" as Router
+
+User --> AdminSys : accesses admin page
+AdminSys --> Session : checks role
+Session --> AdminSys : returns not admin
+AdminSys --> Router : redirects to appropriate page
+Router --> User : shows access denied
+@enduml
+
+' ============================================
+' ERROR HANDLING SCENARIOS
+' ============================================
+
+' Scenario 12.1: Database Connection Error
+@startuml Scenario_12_1_Context
+actor Admin
+component "Admin System" as AdminSys
+component "Database Connection" as DBConn
+component "Error Handler" as ErrorHandler
+component "Log Service" as LogService
+
+Admin --> AdminSys : accesses system
+AdminSys --> DBConn : attempts connection
+DBConn --> AdminSys : returns error
+AdminSys --> ErrorHandler : catches error
+ErrorHandler --> LogService : logs error
+ErrorHandler --> AdminSys : returns error message
+AdminSys --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 12.2: Missing Required Data
+@startuml Scenario_12_2_Context
+actor Admin
+component "Admin System" as AdminSys
+component "Validation Service" as Validator
+
+Admin --> AdminSys : performs operation
+AdminSys --> Validator : validates data
+Validator --> AdminSys : returns missing fields
+AdminSys --> Admin : displays error
+@enduml
+
+' ============================================
+
+' Scenario 12.3: Validation Error
+@startuml Scenario_12_3_Context
+actor Admin
+component "Admin System" as AdminSys
+component "Validation Service" as Validator
+
+Admin --> AdminSys : submits form
+AdminSys --> Validator : validates input
+Validator --> Validator : checks formats
+Validator --> Validator : checks lengths
+Validator --> Validator : checks values
+Validator --> AdminSys : returns validation errors
+AdminSys --> Admin : displays errors
+@enduml
+

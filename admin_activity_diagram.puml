@@ -1,0 +1,1639 @@
+' ============================================
+' ADMIN ACTIVITY DIAGRAMS
+' This file contains PlantUML activity diagrams for all admin scenarios
+' Each diagram is separated by comments and can be rendered independently
+' ============================================
+
+!theme plain
+skinparam activity {
+  BackgroundColor #E1F5FE
+  BorderColor #01579B
+  FontColor #000000
+}
+skinparam arrow {
+  Color #01579B
+}
+
+' ============================================
+' DASHBOARD SCENARIOS
+' ============================================
+
+' Scenario 1.1: View Dashboard Statistics
+@startuml Scenario_1_1_Activity
+start
+:Admin logs in;
+:Redirect to dashboard;
+:Retrieve total students count;
+:Retrieve students added this month;
+:Retrieve total doctors count;
+:Retrieve doctors added this month;
+:Retrieve total courses count;
+:Retrieve courses this semester;
+:Check for system alerts;
+:Retrieve recent activity log;
+:Generate course distribution chart;
+:Generate user distribution chart;
+:Display all statistics;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 1.2: View System Alerts
+@startuml Scenario_1_2_Activity
+start
+:Admin views dashboard;
+:Check for missing database tables;
+:Check for system errors;
+:Check for configuration issues;
+if (Alerts found?) then (yes)
+  :Display alerts prominently;
+  :Show alert details;
+else (no)
+  :Display "No alerts" message;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 1.3: View Recent Activity
+@startuml Scenario_1_3_Activity
+start
+:Admin views dashboard;
+:Query activity log table;
+:Retrieve last 10 activities;
+:Format activity data with timestamps;
+:Display activity log;
+:Show activity type and details;
+stop
+@enduml
+
+' ============================================
+' PROFILE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 2.1: View Admin Profile
+@startuml Scenario_2_1_Activity
+start
+:Admin navigates to Profile page;
+:Retrieve admin profile from database;
+:Get first name and last name;
+:Get email address;
+:Get phone number;
+:Get admin level/role;
+:Calculate account statistics;
+:Get account creation date;
+:Display all profile information;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 2.2: Update Profile Information
+@startuml Scenario_2_2_Activity
+start
+:Admin navigates to Profile page;
+:Admin clicks "Edit Profile";
+:Admin fills in profile form;
+:Admin updates first name;
+:Admin updates last name;
+:Admin updates email address;
+:Admin updates phone number;
+:Admin clicks "Save";
+:Validate input fields;
+if (Validation successful?) then (yes)
+  :Update database record;
+  :Update session data;
+  :Display success message;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 2.3: Update Profile - Invalid Email
+@startuml Scenario_2_3_Activity
+start
+:Admin navigates to Profile page;
+:Admin enters invalid email format;
+:Admin clicks "Save";
+:Validate email format;
+if (Email valid?) then (no)
+  :Display error message;
+  :Highlight email field;
+  :Keep form data;
+else (yes)
+  :Continue with update;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 2.4: Change Password
+@startuml Scenario_2_4_Activity
+start
+:Admin navigates to Profile page;
+:Admin clicks "Change Password";
+:Admin enters current password;
+:Admin enters new password;
+:Admin confirms new password;
+:Admin clicks "Update Password";
+:Validate current password;
+if (Current password correct?) then (yes)
+  :Validate new password length;
+  if (Password length valid?) then (yes)
+    :Check password match;
+    if (Passwords match?) then (yes)
+      :Hash new password;
+      :Update password in database;
+      :Display success message;
+    else (no)
+      :Display "Passwords do not match" error;
+    endif
+  else (no)
+    :Display "Password too short" error;
+  endif
+else (no)
+  :Display "Current password incorrect" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 2.5: Change Password - Wrong Current Password
+@startuml Scenario_2_5_Activity
+start
+:Admin navigates to Profile page;
+:Admin clicks "Change Password";
+:Admin enters wrong current password;
+:Admin enters new password;
+:Admin confirms new password;
+:Admin clicks "Update Password";
+:Validate current password;
+if (Current password correct?) then (no)
+  :Display "Current password is incorrect" error;
+  :Clear password fields;
+else (yes)
+  :Continue with password change;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 2.6: Change Password - Password Mismatch
+@startuml Scenario_2_6_Activity
+start
+:Admin navigates to Profile page;
+:Admin clicks "Change Password";
+:Admin enters current password;
+:Admin enters new password;
+:Admin enters different confirm password;
+:Admin clicks "Update Password";
+:Validate current password;
+if (Current password correct?) then (yes)
+  :Compare new password and confirm password;
+  if (Passwords match?) then (no)
+    :Display "New password and confirm password do not match" error;
+    :Clear new password fields;
+  else (yes)
+    :Continue with password change;
+  endif
+else (no)
+  :Display "Current password incorrect" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 2.7: Change Password - Too Short
+@startuml Scenario_2_7_Activity
+start
+:Admin navigates to Profile page;
+:Admin clicks "Change Password";
+:Admin enters current password;
+:Admin enters short new password;
+:Admin confirms new password;
+:Admin clicks "Update Password";
+:Validate current password;
+if (Current password correct?) then (yes)
+  :Check new password length;
+  if (Password length >= 6?) then (no)
+    :Display "Password must be at least 6 characters" error;
+    :Clear new password fields;
+  else (yes)
+    :Continue with password change;
+  endif
+else (no)
+  :Display "Current password incorrect" error;
+endif
+stop
+@enduml
+
+' ============================================
+' STUDENT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 3.1: View All Students
+@startuml Scenario_3_1_Activity
+start
+:Admin navigates to Student Management;
+:Query students table;
+:Join with users table;
+:Retrieve all student records;
+:Format student data;
+:Display student table;
+:Show student information;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.2: Create New Student
+@startuml Scenario_3_2_Activity
+start
+:Admin navigates to Student Management;
+:Admin clicks "Add New Student";
+:Admin fills in student form;
+:Admin enters first name;
+:Admin enters last name;
+:Admin enters email;
+:Admin enters phone;
+:Admin selects course;
+:Admin enters student ID;
+:Admin clicks "Create Student";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check email uniqueness;
+  if (Email unique?) then (yes)
+    :Generate random password;
+    :Hash password;
+    :Create user account;
+    :Create student record;
+    :Link student to user;
+    :Display success message;
+    :Show generated password;
+  else (no)
+    :Display "Email already exists" error;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.3: Create Student - Duplicate Email
+@startuml Scenario_3_3_Activity
+start
+:Admin navigates to Student Management;
+:Admin clicks "Add New Student";
+:Admin enters existing email;
+:Admin fills other fields;
+:Admin clicks "Create Student";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check email in database;
+  if (Email exists?) then (yes)
+    :Display "Email already exists" error;
+    :Highlight email field;
+    :Keep other form data;
+  else (no)
+    :Continue with student creation;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.4: Create Student - Missing Required Fields
+@startuml Scenario_3_4_Activity
+start
+:Admin navigates to Student Management;
+:Admin clicks "Add New Student";
+:Admin leaves required fields empty;
+:Admin clicks "Create Student";
+:Validate required fields;
+if (All required fields filled?) then (no)
+  :Identify missing fields;
+  :Display "Please fill all required fields" error;
+  :Highlight missing fields;
+  :Keep entered form data;
+else (yes)
+  :Continue with validation;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.5: Edit Student Information
+@startuml Scenario_3_5_Activity
+start
+:Admin navigates to Student Management;
+:Admin clicks "Edit" on student record;
+:Load student data into form;
+:Admin modifies student information;
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update student record in database;
+  :Update user record if needed;
+  :Display success message;
+  :Refresh student list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.6: View Student Details
+@startuml Scenario_3_6_Activity
+start
+:Admin navigates to Student Management;
+:Admin clicks "View Details" on student;
+:Retrieve student ID;
+:Query student record;
+:Join with user record;
+:Join with course record;
+:Retrieve enrollment information;
+:Format complete student data;
+:Display student details page;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.7: Delete Student
+@startuml Scenario_3_7_Activity
+start
+:Admin navigates to Student Management;
+:Admin clicks "Delete" on student record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Retrieve student ID;
+  :Check for dependencies;
+  if (Dependencies exist?) then (no)
+    :Delete student record;
+    :Delete user account;
+    :Display success message;
+    :Refresh student list;
+  else (yes)
+    :Display "Cannot delete: dependencies exist" error;
+  endif
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 3.8: Search/Filter Students
+@startuml Scenario_3_8_Activity
+start
+:Admin navigates to Student Management;
+:Admin enters search query;
+:Admin selects filter options;
+:Admin clicks "Search";
+:Process search query;
+:Apply filters;
+:Query database with filters;
+:Retrieve matching students;
+:Format results;
+:Display filtered student list;
+stop
+@enduml
+
+' ============================================
+' DOCTOR MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 4.1: View All Doctors
+@startuml Scenario_4_1_Activity
+start
+:Admin navigates to Doctor Management;
+:Query doctors table;
+:Join with users table;
+:Retrieve all doctor records;
+:Format doctor data;
+:Display doctor table;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 4.2: Create New Doctor
+@startuml Scenario_4_2_Activity
+start
+:Admin navigates to Doctor Management;
+:Admin clicks "Add New Doctor";
+:Admin fills in doctor form;
+:Admin enters first name;
+:Admin enters last name;
+:Admin enters email;
+:Admin enters phone;
+:Admin enters specialization;
+:Admin clicks "Create Doctor";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check email uniqueness;
+  if (Email unique?) then (yes)
+    :Generate random password;
+    :Hash password;
+    :Create user account;
+    :Create doctor record;
+    :Link doctor to user;
+    :Display success message;
+  else (no)
+    :Display "Email already exists" error;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 4.3: Edit Doctor Information
+@startuml Scenario_4_3_Activity
+start
+:Admin navigates to Doctor Management;
+:Admin clicks "Edit" on doctor record;
+:Load doctor data into form;
+:Admin modifies doctor information;
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update doctor record in database;
+  :Update user record if needed;
+  :Display success message;
+  :Refresh doctor list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 4.4: Delete Doctor
+@startuml Scenario_4_4_Activity
+start
+:Admin navigates to Doctor Management;
+:Admin clicks "Delete" on doctor record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Retrieve doctor ID;
+  :Check for course assignments;
+  if (Has course assignments?) then (no)
+    :Delete doctor record;
+    :Delete user account;
+    :Display success message;
+    :Refresh doctor list;
+  else (yes)
+    :Display "Cannot delete: assigned to courses" error;
+  endif
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 4.5: View Doctor Details
+@startuml Scenario_4_5_Activity
+start
+:Admin navigates to Doctor Management;
+:Admin clicks "View Details" on doctor;
+:Retrieve doctor ID;
+:Query doctor record;
+:Join with user record;
+:Retrieve assigned courses;
+:Format complete doctor data;
+:Display doctor details page;
+stop
+@enduml
+
+' ============================================
+' COURSE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 5.1: View All Courses
+@startuml Scenario_5_1_Activity
+start
+:Admin navigates to Course Management;
+:Query courses table;
+:Retrieve all course records;
+:Format course data;
+:Display course table;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 5.2: Create New Course
+@startuml Scenario_5_2_Activity
+start
+:Admin navigates to Course Management;
+:Admin clicks "Add New Course";
+:Admin fills in course form;
+:Admin enters course code;
+:Admin enters course name;
+:Admin enters description;
+:Admin enters credits;
+:Admin clicks "Create Course";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check course code uniqueness;
+  if (Course code unique?) then (yes)
+    :Create course record;
+    :Display success message;
+    :Refresh course list;
+  else (no)
+    :Display "Course code already exists" error;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 5.3: Create Course - Duplicate Course Code
+@startuml Scenario_5_3_Activity
+start
+:Admin navigates to Course Management;
+:Admin clicks "Add New Course";
+:Admin enters existing course code;
+:Admin fills other fields;
+:Admin clicks "Create Course";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check course code in database;
+  if (Course code exists?) then (yes)
+    :Display "Course code already exists" error;
+    :Highlight course code field;
+    :Keep other form data;
+  else (no)
+    :Continue with course creation;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 5.4: Edit Course Information
+@startuml Scenario_5_4_Activity
+start
+:Admin navigates to Course Management;
+:Admin clicks "Edit" on course record;
+:Load course data into form;
+:Admin modifies course information;
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update course record in database;
+  :Display success message;
+  :Refresh course list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 5.5: Delete Course
+@startuml Scenario_5_5_Activity
+start
+:Admin navigates to Course Management;
+:Admin clicks "Delete" on course record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Retrieve course ID;
+  :Check for student enrollments;
+  :Check for section assignments;
+  if (Dependencies exist?) then (no)
+    :Delete course record;
+    :Display success message;
+    :Refresh course list;
+  else (yes)
+    :Display "Cannot delete: has enrollments/sections" error;
+  endif
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 5.6: Manage Course Sections
+@startuml Scenario_5_6_Activity
+start
+:Admin navigates to Course Management;
+:Admin clicks "Manage" on course;
+:Check if sections table exists;
+if (Sections table exists?) then (yes)
+  :Retrieve existing sections for course;
+  :Display sections management interface;
+  :Admin can create new section;
+  :Admin can assign doctors to section;
+  :Admin can set section capacity;
+  :Admin can set section schedule;
+  :Save section changes;
+else (no)
+  :Display migration alert;
+  :Show migration button;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 5.7: Assign Doctor to Course
+@startuml Scenario_5_7_Activity
+start
+:Admin navigates to Course Management;
+:Admin clicks "Manage" on course;
+:Admin selects "Assign Doctor";
+:Retrieve available doctors list;
+:Display doctor selection interface;
+:Admin selects doctor;
+:Admin clicks "Assign";
+:Validate doctor availability;
+if (Doctor available?) then (yes)
+  :Create course-doctor assignment;
+  :Display success message;
+  :Refresh course details;
+else (no)
+  :Display "Doctor not available" error;
+endif
+stop
+@enduml
+
+' ============================================
+' IT OFFICER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 6.1: View All IT Officers
+@startuml Scenario_6_1_Activity
+start
+:Admin navigates to IT Officer Management;
+:Query IT officers table;
+:Join with users table;
+:Retrieve all IT officer records;
+:Format IT officer data;
+:Display IT officer table;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 6.2: Create New IT Officer
+@startuml Scenario_6_2_Activity
+start
+:Admin navigates to IT Officer Management;
+:Admin clicks "Add New IT Officer";
+:Admin fills in IT officer form;
+:Admin enters first name;
+:Admin enters last name;
+:Admin enters email;
+:Admin enters phone;
+:Admin enters department;
+:Admin clicks "Create IT Officer";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check email uniqueness;
+  if (Email unique?) then (yes)
+    :Generate random password;
+    :Hash password;
+    :Create user account;
+    :Create IT officer record;
+    :Link IT officer to user;
+    :Display success message;
+  else (no)
+    :Display "Email already exists" error;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 6.3: Edit IT Officer Information
+@startuml Scenario_6_3_Activity
+start
+:Admin navigates to IT Officer Management;
+:Admin clicks "Edit" on IT officer record;
+:Load IT officer data into form;
+:Admin modifies IT officer information;
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update IT officer record in database;
+  :Update user record if needed;
+  :Display success message;
+  :Refresh IT officer list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 6.4: Delete IT Officer
+@startuml Scenario_6_4_Activity
+start
+:Admin navigates to IT Officer Management;
+:Admin clicks "Delete" on IT officer record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Retrieve IT officer ID;
+  :Delete IT officer record;
+  :Delete user account;
+  :Display success message;
+  :Refresh IT officer list;
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 6.5: Fix IT Officer Auto-Increment
+@startuml Scenario_6_5_Activity
+start
+:Admin navigates to IT Officer Management;
+:Detect auto-increment issue;
+:Display fix option;
+:Admin clicks "Fix Auto-Increment";
+:Calculate correct auto-increment value;
+:Run ALTER TABLE command;
+:Update auto-increment value;
+if (Fix successful?) then (yes)
+  :Display success message;
+  :Refresh IT officer list;
+else (no)
+  :Display error message;
+  :Log error details;
+endif
+stop
+@enduml
+
+' ============================================
+' ADMIN USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 7.1: View All Admins
+@startuml Scenario_7_1_Activity
+start
+:Admin navigates to Admin User Management;
+:Query admins table;
+:Join with users table;
+:Retrieve all admin records;
+:Format admin data;
+:Display admin table;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 7.2: Create New Admin
+@startuml Scenario_7_2_Activity
+start
+:Admin navigates to Admin User Management;
+:Admin clicks "Add New Admin";
+:Admin fills in admin form;
+:Admin enters first name;
+:Admin enters last name;
+:Admin enters email;
+:Admin enters phone;
+:Admin selects admin level;
+:Admin clicks "Create Admin";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check email uniqueness;
+  if (Email unique?) then (yes)
+    :Generate random password;
+    :Hash password;
+    :Create user account;
+    :Create admin role record;
+    :Link admin to user;
+    :Display success message;
+  else (no)
+    :Display "Email already exists" error;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 7.3: Edit Admin Information
+@startuml Scenario_7_3_Activity
+start
+:Admin navigates to Admin User Management;
+:Admin clicks "Edit" on admin record;
+:Load admin data into form;
+:Admin modifies admin information;
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update admin record in database;
+  :Update user record if needed;
+  :Display success message;
+  :Refresh admin list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 7.4: Delete Admin
+@startuml Scenario_7_4_Activity
+start
+:Admin navigates to Admin User Management;
+:Admin clicks "Delete" on admin record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Count total admins;
+  if (More than one admin?) then (yes)
+    :Delete admin record;
+    :Delete user account;
+    :Display success message;
+    :Refresh admin list;
+  else (no)
+    :Display "Cannot delete last admin" error;
+  endif
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 7.5: Change Admin Level
+@startuml Scenario_7_5_Activity
+start
+:Admin navigates to Admin User Management;
+:Admin clicks "Edit" on admin record;
+:Admin selects new admin level;
+:Admin clicks "Save Changes";
+:Validate admin level;
+if (Level valid?) then (yes)
+  :Update admin level in database;
+  :Display success message;
+  :Refresh admin list;
+else (no)
+  :Display "Invalid admin level" error;
+endif
+stop
+@enduml
+
+' ============================================
+' GENERAL USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 8.1: View All Users
+@startuml Scenario_8_1_Activity
+start
+:Admin navigates to General User Management;
+:Query users table;
+:Retrieve all user records;
+:Format user data;
+:Display user table;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 8.2: Create New User
+@startuml Scenario_8_2_Activity
+start
+:Admin navigates to General User Management;
+:Admin clicks "Add New User";
+:Admin fills in user form;
+:Admin enters first name;
+:Admin enters last name;
+:Admin enters email;
+:Admin enters phone;
+:Admin selects role;
+:Admin clicks "Create User";
+:Validate required fields;
+if (All fields valid?) then (yes)
+  :Check email uniqueness;
+  if (Email unique?) then (yes)
+    :Generate random password;
+    :Hash password;
+    :Create user account;
+    :Display success message;
+  else (no)
+    :Display "Email already exists" error;
+  endif
+else (no)
+  :Display "Missing required fields" error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 8.3: Edit User Information
+@startuml Scenario_8_3_Activity
+start
+:Admin navigates to General User Management;
+:Admin clicks "Edit" on user record;
+:Load user data into form;
+:Admin modifies user information;
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update user record in database;
+  :Display success message;
+  :Refresh user list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 8.4: Delete User
+@startuml Scenario_8_4_Activity
+start
+:Admin navigates to General User Management;
+:Admin clicks "Delete" on user record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Retrieve user ID;
+  :Check for role-specific dependencies;
+  if (Dependencies exist?) then (no)
+    :Delete role-specific record;
+    :Delete user account;
+    :Display success message;
+    :Refresh user list;
+  else (yes)
+    :Display "Cannot delete: dependencies exist" error;
+  endif
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+' REPORT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 9.1: View All Reports
+@startuml Scenario_9_1_Activity
+start
+:Admin navigates to Report Management;
+:Check if reports table exists;
+if (Reports table exists?) then (yes)
+  :Query reports table;
+  :Retrieve all report records;
+  :Format report data;
+  :Display report table;
+else (no)
+  :Display migration alert;
+  :Show migration button;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.2: Create New Report
+@startuml Scenario_9_2_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Create New Report";
+:Admin fills in report form;
+:Admin enters report title;
+:Admin enters report description;
+:Admin selects report type;
+:Admin enters report date;
+:Admin clicks "Create Report";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Create report record;
+  :Store report data;
+  :Display success message;
+  :Refresh report list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.3: Create Report with File Upload
+@startuml Scenario_9_3_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Create New Report";
+:Admin fills in report form;
+:Admin selects file to upload;
+:Admin clicks "Create Report";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Check file size;
+  if (File size <= 5MB?) then (yes)
+    :Check file type;
+    if (File type valid?) then (yes)
+      :Read file contents;
+      :Store file as BLOB in database;
+      :Store file metadata (name, type, size);
+      :Create report record;
+      :Display success message;
+    else (no)
+      :Display "Invalid file type" error;
+    endif
+  else (no)
+    :Display "File too large" error;
+  endif
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.4: Create Report - File Too Large
+@startuml Scenario_9_4_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Create New Report";
+:Admin fills in report form;
+:Admin selects large file (>5MB);
+:Admin clicks "Create Report";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Check file size;
+  if (File size <= 5MB?) then (no)
+    :Display "File size exceeds 5MB limit" error;
+    :Clear file input;
+    :Keep form data;
+  else (yes)
+    :Continue with file upload;
+  endif
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.5: Create Report - Invalid File Type
+@startuml Scenario_9_5_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Create New Report";
+:Admin fills in report form;
+:Admin selects invalid file type;
+:Admin clicks "Create Report";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Check file size;
+  if (File size valid?) then (yes)
+    :Check file type;
+    if (File type valid?) then (no)
+      :Display "Invalid file type. Allowed: PDF, DOC, DOCX, XLS, XLSX" error;
+      :Clear file input;
+      :Keep form data;
+    else (yes)
+      :Continue with file upload;
+    endif
+  else (no)
+    :Display "File too large" error;
+  endif
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.6: Edit Report
+@startuml Scenario_9_6_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Edit" on report record;
+:Load report data into form;
+:Admin modifies report information;
+if (New file uploaded?) then (yes)
+  :Validate new file;
+  if (File valid?) then (yes)
+    :Store new file as BLOB;
+    :Update file metadata;
+  else (no)
+    :Display file validation error;
+  endif
+endif
+:Admin clicks "Save Changes";
+:Validate input;
+if (Validation successful?) then (yes)
+  :Update report record in database;
+  :Display success message;
+  :Refresh report list;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.7: Delete Report
+@startuml Scenario_9_7_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Delete" on report record;
+:Display confirmation dialog;
+if (Admin confirms deletion?) then (yes)
+  :Retrieve report ID;
+  :Delete report record from database;
+  :Delete associated file data;
+  :Display success message;
+  :Refresh report list;
+else (no)
+  :Cancel deletion;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.8: Download Report File
+@startuml Scenario_9_8_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "Download" on report;
+:Retrieve report ID;
+:Query report record;
+:Retrieve file data from database;
+:Retrieve file metadata;
+:Set HTTP headers for download;
+:Output file contents;
+:Display download prompt;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.9: View Report Details
+@startuml Scenario_9_9_Activity
+start
+:Admin navigates to Report Management;
+:Admin clicks "View Details" on report;
+:Retrieve report ID;
+:Query report record;
+:Retrieve file metadata;
+:Format complete report data;
+:Display report details page;
+:Show file information;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 9.10: Run Report Migration
+@startuml Scenario_9_10_Activity
+start
+:Admin navigates to Report Management;
+:System detects missing reports table;
+:Display migration alert;
+:Admin clicks "Run Migration" button;
+:Send AJAX request to migration endpoint;
+:Read migration SQL file;
+:Execute migration SQL;
+if (Migration successful?) then (yes)
+  :Return success response;
+  :Hide migration alert;
+  :Refresh page;
+  :Display reports table;
+else (no)
+  :Return error response;
+  :Display error message;
+  :Log error details;
+endif
+stop
+@enduml
+
+' ============================================
+' NOTIFICATION SCENARIOS
+' ============================================
+
+' Scenario 10.1: View All Notifications
+@startuml Scenario_10_1_Activity
+start
+:Admin navigates to Notifications page;
+:Retrieve admin ID from session;
+:Query notifications table;
+:Filter by admin ID;
+:Retrieve all notifications;
+:Sort by date (newest first);
+:Format notification data;
+:Display notification list;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.2: View Unread Notifications
+@startuml Scenario_10_2_Activity
+start
+:Admin navigates to Notifications page;
+:Retrieve admin ID from session;
+:Query notifications table;
+:Filter by admin ID and unread status;
+:Count unread notifications;
+:Display unread count badge;
+:Highlight unread notifications;
+:Display notification list;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.3: Mark Notification as Read
+@startuml Scenario_10_3_Activity
+start
+:Admin navigates to Notifications page;
+:Admin clicks on notification;
+:Retrieve notification ID;
+:Update notification status to "read";
+:Update read_at timestamp;
+:Decrement unread count;
+:Update unread badge;
+:Refresh notification display;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.4: Send Notification to All Users
+@startuml Scenario_10_4_Activity
+start
+:Admin navigates to Send Notification page;
+:Admin selects "All Users";
+:Admin enters notification title;
+:Admin enters notification message;
+:Admin clicks "Send Notification";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Retrieve all user IDs;
+  :Create notification for each user;
+  :Store notifications in database;
+  :Display success message;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.5: Send Notification to Specific Users
+@startuml Scenario_10_5_Activity
+start
+:Admin navigates to Send Notification page;
+:Admin selects "Specific Users";
+:Admin selects multiple users from list;
+:Admin enters notification title;
+:Admin enters notification message;
+:Admin clicks "Send Notification";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Validate at least one recipient selected;
+  if (Recipients selected?) then (yes)
+    :Create notification for each selected user;
+    :Store notifications in database;
+    :Display success message;
+  else (no)
+    :Display "Please select at least one recipient" error;
+  endif
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.6: Send Notification to Students Only
+@startuml Scenario_10_6_Activity
+start
+:Admin navigates to Send Notification page;
+:Admin selects "Students Only";
+:Admin enters notification title;
+:Admin enters notification message;
+:Admin clicks "Send Notification";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Retrieve all student user IDs;
+  :Create notification for each student;
+  :Store notifications in database;
+  :Display success message;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.7: Send Notification to Doctors Only
+@startuml Scenario_10_7_Activity
+start
+:Admin navigates to Send Notification page;
+:Admin selects "Doctors Only";
+:Admin enters notification title;
+:Admin enters notification message;
+:Admin clicks "Send Notification";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Retrieve all doctor user IDs;
+  :Create notification for each doctor;
+  :Store notifications in database;
+  :Display success message;
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.8: Send Notification - Missing Recipients
+@startuml Scenario_10_8_Activity
+start
+:Admin navigates to Send Notification page;
+:Admin selects "Specific Users";
+:Admin does not select any users;
+:Admin enters notification title;
+:Admin enters notification message;
+:Admin clicks "Send Notification";
+:Validate required fields;
+if (Validation successful?) then (yes)
+  :Check if recipients selected;
+  if (Recipients selected?) then (no)
+    :Display "Please select at least one recipient" error;
+    :Highlight recipient selection;
+  else (yes)
+    :Continue with sending;
+  endif
+else (no)
+  :Display validation error;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 10.9: Send Notification - Missing Required Fields
+@startuml Scenario_10_9_Activity
+start
+:Admin navigates to Send Notification page;
+:Admin leaves title or message empty;
+:Admin clicks "Send Notification";
+:Validate required fields;
+if (Title filled?) then (no)
+  :Display "Title is required" error;
+  :Highlight title field;
+endif
+if (Message filled?) then (no)
+  :Display "Message is required" error;
+  :Highlight message field;
+endif
+if (All fields filled?) then (no)
+  :Keep form data;
+  :Prevent submission;
+else (yes)
+  :Continue with validation;
+endif
+stop
+@enduml
+
+' ============================================
+' SYSTEM ADMINISTRATION SCENARIOS
+' ============================================
+
+' Scenario 11.1: Run Database Migration
+@startuml Scenario_11_1_Activity
+start
+:Admin accesses admin page;
+:System detects missing table;
+:Display migration alert;
+:Admin clicks "Run Migration" button;
+:Send AJAX request;
+:Read migration SQL file;
+:Execute SQL statements;
+if (Migration successful?) then (yes)
+  :Return success JSON response;
+  :Hide migration alert;
+  :Refresh page content;
+  :Display success message;
+else (no)
+  :Return error JSON response;
+  :Display error message;
+  :Log error details;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 11.2: Check Table Existence
+@startuml Scenario_11_2_Activity
+start
+:Admin accesses admin page;
+:System queries database;
+:Check if required table exists;
+if (Table exists?) then (yes)
+  :Load page content normally;
+  :Display data;
+else (no)
+  :Display migration alert;
+  :Show migration button;
+  :Hide data table;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 11.3: View System Logs
+@startuml Scenario_11_3_Activity
+start
+:Admin navigates to System Logs;
+:Read log files;
+:Parse log entries;
+:Filter log entries;
+:Format log data;
+:Display log entries;
+:Show timestamps and details;
+stop
+@enduml
+
+' ============================================
+
+' Scenario 11.4: Handle Authentication Failure
+@startuml Scenario_11_4_Activity
+start
+:Unauthenticated user accesses admin URL;
+:System checks session;
+if (User authenticated?) then (no)
+  :Check user role;
+  if (User is admin?) then (no)
+    :Clear any session data;
+    :Redirect to login page;
+    :Display login form;
+  else (yes)
+    :Allow access;
+  endif
+else (yes)
+  :Allow access;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 11.5: Handle Session Expiry
+@startuml Scenario_11_5_Activity
+start
+:Admin performs action;
+:System checks session validity;
+if (Session expired?) then (yes)
+  :Clear session data;
+  :Redirect to login page;
+  :Display "Session expired" message;
+  :Show login form;
+else (no)
+  :Process action;
+  :Update session timestamp;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 11.6: Access Denied for Non-Admin
+@startuml Scenario_11_6_Activity
+start
+:Non-admin user accesses admin URL;
+:System checks authentication;
+if (User authenticated?) then (yes)
+  :Check user role;
+  if (User is admin?) then (no)
+    :Deny access;
+    :Redirect to appropriate page;
+    :Display "Access denied" message;
+  else (yes)
+    :Allow access;
+  endif
+else (no)
+  :Redirect to login;
+endif
+stop
+@enduml
+
+' ============================================
+' ERROR HANDLING SCENARIOS
+' ============================================
+
+' Scenario 12.1: Database Connection Error
+@startuml Scenario_12_1_Activity
+start
+:Admin accesses system;
+:System attempts database connection;
+if (Connection successful?) then (no)
+  :Catch connection error;
+  :Log error details;
+  :Display user-friendly error message;
+  :Show "Database connection failed" error;
+  :Prevent further operations;
+else (yes)
+  :Continue normal operation;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 12.2: Missing Required Data
+@startuml Scenario_12_2_Activity
+start
+:Admin performs operation;
+:System validates required data;
+if (All required data present?) then (no)
+  :Identify missing data fields;
+  :Display error message;
+  :Highlight missing fields;
+  :Prevent operation completion;
+else (yes)
+  :Continue with operation;
+endif
+stop
+@enduml
+
+' ============================================
+
+' Scenario 12.3: Validation Error
+@startuml Scenario_12_3_Activity
+start
+:Admin submits form;
+:System validates input data;
+:Check field formats;
+:Check field lengths;
+:Check field values;
+if (Validation passed?) then (no)
+  :Identify validation errors;
+  :Display validation error messages;
+  :Highlight invalid fields;
+  :Keep form data;
+  :Prevent submission;
+else (yes)
+  :Process form submission;
+  :Save data;
+  :Display success message;
+endif
+stop
+@enduml
+

@@ -1,0 +1,1425 @@
+' ============================================
+' ADMIN STATE DIAGRAMS
+' This file contains PlantUML state diagrams for all admin scenarios
+' Each diagram is separated by comments and can be rendered independently
+' ============================================
+
+!theme plain
+skinparam state {
+  BackgroundColor #FFF3E0
+  BorderColor #E65100
+  FontColor #000000
+  ArrowColor #E65100
+}
+
+' ============================================
+' DASHBOARD SCENARIOS
+' ============================================
+
+' Scenario 1.1: View Dashboard Statistics
+@startuml Scenario_1_1_State
+[*] --> Loading
+Loading --> FetchingStudents
+FetchingStudents --> FetchingDoctors
+FetchingDoctors --> FetchingCourses
+FetchingCourses --> FetchingAlerts
+FetchingAlerts --> FetchingActivity
+FetchingActivity --> GeneratingCharts
+GeneratingCharts --> Displaying
+Displaying --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 1.2: View System Alerts
+@startuml Scenario_1_2_State
+[*] --> CheckingTables
+CheckingTables --> CheckingErrors
+CheckingErrors --> CheckingConfig
+CheckingConfig --> Evaluating
+Evaluating --> AlertsFound : alerts exist
+Evaluating --> NoAlerts : no alerts
+AlertsFound --> DisplayingAlerts
+NoAlerts --> DisplayingNoAlerts
+DisplayingAlerts --> [*]
+DisplayingNoAlerts --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 1.3: View Recent Activity
+@startuml Scenario_1_3_State
+[*] --> QueryingLog
+QueryingLog --> RetrievingActivities
+RetrievingActivities --> FormattingData
+FormattingData --> DisplayingActivities
+DisplayingActivities --> [*]
+@enduml
+
+' ============================================
+' PROFILE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 2.1: View Admin Profile
+@startuml Scenario_2_1_State
+[*] --> LoadingProfile
+LoadingProfile --> FetchingUserData
+FetchingUserData --> FetchingAdminData
+FetchingAdminData --> CalculatingStats
+CalculatingStats --> DisplayingProfile
+DisplayingProfile --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 2.2: Update Profile Information
+@startuml Scenario_2_2_State
+[*] --> ViewingProfile
+ViewingProfile --> Editing : click edit
+Editing --> FillingForm
+FillingForm --> Validating : click save
+Validating --> Valid : validation passed
+Validating --> Invalid : validation failed
+Valid --> UpdatingDatabase
+UpdatingDatabase --> UpdatingSession
+UpdatingSession --> Success
+Invalid --> ShowingError
+ShowingError --> Editing : retry
+Success --> ViewingProfile
+ViewingProfile --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 2.3: Update Profile - Invalid Email
+@startuml Scenario_2_3_State
+[*] --> Editing
+Editing --> EnteringEmail
+EnteringEmail --> Submitting : click save
+Submitting --> ValidatingEmail
+ValidatingEmail --> EmailInvalid : invalid format
+ValidatingEmail --> EmailValid : valid format
+EmailInvalid --> ShowingError
+ShowingError --> Editing : retry
+EmailValid --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 2.4: Change Password
+@startuml Scenario_2_4_State
+[*] --> ViewingProfile
+ViewingProfile --> ChangingPassword : click change password
+ChangingPassword --> EnteringCurrent
+EnteringCurrent --> EnteringNew
+EnteringNew --> ConfirmingNew
+ConfirmingNew --> Validating : click update
+Validating --> CurrentInvalid : wrong current
+Validating --> CurrentValid : correct current
+CurrentInvalid --> ShowingError
+CurrentValid --> ValidatingLength
+ValidatingLength --> LengthInvalid : too short
+ValidatingLength --> LengthValid : valid length
+LengthInvalid --> ShowingError
+LengthValid --> CheckingMatch
+CheckingMatch --> Mismatch : passwords don't match
+CheckingMatch --> Match : passwords match
+Mismatch --> ShowingError
+Match --> HashingPassword
+HashingPassword --> UpdatingPassword
+UpdatingPassword --> Success
+Success --> ViewingProfile
+ShowingError --> ChangingPassword : retry
+ViewingProfile --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 2.5: Change Password - Wrong Current Password
+@startuml Scenario_2_5_State
+[*] --> ChangingPassword
+ChangingPassword --> EnteringCurrent
+EnteringCurrent --> EnteringNew
+EnteringNew --> Submitting
+Submitting --> ValidatingCurrent
+ValidatingCurrent --> CurrentWrong : incorrect
+ValidatingCurrent --> CurrentCorrect : correct
+CurrentWrong --> ShowingError
+ShowingError --> ChangingPassword : retry
+CurrentCorrect --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 2.6: Change Password - Password Mismatch
+@startuml Scenario_2_6_State
+[*] --> ChangingPassword
+ChangingPassword --> EnteringCurrent
+EnteringCurrent --> EnteringNew
+EnteringNew --> EnteringConfirm
+EnteringConfirm --> Submitting
+Submitting --> ValidatingCurrent
+ValidatingCurrent --> CurrentWrong : incorrect
+ValidatingCurrent --> CurrentCorrect : correct
+CurrentWrong --> ShowingError
+CurrentCorrect --> CheckingMatch
+CheckingMatch --> Mismatch : don't match
+CheckingMatch --> Match : match
+Mismatch --> ShowingError
+ShowingError --> ChangingPassword : retry
+Match --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 2.7: Change Password - Too Short
+@startuml Scenario_2_7_State
+[*] --> ChangingPassword
+ChangingPassword --> EnteringCurrent
+EnteringCurrent --> EnteringNew
+EnteringNew --> Submitting
+Submitting --> ValidatingCurrent
+ValidatingCurrent --> CurrentWrong : incorrect
+ValidatingCurrent --> CurrentCorrect : correct
+CurrentWrong --> ShowingError
+CurrentCorrect --> ValidatingLength
+ValidatingLength --> TooShort : < 6 characters
+ValidatingLength --> ValidLength : >= 6 characters
+TooShort --> ShowingError
+ShowingError --> ChangingPassword : retry
+ValidLength --> [*]
+@enduml
+
+' ============================================
+' STUDENT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 3.1: View All Students
+@startuml Scenario_3_1_State
+[*] --> LoadingPage
+LoadingPage --> QueryingDatabase
+QueryingDatabase --> JoiningTables
+JoiningTables --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.2: Create New Student
+@startuml Scenario_3_2_State
+[*] --> ViewingStudents
+ViewingStudents --> AddingStudent : click add
+AddingStudent --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing fields
+ValidatingFields --> FieldsValid : all fields filled
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingEmail
+CheckingEmail --> EmailExists : duplicate
+CheckingEmail --> EmailUnique : unique
+EmailExists --> ShowingError
+EmailUnique --> GeneratingPassword
+GeneratingPassword --> HashingPassword
+HashingPassword --> CreatingUser
+CreatingUser --> CreatingStudent
+CreatingStudent --> LinkingRecords
+LinkingRecords --> Success
+Success --> ViewingStudents
+ShowingError --> AddingStudent : retry
+ViewingStudents --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.3: Create Student - Duplicate Email
+@startuml Scenario_3_3_State
+[*] --> AddingStudent
+AddingStudent --> EnteringEmail
+EnteringEmail --> FillingOtherFields
+FillingOtherFields --> Submitting
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingEmail
+CheckingEmail --> EmailDuplicate : exists
+CheckingEmail --> EmailNew : new
+EmailDuplicate --> ShowingError
+ShowingError --> AddingStudent : retry
+EmailNew --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.4: Create Student - Missing Required Fields
+@startuml Scenario_3_4_State
+[*] --> AddingStudent
+AddingStudent --> FillingForm
+FillingForm --> Submitting : incomplete form
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsMissing : required missing
+ValidatingFields --> FieldsComplete : all present
+FieldsMissing --> IdentifyingMissing
+IdentifyingMissing --> ShowingError
+ShowingError --> AddingStudent : retry
+FieldsComplete --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.5: Edit Student Information
+@startuml Scenario_3_5_State
+[*] --> ViewingStudents
+ViewingStudents --> EditingStudent : click edit
+EditingStudent --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> UpdatingUser
+UpdatingUser --> Success
+Success --> ViewingStudents
+ShowingError --> EditingStudent : retry
+ViewingStudents --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.6: View Student Details
+@startuml Scenario_3_6_State
+[*] --> ViewingStudents
+ViewingStudents --> ViewingDetails : click view
+ViewingDetails --> RetrievingStudent
+RetrievingStudent --> JoiningUser
+JoiningUser --> JoiningCourse
+JoiningCourse --> FormattingData
+FormattingData --> DisplayingDetails
+DisplayingDetails --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.7: Delete Student
+@startuml Scenario_3_7_State
+[*] --> ViewingStudents
+ViewingStudents --> DeletingStudent : click delete
+DeletingStudent --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingStudents
+Confirmed --> CheckingDependencies
+CheckingDependencies --> HasDependencies : exists
+CheckingDependencies --> NoDependencies : none
+HasDependencies --> ShowingError
+NoDependencies --> DeletingStudentRecord
+DeletingStudentRecord --> DeletingUserAccount
+DeletingUserAccount --> Success
+Success --> ViewingStudents
+ShowingError --> ViewingStudents
+ViewingStudents --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 3.8: Search/Filter Students
+@startuml Scenario_3_8_State
+[*] --> ViewingStudents
+ViewingStudents --> EnteringSearch
+EnteringSearch --> SelectingFilters
+SelectingFilters --> Searching : click search
+Searching --> ProcessingQuery
+ProcessingQuery --> ApplyingFilters
+ApplyingFilters --> QueryingDatabase
+QueryingDatabase --> RetrievingResults
+RetrievingResults --> FormattingResults
+FormattingResults --> DisplayingResults
+DisplayingResults --> ViewingStudents
+ViewingStudents --> [*]
+@enduml
+
+' ============================================
+' DOCTOR MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 4.1: View All Doctors
+@startuml Scenario_4_1_State
+[*] --> LoadingPage
+LoadingPage --> QueryingDatabase
+QueryingDatabase --> JoiningTables
+JoiningTables --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 4.2: Create New Doctor
+@startuml Scenario_4_2_State
+[*] --> ViewingDoctors
+ViewingDoctors --> AddingDoctor : click add
+AddingDoctor --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingEmail
+CheckingEmail --> EmailExists : duplicate
+CheckingEmail --> EmailUnique : unique
+EmailExists --> ShowingError
+EmailUnique --> GeneratingPassword
+GeneratingPassword --> CreatingUser
+CreatingUser --> CreatingDoctor
+CreatingDoctor --> LinkingRecords
+LinkingRecords --> Success
+Success --> ViewingDoctors
+ShowingError --> AddingDoctor : retry
+ViewingDoctors --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 4.3: Edit Doctor Information
+@startuml Scenario_4_3_State
+[*] --> ViewingDoctors
+ViewingDoctors --> EditingDoctor : click edit
+EditingDoctor --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> UpdatingUser
+UpdatingUser --> Success
+Success --> ViewingDoctors
+ShowingError --> EditingDoctor : retry
+ViewingDoctors --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 4.4: Delete Doctor
+@startuml Scenario_4_4_State
+[*] --> ViewingDoctors
+ViewingDoctors --> DeletingDoctor : click delete
+DeletingDoctor --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingDoctors
+Confirmed --> CheckingAssignments
+CheckingAssignments --> HasAssignments : assigned
+CheckingAssignments --> NoAssignments : none
+HasAssignments --> ShowingError
+NoAssignments --> DeletingDoctorRecord
+DeletingDoctorRecord --> DeletingUserAccount
+DeletingUserAccount --> Success
+Success --> ViewingDoctors
+ShowingError --> ViewingDoctors
+ViewingDoctors --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 4.5: View Doctor Details
+@startuml Scenario_4_5_State
+[*] --> ViewingDoctors
+ViewingDoctors --> ViewingDetails : click view
+ViewingDetails --> RetrievingDoctor
+RetrievingDoctor --> JoiningUser
+JoiningUser --> RetrievingCourses
+RetrievingCourses --> FormattingData
+FormattingData --> DisplayingDetails
+DisplayingDetails --> [*]
+@enduml
+
+' ============================================
+' COURSE MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 5.1: View All Courses
+@startuml Scenario_5_1_State
+[*] --> LoadingPage
+LoadingPage --> QueryingDatabase
+QueryingDatabase --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 5.2: Create New Course
+@startuml Scenario_5_2_State
+[*] --> ViewingCourses
+ViewingCourses --> AddingCourse : click add
+AddingCourse --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingCode
+CheckingCode --> CodeExists : duplicate
+CheckingCode --> CodeUnique : unique
+CodeExists --> ShowingError
+CodeUnique --> CreatingCourse
+CreatingCourse --> Success
+Success --> ViewingCourses
+ShowingError --> AddingCourse : retry
+ViewingCourses --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 5.3: Create Course - Duplicate Course Code
+@startuml Scenario_5_3_State
+[*] --> AddingCourse
+AddingCourse --> EnteringCode
+EnteringCode --> FillingOtherFields
+FillingOtherFields --> Submitting
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingCode
+CheckingCode --> CodeDuplicate : exists
+CheckingCode --> CodeNew : new
+CodeDuplicate --> ShowingError
+ShowingError --> AddingCourse : retry
+CodeNew --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 5.4: Edit Course Information
+@startuml Scenario_5_4_State
+[*] --> ViewingCourses
+ViewingCourses --> EditingCourse : click edit
+EditingCourse --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> Success
+Success --> ViewingCourses
+ShowingError --> EditingCourse : retry
+ViewingCourses --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 5.5: Delete Course
+@startuml Scenario_5_5_State
+[*] --> ViewingCourses
+ViewingCourses --> DeletingCourse : click delete
+DeletingCourse --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingCourses
+Confirmed --> CheckingEnrollments
+CheckingEnrollments --> CheckingSections
+CheckingSections --> HasDependencies : exist
+CheckingSections --> NoDependencies : none
+HasDependencies --> ShowingError
+NoDependencies --> DeletingCourseRecord
+DeletingCourseRecord --> Success
+Success --> ViewingCourses
+ShowingError --> ViewingCourses
+ViewingCourses --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 5.6: Manage Course Sections
+@startuml Scenario_5_6_State
+[*] --> ViewingCourses
+ViewingCourses --> ManagingCourse : click manage
+ManagingCourse --> CheckingTable
+CheckingTable --> TableMissing : not exists
+CheckingTable --> TableExists : exists
+TableMissing --> ShowingAlert
+ShowingAlert --> RunningMigration : click migrate
+RunningMigration --> TableExists
+TableExists --> RetrievingSections
+RetrievingSections --> DisplayingSections
+DisplayingSections --> ManagingSections
+ManagingSections --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 5.7: Assign Doctor to Course
+@startuml Scenario_5_7_State
+[*] --> ManagingCourse
+ManagingCourse --> AssigningDoctor : select assign
+AssigningDoctor --> RetrievingDoctors
+RetrievingDoctors --> DisplayingDoctors
+DisplayingDoctors --> SelectingDoctor
+SelectingDoctor --> Confirming : click assign
+Confirming --> ValidatingAvailability
+ValidatingAvailability --> NotAvailable : unavailable
+ValidatingAvailability --> Available : available
+NotAvailable --> ShowingError
+Available --> CreatingAssignment
+CreatingAssignment --> Success
+Success --> ManagingCourse
+ShowingError --> AssigningDoctor : retry
+ManagingCourse --> [*]
+@enduml
+
+' ============================================
+' IT OFFICER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 6.1: View All IT Officers
+@startuml Scenario_6_1_State
+[*] --> LoadingPage
+LoadingPage --> QueryingDatabase
+QueryingDatabase --> JoiningTables
+JoiningTables --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 6.2: Create New IT Officer
+@startuml Scenario_6_2_State
+[*] --> ViewingItOfficers
+ViewingItOfficers --> AddingItOfficer : click add
+AddingItOfficer --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingEmail
+CheckingEmail --> EmailExists : duplicate
+CheckingEmail --> EmailUnique : unique
+EmailExists --> ShowingError
+EmailUnique --> GeneratingPassword
+GeneratingPassword --> CreatingUser
+CreatingUser --> CreatingItOfficer
+CreatingItOfficer --> LinkingRecords
+LinkingRecords --> Success
+Success --> ViewingItOfficers
+ShowingError --> AddingItOfficer : retry
+ViewingItOfficers --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 6.3: Edit IT Officer Information
+@startuml Scenario_6_3_State
+[*] --> ViewingItOfficers
+ViewingItOfficers --> EditingItOfficer : click edit
+EditingItOfficer --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> UpdatingUser
+UpdatingUser --> Success
+Success --> ViewingItOfficers
+ShowingError --> EditingItOfficer : retry
+ViewingItOfficers --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 6.4: Delete IT Officer
+@startuml Scenario_6_4_State
+[*] --> ViewingItOfficers
+ViewingItOfficers --> DeletingItOfficer : click delete
+DeletingItOfficer --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingItOfficers
+Confirmed --> DeletingItOfficerRecord
+DeletingItOfficerRecord --> DeletingUserAccount
+DeletingUserAccount --> Success
+Success --> ViewingItOfficers
+ViewingItOfficers --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 6.5: Fix IT Officer Auto-Increment
+@startuml Scenario_6_5_State
+[*] --> ViewingItOfficers
+ViewingItOfficers --> DetectingIssue : auto-increment issue
+DetectingIssue --> ShowingFixOption
+ShowingFixOption --> RunningFix : click fix
+RunningFix --> CalculatingValue
+CalculatingValue --> ExecutingCommand
+ExecutingCommand --> FixFailed : error
+ExecutingCommand --> FixSucceeded : success
+FixFailed --> ShowingError
+FixSucceeded --> Success
+Success --> ViewingItOfficers
+ShowingError --> ViewingItOfficers
+ViewingItOfficers --> [*]
+@enduml
+
+' ============================================
+' ADMIN USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 7.1: View All Admins
+@startuml Scenario_7_1_State
+[*] --> LoadingPage
+LoadingPage --> QueryingDatabase
+QueryingDatabase --> JoiningTables
+JoiningTables --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 7.2: Create New Admin
+@startuml Scenario_7_2_State
+[*] --> ViewingAdmins
+ViewingAdmins --> AddingAdmin : click add
+AddingAdmin --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingEmail
+CheckingEmail --> EmailExists : duplicate
+CheckingEmail --> EmailUnique : unique
+EmailExists --> ShowingError
+EmailUnique --> GeneratingPassword
+GeneratingPassword --> CreatingUser
+CreatingUser --> CreatingAdminRole
+CreatingAdminRole --> LinkingRecords
+LinkingRecords --> Success
+Success --> ViewingAdmins
+ShowingError --> AddingAdmin : retry
+ViewingAdmins --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 7.3: Edit Admin Information
+@startuml Scenario_7_3_State
+[*] --> ViewingAdmins
+ViewingAdmins --> EditingAdmin : click edit
+EditingAdmin --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> UpdatingUser
+UpdatingUser --> Success
+Success --> ViewingAdmins
+ShowingError --> EditingAdmin : retry
+ViewingAdmins --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 7.4: Delete Admin
+@startuml Scenario_7_4_State
+[*] --> ViewingAdmins
+ViewingAdmins --> DeletingAdmin : click delete
+DeletingAdmin --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingAdmins
+Confirmed --> CountingAdmins
+CountingAdmins --> LastAdmin : only one
+CountingAdmins --> MultipleAdmins : more than one
+LastAdmin --> ShowingError
+MultipleAdmins --> DeletingAdminRecord
+DeletingAdminRecord --> DeletingUserAccount
+DeletingUserAccount --> Success
+Success --> ViewingAdmins
+ShowingError --> ViewingAdmins
+ViewingAdmins --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 7.5: Change Admin Level
+@startuml Scenario_7_5_State
+[*] --> ViewingAdmins
+ViewingAdmins --> EditingAdmin : click edit
+EditingAdmin --> SelectingLevel
+SelectingLevel --> Saving : click save
+Saving --> ValidatingLevel
+ValidatingLevel --> LevelInvalid : invalid
+ValidatingLevel --> LevelValid : valid
+LevelInvalid --> ShowingError
+LevelValid --> UpdatingLevel
+UpdatingLevel --> Success
+Success --> ViewingAdmins
+ShowingError --> EditingAdmin : retry
+ViewingAdmins --> [*]
+@enduml
+
+' ============================================
+' GENERAL USER MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 8.1: View All Users
+@startuml Scenario_8_1_State
+[*] --> LoadingPage
+LoadingPage --> QueryingDatabase
+QueryingDatabase --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 8.2: Create New User
+@startuml Scenario_8_2_State
+[*] --> ViewingUsers
+ViewingUsers --> AddingUser : click add
+AddingUser --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingEmail
+CheckingEmail --> EmailExists : duplicate
+CheckingEmail --> EmailUnique : unique
+EmailExists --> ShowingError
+EmailUnique --> GeneratingPassword
+GeneratingPassword --> CreatingUser
+CreatingUser --> Success
+Success --> ViewingUsers
+ShowingError --> AddingUser : retry
+ViewingUsers --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 8.3: Edit User Information
+@startuml Scenario_8_3_State
+[*] --> ViewingUsers
+ViewingUsers --> EditingUser : click edit
+EditingUser --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> Success
+Success --> ViewingUsers
+ShowingError --> EditingUser : retry
+ViewingUsers --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 8.4: Delete User
+@startuml Scenario_8_4_State
+[*] --> ViewingUsers
+ViewingUsers --> DeletingUser : click delete
+DeletingUser --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingUsers
+Confirmed --> CheckingDependencies
+CheckingDependencies --> HasDependencies : exist
+CheckingDependencies --> NoDependencies : none
+HasDependencies --> ShowingError
+NoDependencies --> DeletingRoleRecord
+DeletingRoleRecord --> DeletingUserAccount
+DeletingUserAccount --> Success
+Success --> ViewingUsers
+ShowingError --> ViewingUsers
+ViewingUsers --> [*]
+@enduml
+
+' ============================================
+' REPORT MANAGEMENT SCENARIOS
+' ============================================
+
+' Scenario 9.1: View All Reports
+@startuml Scenario_9_1_State
+[*] --> LoadingPage
+LoadingPage --> CheckingTable
+CheckingTable --> TableMissing : not exists
+CheckingTable --> TableExists : exists
+TableMissing --> ShowingAlert
+ShowingAlert --> LoadingPage
+TableExists --> QueryingDatabase
+QueryingDatabase --> RetrievingRecords
+RetrievingRecords --> FormattingData
+FormattingData --> DisplayingTable
+DisplayingTable --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.2: Create New Report
+@startuml Scenario_9_2_State
+[*] --> ViewingReports
+ViewingReports --> CreatingReport : click create
+CreatingReport --> FillingForm
+FillingForm --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CreatingRecord
+CreatingRecord --> StoringData
+StoringData --> Success
+Success --> ViewingReports
+ShowingError --> CreatingReport : retry
+ViewingReports --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.3: Create Report with File Upload
+@startuml Scenario_9_3_State
+[*] --> CreatingReport
+CreatingReport --> FillingForm
+FillingForm --> SelectingFile
+SelectingFile --> Submitting : click create
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingFileSize
+CheckingFileSize --> FileTooLarge : > 5MB
+CheckingFileSize --> FileSizeValid : <= 5MB
+FileTooLarge --> ShowingError
+FileSizeValid --> CheckingFileType
+CheckingFileType --> TypeInvalid : invalid
+CheckingFileType --> TypeValid : valid
+TypeInvalid --> ShowingError
+TypeValid --> ReadingFile
+ReadingFile --> StoringFile
+StoringFile --> StoringMetadata
+StoringMetadata --> CreatingRecord
+CreatingRecord --> Success
+Success --> ViewingReports
+ShowingError --> CreatingReport : retry
+ViewingReports --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.4: Create Report - File Too Large
+@startuml Scenario_9_4_State
+[*] --> CreatingReport
+CreatingReport --> FillingForm
+FillingForm --> SelectingFile
+SelectingFile --> Submitting : large file
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingFileSize
+CheckingFileSize --> FileTooLarge : > 5MB
+CheckingFileSize --> FileSizeValid : <= 5MB
+FileTooLarge --> ShowingError
+ShowingError --> CreatingReport : retry
+FileSizeValid --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.5: Create Report - Invalid File Type
+@startuml Scenario_9_5_State
+[*] --> CreatingReport
+CreatingReport --> FillingForm
+FillingForm --> SelectingFile
+SelectingFile --> Submitting : invalid type
+Submitting --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingFileSize
+CheckingFileSize --> FileTooLarge : > 5MB
+CheckingFileSize --> FileSizeValid : <= 5MB
+FileTooLarge --> ShowingError
+FileSizeValid --> CheckingFileType
+CheckingFileType --> TypeInvalid : invalid
+CheckingFileType --> TypeValid : valid
+TypeInvalid --> ShowingError
+ShowingError --> CreatingReport : retry
+TypeValid --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.6: Edit Report
+@startuml Scenario_9_6_State
+[*] --> ViewingReports
+ViewingReports --> EditingReport : click edit
+EditingReport --> LoadingData
+LoadingData --> ModifyingData
+ModifyingData --> UploadingNewFile : optional
+UploadingNewFile --> ValidatingFile : if uploaded
+ValidatingFile --> FileInvalid : invalid
+ValidatingFile --> FileValid : valid
+FileInvalid --> ShowingError
+FileValid --> StoringNewFile
+StoringNewFile --> UpdatingMetadata
+ModifyingData --> Saving : click save
+Saving --> Validating
+Validating --> ValidationFailed : invalid
+Validating --> ValidationPassed : valid
+ValidationFailed --> ShowingError
+ValidationPassed --> UpdatingRecord
+UpdatingRecord --> Success
+Success --> ViewingReports
+ShowingError --> EditingReport : retry
+ViewingReports --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.7: Delete Report
+@startuml Scenario_9_7_State
+[*] --> ViewingReports
+ViewingReports --> DeletingReport : click delete
+DeletingReport --> Confirming : show dialog
+Confirming --> Cancelled : cancel
+Confirming --> Confirmed : confirm
+Cancelled --> ViewingReports
+Confirmed --> RetrievingReportId
+RetrievingReportId --> DeletingRecord
+DeletingRecord --> DeletingFileData
+DeletingFileData --> Success
+Success --> ViewingReports
+ViewingReports --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.8: Download Report File
+@startuml Scenario_9_8_State
+[*] --> ViewingReports
+ViewingReports --> DownloadingReport : click download
+DownloadingReport --> RetrievingReportId
+RetrievingReportId --> QueryingRecord
+QueryingRecord --> RetrievingFileData
+RetrievingFileData --> RetrievingMetadata
+RetrievingMetadata --> SettingHeaders
+SettingHeaders --> OutputtingFile
+OutputtingFile --> ShowingDownload
+ShowingDownload --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.9: View Report Details
+@startuml Scenario_9_9_State
+[*] --> ViewingReports
+ViewingReports --> ViewingDetails : click view
+ViewingDetails --> RetrievingReportId
+RetrievingReportId --> QueryingRecord
+QueryingRecord --> RetrievingMetadata
+RetrievingMetadata --> FormattingData
+FormattingData --> DisplayingDetails
+DisplayingDetails --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 9.10: Run Report Migration
+@startuml Scenario_9_10_State
+[*] --> ViewingReports
+ViewingReports --> DetectingMissing : table missing
+DetectingMissing --> ShowingAlert
+ShowingAlert --> RunningMigration : click migrate
+RunningMigration --> SendingRequest
+SendingRequest --> ReadingFile
+ReadingFile --> ExecutingSQL
+ExecutingSQL --> MigrationFailed : error
+ExecutingSQL --> MigrationSucceeded : success
+MigrationFailed --> ShowingError
+MigrationSucceeded --> HidingAlert
+HidingAlert --> RefreshingPage
+RefreshingPage --> DisplayingTable
+DisplayingTable --> ViewingReports
+ShowingError --> ViewingReports
+ViewingReports --> [*]
+@enduml
+
+' ============================================
+' NOTIFICATION SCENARIOS
+' ============================================
+
+' Scenario 10.1: View All Notifications
+@startuml Scenario_10_1_State
+[*] --> LoadingPage
+LoadingPage --> RetrievingAdminId
+RetrievingAdminId --> QueryingDatabase
+QueryingDatabase --> FilteringByAdmin
+FilteringByAdmin --> RetrievingNotifications
+RetrievingNotifications --> SortingByDate
+SortingByDate --> FormattingData
+FormattingData --> DisplayingList
+DisplayingList --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.2: View Unread Notifications
+@startuml Scenario_10_2_State
+[*] --> LoadingPage
+LoadingPage --> RetrievingAdminId
+RetrievingAdminId --> QueryingDatabase
+QueryingDatabase --> FilteringByAdmin
+FilteringByAdmin --> FilteringUnread
+FilteringUnread --> CountingUnread
+CountingUnread --> DisplayingBadge
+DisplayingBadge --> HighlightingUnread
+HighlightingUnread --> DisplayingList
+DisplayingList --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.3: Mark Notification as Read
+@startuml Scenario_10_3_State
+[*] --> ViewingNotifications
+ViewingNotifications --> ClickingNotification : click notification
+ClickingNotification --> RetrievingId
+RetrievingId --> UpdatingStatus
+UpdatingStatus --> UpdatingTimestamp
+UpdatingTimestamp --> DecrementingCount
+DecrementingCount --> UpdatingBadge
+UpdatingBadge --> RefreshingDisplay
+RefreshingDisplay --> ViewingNotifications
+ViewingNotifications --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.4: Send Notification to All Users
+@startuml Scenario_10_4_State
+[*] --> ViewingSendPage
+ViewingSendPage --> SelectingAllUsers
+SelectingAllUsers --> EnteringTitle
+EnteringTitle --> EnteringMessage
+EnteringMessage --> Sending : click send
+Sending --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> RetrievingUserIds
+RetrievingUserIds --> CreatingNotifications
+CreatingNotifications --> StoringNotifications
+StoringNotifications --> Success
+Success --> ViewingSendPage
+ShowingError --> ViewingSendPage : retry
+ViewingSendPage --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.5: Send Notification to Specific Users
+@startuml Scenario_10_5_State
+[*] --> ViewingSendPage
+ViewingSendPage --> SelectingSpecific
+SelectingSpecific --> SelectingUsers
+SelectingUsers --> EnteringTitle
+EnteringTitle --> EnteringMessage
+EnteringMessage --> Sending : click send
+Sending --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> ValidatingRecipients
+ValidatingRecipients --> NoRecipients : none selected
+ValidatingRecipients --> RecipientsSelected : selected
+NoRecipients --> ShowingError
+RecipientsSelected --> CreatingNotifications
+CreatingNotifications --> StoringNotifications
+StoringNotifications --> Success
+Success --> ViewingSendPage
+ShowingError --> ViewingSendPage : retry
+ViewingSendPage --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.6: Send Notification to Students Only
+@startuml Scenario_10_6_State
+[*] --> ViewingSendPage
+ViewingSendPage --> SelectingStudents
+SelectingStudents --> EnteringTitle
+EnteringTitle --> EnteringMessage
+EnteringMessage --> Sending : click send
+Sending --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> RetrievingStudentIds
+RetrievingStudentIds --> CreatingNotifications
+CreatingNotifications --> StoringNotifications
+StoringNotifications --> Success
+Success --> ViewingSendPage
+ShowingError --> ViewingSendPage : retry
+ViewingSendPage --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.7: Send Notification to Doctors Only
+@startuml Scenario_10_7_State
+[*] --> ViewingSendPage
+ViewingSendPage --> SelectingDoctors
+SelectingDoctors --> EnteringTitle
+EnteringTitle --> EnteringMessage
+EnteringMessage --> Sending : click send
+Sending --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> RetrievingDoctorIds
+RetrievingDoctorIds --> CreatingNotifications
+CreatingNotifications --> StoringNotifications
+StoringNotifications --> Success
+Success --> ViewingSendPage
+ShowingError --> ViewingSendPage : retry
+ViewingSendPage --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.8: Send Notification - Missing Recipients
+@startuml Scenario_10_8_State
+[*] --> ViewingSendPage
+ViewingSendPage --> SelectingSpecific
+SelectingSpecific --> NotSelectingUsers : no selection
+NotSelectingUsers --> EnteringTitle
+EnteringTitle --> EnteringMessage
+EnteringMessage --> Sending : click send
+Sending --> ValidatingFields
+ValidatingFields --> FieldsInvalid : missing
+ValidatingFields --> FieldsValid : complete
+FieldsInvalid --> ShowingError
+FieldsValid --> CheckingRecipients
+CheckingRecipients --> NoRecipients : none
+CheckingRecipients --> RecipientsSelected : selected
+NoRecipients --> ShowingError
+ShowingError --> ViewingSendPage : retry
+RecipientsSelected --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 10.9: Send Notification - Missing Required Fields
+@startuml Scenario_10_9_State
+[*] --> ViewingSendPage
+ViewingSendPage --> LeavingFieldsEmpty : incomplete form
+LeavingFieldsEmpty --> Sending : click send
+Sending --> ValidatingFields
+ValidatingFields --> TitleMissing : title empty
+ValidatingFields --> MessageMissing : message empty
+ValidatingFields --> FieldsComplete : all filled
+TitleMissing --> ShowingError
+MessageMissing --> ShowingError
+ShowingError --> ViewingSendPage : retry
+FieldsComplete --> [*]
+@enduml
+
+' ============================================
+' SYSTEM ADMINISTRATION SCENARIOS
+' ============================================
+
+' Scenario 11.1: Run Database Migration
+@startuml Scenario_11_1_State
+[*] --> AccessingPage
+AccessingPage --> DetectingMissing : table missing
+DetectingMissing --> ShowingAlert
+ShowingAlert --> RunningMigration : click migrate
+RunningMigration --> SendingRequest
+SendingRequest --> ReadingFile
+ReadingFile --> ExecutingSQL
+ExecutingSQL --> MigrationFailed : error
+ExecutingSQL --> MigrationSucceeded : success
+MigrationFailed --> ShowingError
+MigrationSucceeded --> ReturningSuccess
+ReturningSuccess --> HidingAlert
+HidingAlert --> RefreshingPage
+RefreshingPage --> DisplayingContent
+DisplayingContent --> AccessingPage
+ShowingError --> AccessingPage
+AccessingPage --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 11.2: Check Table Existence
+@startuml Scenario_11_2_State
+[*] --> AccessingPage
+AccessingPage --> QueryingDatabase
+QueryingDatabase --> CheckingTable
+CheckingTable --> TableExists : exists
+CheckingTable --> TableMissing : not exists
+TableExists --> LoadingContent
+LoadingContent --> DisplayingData
+DisplayingData --> AccessingPage
+TableMissing --> ShowingAlert
+ShowingAlert --> ShowingButton
+ShowingButton --> HidingTable
+HidingTable --> AccessingPage
+AccessingPage --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 11.3: View System Logs
+@startuml Scenario_11_3_State
+[*] --> NavigatingLogs
+NavigatingLogs --> ReadingFiles
+ReadingFiles --> ParsingEntries
+ParsingEntries --> FilteringEntries
+FilteringEntries --> FormattingData
+FormattingData --> DisplayingEntries
+DisplayingEntries --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 11.4: Handle Authentication Failure
+@startuml Scenario_11_4_State
+[*] --> AccessingAdminURL
+AccessingAdminURL --> CheckingSession
+CheckingSession --> NotAuthenticated : no session
+CheckingSession --> Authenticated : has session
+NotAuthenticated --> CheckingRole
+CheckingRole --> NotAdmin : not admin
+CheckingRole --> IsAdmin : is admin
+NotAdmin --> ClearingSession
+ClearingSession --> RedirectingLogin
+RedirectingLogin --> DisplayingLogin
+DisplayingLogin --> [*]
+IsAdmin --> [*]
+Authenticated --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 11.5: Handle Session Expiry
+@startuml Scenario_11_5_State
+[*] --> PerformingAction
+PerformingAction --> CheckingSession
+CheckingSession --> SessionExpired : expired
+CheckingSession --> SessionValid : valid
+SessionExpired --> ClearingSession
+ClearingSession --> RedirectingLogin
+RedirectingLogin --> DisplayingMessage
+DisplayingMessage --> ShowingLogin
+ShowingLogin --> [*]
+SessionValid --> ProcessingAction
+ProcessingAction --> UpdatingTimestamp
+UpdatingTimestamp --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 11.6: Access Denied for Non-Admin
+@startuml Scenario_11_6_State
+[*] --> AccessingAdminURL
+AccessingAdminURL --> CheckingAuthentication
+CheckingAuthentication --> NotAuthenticated : no auth
+CheckingAuthentication --> Authenticated : authenticated
+NotAuthenticated --> RedirectingLogin
+RedirectingLogin --> [*]
+Authenticated --> CheckingRole
+CheckingRole --> NotAdmin : not admin
+CheckingRole --> IsAdmin : is admin
+NotAdmin --> DenyingAccess
+DenyingAccess --> RedirectingAppropriate
+RedirectingAppropriate --> DisplayingMessage
+DisplayingMessage --> [*]
+IsAdmin --> [*]
+@enduml
+
+' ============================================
+' ERROR HANDLING SCENARIOS
+' ============================================
+
+' Scenario 12.1: Database Connection Error
+@startuml Scenario_12_1_State
+[*] --> AccessingSystem
+AccessingSystem --> AttemptingConnection
+AttemptingConnection --> ConnectionFailed : error
+AttemptingConnection --> ConnectionSucceeded : success
+ConnectionFailed --> CatchingError
+CatchingError --> LoggingError
+LoggingError --> DisplayingError
+DisplayingError --> PreventingOperations
+PreventingOperations --> [*]
+ConnectionSucceeded --> ContinuingOperation
+ContinuingOperation --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 12.2: Missing Required Data
+@startuml Scenario_12_2_State
+[*] --> PerformingOperation
+PerformingOperation --> ValidatingData
+ValidatingData --> DataMissing : missing
+ValidatingData --> DataPresent : present
+DataMissing --> IdentifyingMissing
+IdentifyingMissing --> DisplayingError
+DisplayingError --> HighlightingFields
+HighlightingFields --> PreventingCompletion
+PreventingCompletion --> [*]
+DataPresent --> ContinuingOperation
+ContinuingOperation --> [*]
+@enduml
+
+' ============================================
+
+' Scenario 12.3: Validation Error
+@startuml Scenario_12_3_State
+[*] --> SubmittingForm
+SubmittingForm --> ValidatingInput
+ValidatingInput --> CheckingFormats
+CheckingFormats --> CheckingLengths
+CheckingLengths --> CheckingValues
+CheckingValues --> ValidationFailed : failed
+CheckingValues --> ValidationPassed : passed
+ValidationFailed --> IdentifyingErrors
+IdentifyingErrors --> DisplayingErrors
+DisplayingErrors --> HighlightingFields
+HighlightingFields --> KeepingData
+KeepingData --> PreventingSubmission
+PreventingSubmission --> [*]
+ValidationPassed --> ProcessingSubmission
+ProcessingSubmission --> SavingData
+SavingData --> DisplayingSuccess
+DisplayingSuccess --> [*]
+@enduml
+

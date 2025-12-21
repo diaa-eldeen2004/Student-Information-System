@@ -1,0 +1,326 @@
+' ============================================
+' ADMIN SYSTEM - ESSENTIAL SEQUENCE DIAGRAMS
+' This file contains PlantUML sequence diagrams for the most important admin operations
+' ============================================
+
+!theme plain
+skinparam sequence {
+  ArrowColor #4A148C
+  LifeLineBorderColor #6A1B9A
+  LifeLineBackgroundColor #F3E5F5
+  ParticipantBorderColor #6A1B9A
+  ParticipantBackgroundColor #E1BEE7
+  ActorBorderColor #6A1B9A
+  ActorBackgroundColor #CE93D8
+}
+
+' ============================================
+' ESSENTIAL ADMIN OPERATIONS
+' ============================================
+
+' Sequence 1: Admin Login and Dashboard View
+@startuml Admin_Login_Dashboard
+actor Admin
+participant "Authentication System" as Auth
+participant "Session Manager" as Session
+participant "Dashboard System" as Dashboard
+participant "Database" as DB
+
+Admin -> Auth : login request
+Auth -> DB : verify credentials
+DB --> Auth : credentials valid
+Auth -> Session : create session
+Session --> Auth : session created
+Auth --> Admin : redirect to dashboard
+
+Admin -> Dashboard : view dashboard
+Dashboard -> Session : get admin ID
+Session --> Dashboard : admin ID
+Dashboard -> DB : query student count
+DB --> Dashboard : student count
+Dashboard -> DB : query doctor count
+DB --> Dashboard : doctor count
+Dashboard -> DB : query course count
+DB --> Dashboard : course count
+Dashboard -> DB : query recent activity
+DB --> Dashboard : activity log
+Dashboard --> Admin : display dashboard
+@enduml
+
+' ============================================
+
+' Sequence 2: Create New Student
+@startuml Admin_Create_Student
+actor Admin
+participant "Student Management" as StudentMgmt
+participant "Validation Service" as Validator
+participant "Password Generator" as PasswordGen
+participant "Database" as DB
+participant "User Model" as User
+participant "Student Model" as Student
+
+Admin -> StudentMgmt : create student form
+StudentMgmt --> Admin : display form
+
+Admin -> StudentMgmt : submit student data
+StudentMgmt -> Validator : validate required fields
+Validator --> StudentMgmt : fields valid
+
+StudentMgmt -> DB : check email uniqueness
+DB --> StudentMgmt : email unique
+
+StudentMgmt -> PasswordGen : generate password
+PasswordGen --> StudentMgmt : random password
+
+StudentMgmt -> User : create user account
+User -> DB : insert user record
+DB --> User : user created
+User --> StudentMgmt : user ID
+
+StudentMgmt -> Student : create student record
+Student -> DB : insert student record
+DB --> Student : student created
+Student --> StudentMgmt : success
+
+StudentMgmt --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 3: Update Profile Information
+@startuml Admin_Update_Profile
+actor Admin
+participant "Profile Management" as Profile
+participant "Validation Service" as Validator
+participant "Database" as DB
+participant "Session Manager" as Session
+
+Admin -> Profile : navigate to profile
+Profile -> DB : load profile data
+DB --> Profile : profile data
+Profile --> Admin : display profile form
+
+Admin -> Profile : update profile information
+Profile -> Validator : validate email format
+Validator --> Profile : email valid
+Profile -> Validator : validate phone format
+Validator --> Profile : phone valid
+
+Profile -> DB : update user record
+DB --> Profile : update successful
+
+Profile -> Session : update session data
+Session --> Profile : session updated
+
+Profile --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 4: Change Password
+@startuml Admin_Change_Password
+actor Admin
+participant "Profile Management" as Profile
+participant "Database" as DB
+participant "Password Service" as Password
+
+Admin -> Profile : change password request
+Profile --> Admin : display password form
+
+Admin -> Profile : submit password change
+Profile -> DB : verify current password
+DB --> Profile : password verified
+
+Profile -> Password : validate new password length
+Password --> Profile : length valid
+
+Profile -> Password : hash new password
+Password --> Profile : hashed password
+
+Profile -> DB : update password
+DB --> Profile : password updated
+
+Profile --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 5: Create Report with File Upload
+@startuml Admin_Create_Report
+actor Admin
+participant "Report Management" as ReportMgmt
+participant "Validation Service" as Validator
+participant "File Upload Service" as FileService
+participant "Database" as DB
+
+Admin -> ReportMgmt : create report form
+ReportMgmt --> Admin : display form
+
+Admin -> ReportMgmt : submit report with file
+ReportMgmt -> Validator : validate required fields
+Validator --> ReportMgmt : fields valid
+
+ReportMgmt -> FileService : validate file size
+FileService --> ReportMgmt : size valid (<=5MB)
+
+ReportMgmt -> FileService : validate file type
+FileService --> ReportMgmt : type valid
+
+ReportMgmt -> FileService : read file contents
+FileService --> ReportMgmt : file data
+
+ReportMgmt -> DB : store report with file (BLOB)
+DB --> ReportMgmt : report created
+
+ReportMgmt --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 6: Send Notification to All Users
+@startuml Admin_Send_Notification
+actor Admin
+participant "Notification System" as NotificationSys
+participant "Validation Service" as Validator
+participant "Database" as DB
+participant "User Model" as User
+
+Admin -> NotificationSys : send notification form
+NotificationSys --> Admin : display form
+
+Admin -> NotificationSys : submit notification (all users)
+NotificationSys -> Validator : validate title and message
+Validator --> NotificationSys : fields valid
+
+NotificationSys -> User : get all user IDs
+User -> DB : query all users
+DB --> User : user IDs list
+User --> NotificationSys : user IDs
+
+loop For each user
+  NotificationSys -> DB : create notification
+  DB --> NotificationSys : notification created
+end
+
+NotificationSys --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 7: Edit Student Information
+@startuml Admin_Edit_Student
+actor Admin
+participant "Student Management" as StudentMgmt
+participant "Validation Service" as Validator
+participant "Database" as DB
+participant "Student Model" as Student
+participant "User Model" as User
+
+Admin -> StudentMgmt : edit student request
+StudentMgmt -> Student : load student data
+Student -> DB : query student record
+DB --> Student : student data
+Student --> StudentMgmt : student data
+
+StudentMgmt -> User : load user data
+User -> DB : query user record
+DB --> User : user data
+User --> StudentMgmt : user data
+
+StudentMgmt --> Admin : display edit form
+
+Admin -> StudentMgmt : submit updated data
+StudentMgmt -> Validator : validate input
+Validator --> StudentMgmt : input valid
+
+StudentMgmt -> Student : update student record
+Student -> DB : update student
+DB --> Student : update successful
+
+StudentMgmt -> User : update user record
+User -> DB : update user
+DB --> User : update successful
+
+StudentMgmt --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 8: Delete Student
+@startuml Admin_Delete_Student
+actor Admin
+participant "Student Management" as StudentMgmt
+participant "Database" as DB
+participant "Student Model" as Student
+participant "User Model" as User
+
+Admin -> StudentMgmt : delete student request
+StudentMgmt --> Admin : show confirmation dialog
+
+Admin -> StudentMgmt : confirm deletion
+StudentMgmt -> DB : check dependencies
+DB --> StudentMgmt : no dependencies
+
+StudentMgmt -> Student : delete student record
+Student -> DB : delete student
+DB --> Student : deletion successful
+
+StudentMgmt -> User : delete user account
+User -> DB : delete user
+DB --> User : deletion successful
+
+StudentMgmt --> Admin : display success message
+@enduml
+
+' ============================================
+
+' Sequence 9: Run Database Migration
+@startuml Admin_Run_Migration
+actor Admin
+participant "System Administration" as SystemAdmin
+participant "Migration Service" as Migration
+participant "File System" as FileSystem
+participant "Database" as DB
+
+Admin -> SystemAdmin : access page with missing table
+SystemAdmin -> DB : check table exists
+DB --> SystemAdmin : table not found
+SystemAdmin --> Admin : display migration alert
+
+Admin -> SystemAdmin : click run migration
+SystemAdmin -> Migration : run migration request
+Migration -> FileSystem : read SQL file
+FileSystem --> Migration : SQL content
+
+Migration -> DB : begin transaction
+DB --> Migration : transaction started
+
+Migration -> DB : execute SQL statements
+DB --> Migration : execution successful
+
+Migration -> DB : commit transaction
+DB --> Migration : transaction committed
+
+Migration --> SystemAdmin : migration successful
+SystemAdmin --> Admin : refresh page with success
+@enduml
+
+' ============================================
+
+' Sequence 10: Authentication Failure
+@startuml Admin_Auth_Failure
+actor "Unauthenticated User" as User
+participant "Authentication System" as Auth
+participant "Session Manager" as Session
+participant "Routing Service" as Router
+
+User -> Auth : access admin page
+Auth -> Session : check session
+Session --> Auth : no session found
+
+Auth -> Auth : check user role
+Auth --> Auth : not authenticated
+
+Auth -> Router : redirect to login
+Router --> User : show login page
+@enduml

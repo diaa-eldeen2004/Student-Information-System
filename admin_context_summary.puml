@@ -1,0 +1,232 @@
+' ============================================
+' ADMIN SYSTEM - COMPLETE CONTEXT DIAGRAM
+' This diagram provides a high-level overview of the entire Admin System
+' showing all components, actors, and their relationships
+' ============================================
+
+!theme plain
+skinparam component {
+  BackgroundColor #F3E5F5
+  BorderColor #6A1B9A
+  FontColor #000000
+  ArrowColor #6A1B9A
+}
+skinparam database {
+  BackgroundColor #E1F5FE
+  BorderColor #01579B
+}
+
+@startuml Admin_System_Context
+
+actor "Admin User" as Admin
+
+package "Admin System" {
+  component "Dashboard System" as Dashboard {
+    component "Statistics Module"
+    component "Alert System"
+    component "Activity Logger"
+  }
+  
+  component "Profile Management" as Profile {
+    component "Profile Editor"
+    component "Password Manager"
+  }
+  
+  component "Student Management" as StudentMgmt {
+    component "Student CRUD"
+    component "Student Search"
+  }
+  
+  component "Doctor Management" as DoctorMgmt {
+    component "Doctor CRUD"
+    component "Course Assignment"
+  }
+  
+  component "Course Management" as CourseMgmt {
+    component "Course CRUD"
+    component "Section Manager"
+  }
+  
+  component "IT Officer Management" as ItMgmt {
+    component "IT Officer CRUD"
+    component "System Maintenance"
+  }
+  
+  component "Admin User Management" as AdminMgmt {
+    component "Admin CRUD"
+    component "Level Manager"
+  }
+  
+  component "General User Management" as UserMgmt {
+    component "User CRUD"
+    component "Role Manager"
+  }
+  
+  component "Report Management" as ReportMgmt {
+    component "Report CRUD"
+    component "File Upload Handler"
+    component "File Download Handler"
+  }
+  
+  component "Notification System" as NotificationSys {
+    component "Notification Viewer"
+    component "Notification Sender"
+    component "Unread Counter"
+  }
+  
+  component "System Administration" as SystemAdmin {
+    component "Migration Service"
+    component "Table Checker"
+    component "Log Viewer"
+  }
+  
+  component "Authentication System" as Auth {
+    component "Session Manager"
+    component "Role Checker"
+    component "Access Controller"
+  }
+  
+  component "Validation Service" as Validator {
+    component "Input Validator"
+    component "Email Validator"
+    component "File Validator"
+  }
+  
+  component "Error Handler" as ErrorHandler {
+    component "Error Logger"
+    component "Error Display"
+  }
+}
+
+database "Database" as DB {
+  component "Users Table"
+  component "Students Table"
+  component "Doctors Table"
+  component "Courses Table"
+  component "Sections Table"
+  component "IT Officers Table"
+  component "Admins Table"
+  component "Reports Table"
+  component "Notifications Table"
+  component "Audit Log Table"
+}
+
+component "External Services" as External {
+  component "Password Generator"
+  component "File System"
+  component "HTTP Response Service"
+}
+
+' Admin interactions
+Admin --> Dashboard : views statistics
+Admin --> Profile : manages profile
+Admin --> StudentMgmt : manages students
+Admin --> DoctorMgmt : manages doctors
+Admin --> CourseMgmt : manages courses
+Admin --> ItMgmt : manages IT officers
+Admin --> AdminMgmt : manages admins
+Admin --> UserMgmt : manages users
+Admin --> ReportMgmt : manages reports
+Admin --> NotificationSys : views/sends notifications
+Admin --> SystemAdmin : runs migrations
+
+' Authentication flow
+Admin --> Auth : authenticates
+Auth --> SystemAdmin : checks access
+
+' Dashboard interactions
+Dashboard --> DB : queries statistics
+Dashboard --> SystemAdmin : checks alerts
+Dashboard --> DB : retrieves activity
+
+' Profile interactions
+Profile --> DB : reads/updates user data
+Profile --> Validator : validates input
+Profile --> External : generates password
+
+' Student Management interactions
+StudentMgmt --> DB : CRUD operations
+StudentMgmt --> Validator : validates data
+StudentMgmt --> External : generates password
+StudentMgmt --> Auth : checks permissions
+
+' Doctor Management interactions
+DoctorMgmt --> DB : CRUD operations
+DoctorMgmt --> Validator : validates data
+DoctorMgmt --> External : generates password
+DoctorMgmt --> CourseMgmt : assigns to courses
+
+' Course Management interactions
+CourseMgmt --> DB : CRUD operations
+CourseMgmt --> DB : manages sections
+CourseMgmt --> DoctorMgmt : assigns doctors
+CourseMgmt --> SystemAdmin : checks table existence
+
+' IT Officer Management interactions
+ItMgmt --> DB : CRUD operations
+ItMgmt --> Validator : validates data
+ItMgmt --> External : generates password
+ItMgmt --> SystemAdmin : fixes auto-increment
+
+' Admin User Management interactions
+AdminMgmt --> DB : CRUD operations
+AdminMgmt --> Validator : validates data
+AdminMgmt --> External : generates password
+AdminMgmt --> Auth : manages admin levels
+
+' General User Management interactions
+UserMgmt --> DB : CRUD operations
+UserMgmt --> Validator : validates data
+UserMgmt --> External : generates password
+
+' Report Management interactions
+ReportMgmt --> DB : CRUD operations
+ReportMgmt --> External : handles file uploads
+ReportMgmt --> External : handles file downloads
+ReportMgmt --> Validator : validates files
+ReportMgmt --> SystemAdmin : runs migrations
+
+' Notification System interactions
+NotificationSys --> DB : reads/writes notifications
+NotificationSys --> DB : queries user lists
+NotificationSys --> Auth : gets admin ID
+NotificationSys --> Validator : validates notifications
+
+' System Administration interactions
+SystemAdmin --> DB : checks tables
+SystemAdmin --> DB : runs migrations
+SystemAdmin --> External : reads SQL files
+SystemAdmin --> ErrorHandler : logs errors
+
+' Validation Service interactions
+Validator --> DB : checks uniqueness
+Validator --> External : validates files
+
+' Error Handler interactions
+ErrorHandler --> External : logs to file system
+ErrorHandler --> DB : logs to database
+
+' Database interactions (reverse flows)
+DB --> Dashboard : returns statistics
+DB --> Profile : returns profile data
+DB --> StudentMgmt : returns student data
+DB --> DoctorMgmt : returns doctor data
+DB --> CourseMgmt : returns course data
+DB --> ItMgmt : returns IT officer data
+DB --> AdminMgmt : returns admin data
+DB --> UserMgmt : returns user data
+DB --> ReportMgmt : returns report data
+DB --> NotificationSys : returns notifications
+
+' External Services interactions
+External --> Profile : returns password
+External --> StudentMgmt : returns password
+External --> DoctorMgmt : returns password
+External --> ItMgmt : returns password
+External --> AdminMgmt : returns password
+External --> UserMgmt : returns password
+External --> ReportMgmt : serves files
+External --> SystemAdmin : returns file content
+
+@enduml
+
