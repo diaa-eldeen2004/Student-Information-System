@@ -1,0 +1,30 @@
+{
+    "name": "student-information-system/sis",
+    "description": "Student Information System with automated unit testing",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "ext-pdo": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage",
+        "test-verbose": "vendor/bin/phpunit --verbose"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

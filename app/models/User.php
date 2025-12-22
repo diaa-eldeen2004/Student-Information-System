@@ -45,23 +45,25 @@ class User extends Model
             $stmt->execute(['email' => $email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            // Enhanced debug logging to help diagnose issues
-            if ($user) {
-                $logMessage = "findByEmail FOUND: ID={$user['id']}, Stored Email='{$user['email']}', Role={$user['role']}, Searched for: '{$email}'";
-                error_log($logMessage);
-                DebugLogger::log("findByEmail RESULT: FOUND", [
-                    'found_user_id' => $user['id'],
-                    'found_email' => $user['email'],
-                    'found_role' => $user['role'],
-                    'searched_email' => $email,
-                    'match' => strtolower(trim($user['email'])) === $email
-                ]);
-            } else {
-                $logMessage = "findByEmail NOT FOUND: Searched for email: '{$email}'";
-                error_log($logMessage);
-                DebugLogger::log("findByEmail RESULT: NOT FOUND", [
-                    'searched_email' => $email
-                ]);
+            // Enhanced debug logging to help diagnose issues (suppressed in tests)
+            if (!defined('TESTING') && !defined('PHPUNIT_TEST')) {
+                if ($user) {
+                    $logMessage = "findByEmail FOUND: ID={$user['id']}, Stored Email='{$user['email']}', Role={$user['role']}, Searched for: '{$email}'";
+                    error_log($logMessage);
+                    DebugLogger::log("findByEmail RESULT: FOUND", [
+                        'found_user_id' => $user['id'],
+                        'found_email' => $user['email'],
+                        'found_role' => $user['role'],
+                        'searched_email' => $email,
+                        'match' => strtolower(trim($user['email'])) === $email
+                    ]);
+                } else {
+                    $logMessage = "findByEmail NOT FOUND: Searched for email: '{$email}'";
+                    error_log($logMessage);
+                    DebugLogger::log("findByEmail RESULT: NOT FOUND", [
+                        'searched_email' => $email
+                    ]);
+                }
             }
             
             return $user ?: null;

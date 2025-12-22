@@ -28,6 +28,11 @@ class DebugLogger
 
     public static function log(string $message, array $context = []): void
     {
+        // Suppress logging during tests
+        if (defined('TESTING') || defined('PHPUNIT_TEST')) {
+            return;
+        }
+        
         self::init();
         
         $timestamp = date('Y-m-d H:i:s');
@@ -42,6 +47,11 @@ class DebugLogger
 
     public static function logError(string $message, \Throwable $exception = null, array $context = []): void
     {
+        // Suppress logging during tests
+        if (defined('TESTING') || defined('PHPUNIT_TEST')) {
+            return;
+        }
+        
         self::init();
         
         $timestamp = date('Y-m-d H:i:s');

@@ -69,16 +69,34 @@ class Student extends Model
 
     public function calculateGPA(int $studentId): float
     {
-        // Get all completed enrollments with grades
-        $stmt = $this->db->prepare("
-            SELECT e.final_grade, c.credit_hours
-            FROM enrollments e
-            JOIN sections s ON e.section_id = s.section_id
-            JOIN courses c ON s.course_id = c.course_id
-            WHERE e.student_id = :student_id 
-            AND e.status = 'completed'
-            AND e.final_grade IS NOT NULL
-        ");
+        // Check if schedule table exists, otherwise use sections
+        $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+        $hasScheduleTable = $checkTable->rowCount() > 0;
+        
+        if ($hasScheduleTable) {
+            // Use schedule table
+            $stmt = $this->db->prepare("
+                SELECT e.final_grade, c.credit_hours
+                FROM enrollments e
+                JOIN schedule s ON (e.section_id = s.schedule_id OR e.schedule_id = s.schedule_id)
+                JOIN courses c ON s.course_id = c.course_id
+                WHERE e.student_id = :student_id 
+                AND e.status = 'completed'
+                AND e.final_grade IS NOT NULL
+            ");
+        } else {
+            // Use sections table
+            $stmt = $this->db->prepare("
+                SELECT e.final_grade, c.credit_hours
+                FROM enrollments e
+                JOIN sections s ON e.section_id = s.section_id
+                JOIN courses c ON s.course_id = c.course_id
+                WHERE e.student_id = :student_id 
+                AND e.status = 'completed'
+                AND e.final_grade IS NOT NULL
+            ");
+        }
+        
         $stmt->execute(['student_id' => $studentId]);
         $grades = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

@@ -105,18 +105,37 @@ class Course extends Model
         $prerequisiteIds = array_column($prerequisites, 'course_id');
         $placeholders = implode(',', array_fill(0, count($prerequisiteIds), '?'));
         
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as count
-            FROM enrollments e
-            JOIN sections s ON e.section_id = s.section_id
-            WHERE e.student_id = :student_id
-            AND s.course_id IN ({$placeholders})
-            AND e.status = 'completed'
-            AND e.final_grade IS NOT NULL
-            AND e.final_grade != 'F'
-        ");
+        // Check if schedule table exists, otherwise use sections
+        $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+        $hasScheduleTable = $checkTable->rowCount() > 0;
         
-        $params = array_merge(['student_id' => $studentId], $prerequisiteIds);
+        if ($hasScheduleTable) {
+            // Use schedule table
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as count
+                FROM enrollments e
+                JOIN schedule s ON (e.section_id = s.schedule_id OR e.schedule_id = s.schedule_id)
+                WHERE e.student_id = ?
+                AND s.course_id IN ({$placeholders})
+                AND e.status = 'completed'
+                AND e.final_grade IS NOT NULL
+                AND e.final_grade != 'F'
+            ");
+        } else {
+            // Use sections table
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as count
+                FROM enrollments e
+                JOIN sections s ON e.section_id = s.section_id
+                WHERE e.student_id = ?
+                AND s.course_id IN ({$placeholders})
+                AND e.status = 'completed'
+                AND e.final_grade IS NOT NULL
+                AND e.final_grade != 'F'
+            ");
+        }
+        
+        $params = array_merge([$studentId], $prerequisiteIds);
         $stmt->execute($params);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         

@@ -52,6 +52,13 @@ class View
 
         // Pass helpers into the view as well
         $content = $this->buffer($viewPath, array_merge($data, $shared));
+        
+        // If layout is false or empty string, skip layout
+        if ($layout === false || $layout === '') {
+            echo $content;
+            return;
+        }
+        
         $layoutPath = dirname(__DIR__) . '/views/' . $layout . '.php';
 
         if (file_exists($layoutPath)) {
