@@ -16,12 +16,6 @@ $historyBySemester = $historyBySemester ?? [];
             <p>Create and manage semester schedules for courses and sections</p>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <button type="button" class="btn btn-outline" onclick="checkDatabaseTables()" style="padding: 0.75rem 1.5rem;">
-                <i class="fas fa-database"></i> Check Database
-            </button>
-            <button type="button" class="btn btn-primary" onclick="runMigration()" style="padding: 0.75rem 1.5rem;">
-                <i class="fas fa-sync"></i> Run Migration
-            </button>
             <button type="button" class="btn btn-danger" onclick="clearAllSchedules()" style="padding: 0.75rem 1.5rem;">
                 <i class="fas fa-trash-alt"></i> Clear All Schedules
             </button>
@@ -2228,73 +2222,6 @@ function validateQuickForm(event) {
     return false;
 }
 
-// Database check function
-function checkDatabaseTables() {
-    const btn = event.target.closest('button');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-    
-    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=check_database', {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        
-        if (data.exists) {
-            alert('✓ Database tables are set up correctly!\n\nTables found:\n' + data.tables.join('\n'));
-        } else {
-            const createTables = confirm('⚠ Some database tables are missing!\n\nMissing: ' + data.missing.join(', ') + '\n\nWould you like to create them now?');
-            if (createTables) {
-                createDatabaseTables();
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        alert('Error checking database: ' + error.message);
-    });
-}
-
-function createDatabaseTables() {
-    const btn = document.querySelector('button[onclick="checkDatabaseTables()"]');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
-    
-    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=create_tables', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        
-        if (data.success) {
-            alert('✓ Database tables created successfully!');
-            location.reload();
-        } else {
-            alert('✗ Error creating tables: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        alert('Error creating database tables: ' + error.message);
-    });
-}
-
 function clearAllSchedules() {
     if (!confirm('⚠️ WARNING: This will permanently delete ALL schedules from the schedule table!\n\nThis action cannot be undone.\n\nAre you sure you want to continue?')) {
         return;
@@ -2332,51 +2259,4 @@ function clearAllSchedules() {
     });
 }
 
-function runMigration() {
-    if (!confirm('This will:\n1. Create the schedule table\n2. Remove the sections table\n\nContinue?')) {
-        return;
-    }
-    
-    const btn = event.target.closest('button');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Migration...';
-    
-    fetch('<?= htmlspecialchars($url('it/schedule')) ?>?action=run_migration', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        
-        if (data.success) {
-            let message = '✓ Migration completed successfully!\n\n';
-            if (data.table_exists) {
-                message += 'Table: schedule\n';
-                message += 'Columns: ' + (data.columns ? data.columns.join(', ') : 'N/A') + '\n';
-                message += 'Statements executed: ' + (data.executed || 0);
-            }
-            if (data.sections_removed !== undefined) {
-                message += '\n\nSections table: ' + (data.sections_removed ? '✓ Removed' : '⚠ Still exists');
-            }
-            if (data.errors && data.errors.length > 0) {
-                message += '\n\nWarnings:\n' + data.errors.join('\n');
-            }
-            alert(message);
-            location.reload();
-        } else {
-            alert('✗ Migration failed: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        alert('Error running migration: ' + error.message);
-    });
-}
 </script>

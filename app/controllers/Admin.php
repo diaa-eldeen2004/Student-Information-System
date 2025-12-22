@@ -1473,15 +1473,20 @@ class Admin extends Controller
                 }
             }
             
-            // If AUTO_INCREMENT is 0 or NULL, and we have records, it needs fixing
-            // If AUTO_INCREMENT is less than or equal to max_id, it needs fixing
-            // Exception: If table is empty (maxId == 0), AUTO_INCREMENT of 0 or 1 is acceptable
-            if ($maxId > 0 && ($autoIncrement <= 0 || $autoIncrement <= $maxId)) {
-                $needsAutoIncrementFix = true;
-            } elseif ($maxId == 0 && $autoIncrement == 0) {
-                // Empty table with AUTO_INCREMENT = 0 might be okay, but let's fix it to 1 to be safe
-                $needsAutoIncrementFix = true;
+            // Only flag as needing fix if there's an actual problem:
+            // 1. If we have records (maxId > 0) and AUTO_INCREMENT is <= maxId (would cause duplicate key errors)
+            // 2. If AUTO_INCREMENT is 0 or NULL when we have records (definitely broken)
+            // Don't show alert if:
+            // - Table is empty (maxId == 0) - AUTO_INCREMENT will be set correctly on first insert
+            // - AUTO_INCREMENT > maxId (correctly set)
+            // - AUTO_INCREMENT == 1 and maxId == 0 (empty table, ready for first insert)
+            if ($maxId > 0) {
+                // We have records - AUTO_INCREMENT must be > maxId to be correct
+                if ($autoIncrement <= 0 || $autoIncrement <= $maxId) {
+                    $needsAutoIncrementFix = true;
+                }
             }
+            // If table is empty (maxId == 0), don't show alert - AUTO_INCREMENT will work fine
             
             // Debug logging
             error_log("AUTO_INCREMENT check: autoIncrement={$autoIncrement}, maxId={$maxId}, needsFix=" . ($needsAutoIncrementFix ? 'true' : 'false'));
