@@ -69,16 +69,23 @@ class Student extends Model
 
     public function calculateGPA(int $studentId): float
     {
-        // Check if schedule table exists, otherwise use sections
+        // Check if schedule table exists and enrollments has schedule_id column
         $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
         $hasScheduleTable = $checkTable->rowCount() > 0;
         
+        $hasScheduleIdColumn = false;
         if ($hasScheduleTable) {
-            // Use schedule table
+            // Check if enrollments has schedule_id column
+            $checkColumn = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+            $hasScheduleIdColumn = $checkColumn->rowCount() > 0;
+        }
+        
+        if ($hasScheduleTable && $hasScheduleIdColumn) {
+            // Use schedule table with schedule_id column
             $stmt = $this->db->prepare("
                 SELECT e.final_grade, c.credit_hours
                 FROM enrollments e
-                JOIN schedule s ON (e.section_id = s.schedule_id OR e.schedule_id = s.schedule_id)
+                JOIN schedule s ON e.schedule_id = s.schedule_id
                 JOIN courses c ON s.course_id = c.course_id
                 WHERE e.student_id = :student_id 
                 AND e.status = 'completed'

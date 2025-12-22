@@ -76,11 +76,17 @@ class DatabaseConnection
     public function ensureCleanState(): void
     {
         if ($this->connection !== null && $this->connection->inTransaction()) {
-            error_log("Warning: Active transaction found on singleton connection, rolling back to ensure clean state");
+            // Suppress warning during tests (transactions are expected in test environment)
+            if (!defined('TESTING') && !defined('PHPUNIT_TEST')) {
+                error_log("Warning: Active transaction found on singleton connection, rolling back to ensure clean state");
+            }
             try {
                 $this->connection->rollBack();
             } catch (\PDOException $e) {
-                error_log("Error rolling back transaction: " . $e->getMessage());
+                // Suppress error log during tests
+                if (!defined('TESTING') && !defined('PHPUNIT_TEST')) {
+                    error_log("Error rolling back transaction: " . $e->getMessage());
+                }
                 // If rollback fails, the connection might be in a bad state
                 // In this case, we might need to reconnect
                 $this->reconnect();

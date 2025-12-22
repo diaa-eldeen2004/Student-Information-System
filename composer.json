@@ -20,7 +20,7 @@
         }
     },
     "scripts": {
-        "test": "vendor/bin/phpunit",
+        "test": "php tests/run_tests.php",
         "test-coverage": "vendor/bin/phpunit --coverage-html coverage",
         "test-verbose": "vendor/bin/phpunit --verbose"
     },

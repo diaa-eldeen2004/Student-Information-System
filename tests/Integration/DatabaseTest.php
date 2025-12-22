@@ -42,8 +42,9 @@ class DatabaseTest extends TestCase
     public function testForeignKeys(): void
     {
         // Test cascade delete
-        $user = $this->createTestUser();
-        $student = $this->createTestStudent(['user_id' => $user['id']]);
+        // createTestStudent creates its own user, so we'll use that user for deletion
+        $student = $this->createTestStudent();
+        $user = $student['user']; // Get the user that was created for this student
 
         // Commit to make data visible and sync connection
         $this->commitAndSync();
@@ -55,11 +56,13 @@ class DatabaseTest extends TestCase
         $this->assertNotFalse($beforeResult, 'Student should exist before user deletion');
 
         // Verify foreign key constraint exists
+        // Use proper table aliases to avoid ambiguous column names
         $fkCheck = $this->db->query("
-            SELECT CONSTRAINT_NAME, DELETE_RULE
+            SELECT rc.CONSTRAINT_NAME, rc.DELETE_RULE
             FROM information_schema.REFERENTIAL_CONSTRAINTS rc
             JOIN information_schema.KEY_COLUMN_USAGE kcu 
                 ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                AND rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
             WHERE rc.CONSTRAINT_SCHEMA = DATABASE() 
             AND kcu.TABLE_NAME = 'students' 
             AND kcu.COLUMN_NAME = 'user_id' 
@@ -76,27 +79,37 @@ class DatabaseTest extends TestCase
         $this->db->exec("SET FOREIGN_KEY_CHECKS = 1");
         
         // Delete the user - cascade should delete the student
-        // The deletion happens within the transaction
-        // We need to ensure we're in a transaction so the cascade delete can be committed
+        // The cascade delete happens automatically when we delete the user
+        // We need to ensure the deletion is committed so the cascade is visible
+        // Commit any active transaction first to ensure data is visible
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        
+        // Start a new transaction for the deletion
+        // This ensures the cascade delete happens within a transaction that we can commit
+        $this->db->beginTransaction();
+        
+        // Delete in transaction mode - cascade delete should happen immediately
+        // Use prepared statement to avoid SQL injection
+        $deleteStmt = $this->db->prepare("DELETE FROM users WHERE id = ?");
+        $deleteStmt->execute([$user['id']]);
+        
+        // Commit the deletion (and cascade)
+        $this->db->commit();
+
+        // Sync connection to ensure we see the deletion
+        $this->syncSingletonConnectionOnly();
+        
+        // Start a new transaction for tearDown
         if (!$this->db->inTransaction()) {
             $this->db->beginTransaction();
         }
-        
-        $this->db->exec("DELETE FROM users WHERE id = {$user['id']}");
-
-        // Commit deletion and sync connection
-        // The cascade delete happens automatically when we delete the user
-        // We need to commit the transaction to make the deletion (and cascade) visible
-        $this->commitAndSync();
-        
-        // Sync singleton to ensure we see the deletion
-        $this->syncSingletonConnectionOnly();
 
         // Student should be deleted (cascade)
         // Query using the test database connection directly
         // The cascade delete happens automatically when we delete the user
-        // We need to ensure we're querying with the same connection that performed the delete
-        // and that the deletion has been committed
+        // Since we committed the deletion, the cascade should have happened
         $stmt = $this->db->prepare("SELECT * FROM students WHERE student_id = ?");
         $stmt->execute([$student['student_id']]);
         $result = $stmt->fetch();

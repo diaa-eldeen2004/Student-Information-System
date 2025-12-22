@@ -47,22 +47,22 @@ class User extends Model
             
             // Enhanced debug logging to help diagnose issues (suppressed in tests)
             if (!defined('TESTING') && !defined('PHPUNIT_TEST')) {
-                if ($user) {
-                    $logMessage = "findByEmail FOUND: ID={$user['id']}, Stored Email='{$user['email']}', Role={$user['role']}, Searched for: '{$email}'";
-                    error_log($logMessage);
-                    DebugLogger::log("findByEmail RESULT: FOUND", [
-                        'found_user_id' => $user['id'],
-                        'found_email' => $user['email'],
-                        'found_role' => $user['role'],
-                        'searched_email' => $email,
-                        'match' => strtolower(trim($user['email'])) === $email
-                    ]);
-                } else {
-                    $logMessage = "findByEmail NOT FOUND: Searched for email: '{$email}'";
-                    error_log($logMessage);
-                    DebugLogger::log("findByEmail RESULT: NOT FOUND", [
-                        'searched_email' => $email
-                    ]);
+            if ($user) {
+                $logMessage = "findByEmail FOUND: ID={$user['id']}, Stored Email='{$user['email']}', Role={$user['role']}, Searched for: '{$email}'";
+                error_log($logMessage);
+                DebugLogger::log("findByEmail RESULT: FOUND", [
+                    'found_user_id' => $user['id'],
+                    'found_email' => $user['email'],
+                    'found_role' => $user['role'],
+                    'searched_email' => $email,
+                    'match' => strtolower(trim($user['email'])) === $email
+                ]);
+            } else {
+                $logMessage = "findByEmail NOT FOUND: Searched for email: '{$email}'";
+                error_log($logMessage);
+                DebugLogger::log("findByEmail RESULT: NOT FOUND", [
+                    'searched_email' => $email
+                ]);
                 }
             }
             
@@ -103,7 +103,12 @@ class User extends Model
             ]);
             return $result && $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
-            error_log("User creation failed: " . $e->getMessage());
+            // Suppress duplicate email errors during tests (they're expected in constraint tests)
+            $isDuplicateEmailError = strpos($e->getMessage(), 'Duplicate entry') !== false && 
+                                     strpos($e->getMessage(), 'email') !== false;
+            if (!defined('TESTING') || !$isDuplicateEmailError) {
+                error_log("User creation failed: " . $e->getMessage());
+            }
             throw new \RuntimeException("Failed to create user: " . $e->getMessage());
         }
     }

@@ -17,7 +17,10 @@ class ViewTest extends TestCase
     public function testViewRendersWithData(): void
     {
         // Create a simple test view in the views directory
-        $viewsDir = dirname(__DIR__, 2) . '/app/views';
+        // View class looks for views at: dirname(__DIR__) . '/views/' . $view . '.php'
+        // From app/core/View.php, dirname(__DIR__) is app/, so path is app/views/temp_test_view.php
+        // From tests/Unit/Core/ViewTest.php, we need to go up 3 levels to get to project root
+        $viewsDir = dirname(__DIR__, 3) . '/app/views';
         $testViewPath = $viewsDir . '/temp_test_view.php';
         $testViewContent = '<?php echo $title; ?> - <?php echo $message; ?>';
         
@@ -26,7 +29,17 @@ class ViewTest extends TestCase
             mkdir($viewsDir, 0755, true);
         }
         
-        file_put_contents($testViewPath, $testViewContent);
+        // Ensure the file is created and exists before calling render
+        $fileCreated = file_put_contents($testViewPath, $testViewContent);
+        
+        // Verify file was created and exists
+        if ($fileCreated === false || !file_exists($testViewPath)) {
+            $this->markTestSkipped('View rendering test skipped: Could not create test view file at ' . $testViewPath);
+            return;
+        }
+        
+        // Small delay to ensure file system has written the file
+        usleep(100000); // 100ms delay
 
         try {
             // Suppress output to avoid "headers already sent" errors
@@ -43,8 +56,9 @@ class ViewTest extends TestCase
             // If view file doesn't exist, skip this test
             $this->markTestSkipped('View rendering test skipped: ' . $e->getMessage());
         } finally {
+            // Clean up: remove the test view file
             if (file_exists($testViewPath)) {
-                unlink($testViewPath);
+                @unlink($testViewPath);
             }
         }
     }

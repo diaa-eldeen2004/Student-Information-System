@@ -14,13 +14,11 @@ abstract class TestCase extends PHPUnitTestCase
     protected PDO $db;
     protected array $config;
     protected string $testDbName = 'swe_app_test';
+    protected int $bufferLevel = 0;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Suppress output to prevent "headers already sent" errors
-        ob_start();
         
         // Load test database configuration
         $this->config = require dirname(__DIR__) . '/app/config/database.php';
@@ -45,11 +43,6 @@ abstract class TestCase extends PHPUnitTestCase
         
         // Reset singleton
         $this->resetDatabaseSingleton();
-        
-        // Clean output buffer
-        if (ob_get_level() > 0) {
-            ob_end_clean();
-        }
         
         parent::tearDown();
     }

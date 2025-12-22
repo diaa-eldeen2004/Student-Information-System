@@ -61,26 +61,26 @@ class Router
         
         // Debug: Log the final path being matched (only if not in test environment)
         if (!defined('TESTING')) {
-            error_log("Router Debug - Raw Path: {$rawPath}, Base Path: {$this->basePath}, Final Path: {$path}, Method: {$method}");
-            error_log("Router Debug - Available routes for {$method}: " . json_encode(array_column($this->routes[$method] ?? [], 'path')));
+        error_log("Router Debug - Raw Path: {$rawPath}, Base Path: {$this->basePath}, Final Path: {$path}, Method: {$method}");
+        error_log("Router Debug - Available routes for {$method}: " . json_encode(array_column($this->routes[$method] ?? [], 'path')));
         }
 
         foreach ($this->routes[$method] ?? [] as $route) {
             // Debug: Log each route being checked (only if not in test environment)
             if (!defined('TESTING')) {
-                error_log("Router Debug - Checking route: '{$route['path']}' (type: " . gettype($route['path']) . ") against '{$path}' (type: " . gettype($path) . ")");
+            error_log("Router Debug - Checking route: '{$route['path']}' (type: " . gettype($route['path']) . ") against '{$path}' (type: " . gettype($path) . ")");
             }
             if ($route['path'] === $path) {
                 [$controller, $action] = explode('@', $route['handler']);
                 if (!defined('TESTING')) {
-                    error_log("Router Debug - MATCH FOUND! Controller: {$controller}, Action: {$action}");
+                error_log("Router Debug - MATCH FOUND! Controller: {$controller}, Action: {$action}");
                 }
                 return [$controller, $action, []];
             }
         }
 
         if (!defined('TESTING')) {
-            error_log("Router Debug - NO MATCH FOUND for path: {$path}");
+        error_log("Router Debug - NO MATCH FOUND for path: {$path}");
         }
         return [null, null, []];
     }

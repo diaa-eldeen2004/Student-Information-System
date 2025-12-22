@@ -16,8 +16,96 @@ class StudentTest extends TestCase
         parent::setUp();
         $this->createTestDatabase();
         $this->runMigrations();
+        $this->createScheduleTableIfNotExists();
         $this->studentModel = new Student();
         $this->userModel = new User();
+    }
+    
+    /**
+     * Create schedule table if it doesn't exist (needed for some tests)
+     */
+    protected function createScheduleTableIfNotExists(): void
+    {
+        // Commit any active transaction to ensure table creation is visible
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        
+        $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+        if ($checkTable->rowCount() == 0) {
+            // Create schedule table from migration file
+            $migrationFile = dirname(__DIR__, 2) . '/database/migrations/create_schedule_table.sql';
+            if (file_exists($migrationFile)) {
+                $sql = file_get_contents($migrationFile);
+                $sql = str_replace('swe_app', $this->testDbName, $sql);
+                $statements = array_filter(
+                    array_map('trim', explode(';', $sql)),
+                    function($stmt) {
+                        return !empty($stmt) && !preg_match('/^--/', $stmt);
+                    }
+                );
+                foreach ($statements as $statement) {
+                    try {
+                        if (!empty(trim($statement))) {
+                            $this->db->exec($statement);
+                        }
+                    } catch (\PDOException $e) {
+                        // Ignore errors for existing tables
+                        if (strpos($e->getMessage(), 'already exists') === false) {
+                            error_log("Schedule table creation warning: " . $e->getMessage());
+                        }
+                    }
+                }
+            } else {
+                // If migration file doesn't exist, create table directly
+                $createTableSql = "
+                    CREATE TABLE IF NOT EXISTS `schedule` (
+                        `schedule_id` INT(11) NOT NULL AUTO_INCREMENT,
+                        `course_id` INT(11) NOT NULL,
+                        `doctor_id` INT(11) NOT NULL,
+                        `section_number` VARCHAR(10) NOT NULL,
+                        `semester` VARCHAR(20) NOT NULL,
+                        `academic_year` VARCHAR(10) NOT NULL,
+                        `room` VARCHAR(50) DEFAULT NULL,
+                        `time_slot` VARCHAR(100) DEFAULT NULL,
+                        `day_of_week` VARCHAR(20) DEFAULT NULL,
+                        `start_time` TIME DEFAULT NULL,
+                        `end_time` TIME DEFAULT NULL,
+                        `capacity` INT(11) NOT NULL DEFAULT 30,
+                        `current_enrollment` INT(11) DEFAULT 0,
+                        `session_type` VARCHAR(20) DEFAULT 'lecture',
+                        `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (`schedule_id`),
+                        FOREIGN KEY (`course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE,
+                        FOREIGN KEY (`doctor_id`) REFERENCES `doctors`(`doctor_id`) ON DELETE CASCADE,
+                        INDEX `idx_course_id` (`course_id`),
+                        INDEX `idx_doctor_id` (`doctor_id`),
+                        INDEX `idx_semester` (`semester`, `academic_year`),
+                        INDEX `idx_day_time` (`day_of_week`, `start_time`, `end_time`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ";
+                try {
+                    $this->db->exec($createTableSql);
+                } catch (\PDOException $e) {
+                    if (strpos($e->getMessage(), 'already exists') === false) {
+                        error_log("Schedule table creation error: " . $e->getMessage());
+                    }
+                }
+            }
+            
+            // Verify table was created
+            $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+            if ($checkTable->rowCount() == 0) {
+                error_log("Failed to create schedule table in test database");
+            }
+        }
+        
+        // Start a new transaction for tearDown
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
+        }
     }
 
     public function testCreateStudent(): void
@@ -103,11 +191,30 @@ class StudentTest extends TestCase
 
     public function testCalculateGPA(): void
     {
-        // Check if schedule table exists, if not skip this test
+        // Ensure schedule table exists (should be created in setUp)
+        // If it doesn't exist, try to create it now
+        // Commit any active transaction first to see if table exists
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        
         $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
         if ($checkTable->rowCount() == 0) {
-            $this->markTestSkipped('Schedule table does not exist in test database');
-            return;
+            $this->createScheduleTableIfNotExists();
+            // Check again after creation
+            if ($this->db->inTransaction()) {
+                $this->db->commit();
+            }
+            $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+            if ($checkTable->rowCount() == 0) {
+                $this->markTestSkipped('Schedule table does not exist in test database');
+                return;
+            }
+        }
+        
+        // Start a new transaction for the test
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
         }
         
         $student = $this->createTestStudent();
@@ -127,16 +234,48 @@ class StudentTest extends TestCase
             $doctorId = (int)$this->db->lastInsertId();
         }
 
-        $this->db->exec("
-            INSERT INTO schedule (course_id, doctor_id, section_number, semester, academic_year, status)
-            VALUES ({$course['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
-        ");
-        $scheduleId = (int)$this->db->lastInsertId();
-
-        $this->db->exec("
-            INSERT INTO enrollments (student_id, section_id, status, final_grade)
-            VALUES ({$student['student_id']}, {$scheduleId}, 'completed', 'A')
-        ");
+        // Check if sections table exists (test DB uses sections, not schedule)
+        $sectionsCheck = $this->db->query("SHOW TABLES LIKE 'sections'");
+        if ($sectionsCheck->rowCount() > 0) {
+            // Use sections table (test database schema)
+            $this->db->exec("
+                INSERT INTO sections (course_id, doctor_id, section_number, semester, academic_year, status)
+                VALUES ({$course['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
+            ");
+            $sectionId = (int)$this->db->lastInsertId();
+            
+            $this->db->exec("
+                INSERT INTO enrollments (student_id, section_id, status, final_grade)
+                VALUES ({$student['student_id']}, {$sectionId}, 'completed', 'A')
+            ");
+        } else {
+            // Use schedule table (if sections doesn't exist)
+            $this->db->exec("
+                INSERT INTO schedule (course_id, doctor_id, section_number, semester, academic_year, status)
+                VALUES ({$course['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
+            ");
+            $scheduleId = (int)$this->db->lastInsertId();
+            
+            // Check if enrollments has schedule_id column
+            $enrollmentsCheck = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+            if ($enrollmentsCheck->rowCount() > 0) {
+                $this->db->exec("
+                    INSERT INTO enrollments (student_id, schedule_id, status, final_grade)
+                    VALUES ({$student['student_id']}, {$scheduleId}, 'completed', 'A')
+                ");
+            } else {
+                // Fallback: create a sections entry to match
+                $this->db->exec("
+                    INSERT INTO sections (course_id, doctor_id, section_number, semester, academic_year, status)
+                    VALUES ({$course['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
+                ");
+                $sectionId = (int)$this->db->lastInsertId();
+                $this->db->exec("
+                    INSERT INTO enrollments (student_id, section_id, status, final_grade)
+                    VALUES ({$student['student_id']}, {$sectionId}, 'completed', 'A')
+                ");
+            }
+        }
 
         // Commit enrollment and sync connection
         $this->commitAndSync();
@@ -335,30 +474,48 @@ class StudentTest extends TestCase
     {
         // Create students with specific majors
         // These are inserted into the test transaction
-        $student1 = $this->createTestStudent(['major' => 'Computer Science']);
-        $student2 = $this->createTestStudent(['major' => 'Mathematics']);
-        $student3 = $this->createTestStudent(['major' => 'Computer Science']);
+        // NOTE: createTestStudent signature is createTestStudent(array $userData = [], array $studentData = [])
+        // So we need to pass student data as the second parameter
+        $student1 = $this->createTestStudent([], ['major' => 'Computer Science']);
+        $student2 = $this->createTestStudent([], ['major' => 'Mathematics']);
+        $student3 = $this->createTestStudent([], ['major' => 'Computer Science']);
 
-        // Commit to make data visible and sync connection
+        // CRITICAL: Commit to make data visible and sync connection
         // This commits the test transaction so the data is visible to queries
-        $this->commitAndSync();
+        // We need to ensure the data is actually committed before querying
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        $this->syncSingletonConnectionOnly();
+        
+        // Start a new transaction for tearDown
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
+        }
+        
+        // Refresh model connections to use the committed connection
         $this->refreshModelConnections($this->studentModel);
         
-        // getUniqueMajors() uses $this->db->query() which uses the model's internal $db property
-        // After commitAndSync() and refreshModelConnections(), the model's $db should be the test connection
-        // But we need to ensure the model's connection is actually refreshed
-        
-        // Force refresh the model connection one more time to ensure it's using the committed connection
-        $this->refreshModelConnections($this->studentModel);
-        
-        // Verify data exists directly first (for debugging)
+        // Verify data exists directly first using the test database connection
+        // This helps us understand if the data is actually committed
         $directStmt = $this->db->query("SELECT DISTINCT major FROM students WHERE major IN ('Computer Science', 'Mathematics') AND major IS NOT NULL AND major != ''");
         $directMajors = array_column($directStmt->fetchAll(PDO::FETCH_ASSOC), 'major');
+        
+        // Verify the students were actually created with the correct majors
+        $verifyStmt = $this->db->prepare("SELECT student_id, major FROM students WHERE student_id IN (?, ?, ?)");
+        $verifyStmt->execute([$student1['student_id'], $student2['student_id'], $student3['student_id']]);
+        $verifyStudents = $verifyStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Ensure all students were created with correct majors
+        $this->assertCount(3, $verifyStudents, 'All three students should exist. Found: ' . count($verifyStudents) . '. Students: ' . json_encode($verifyStudents));
         
         // getUniqueMajors() queries ALL students in the database using $this->db->query()
         // Since other tests may have committed data (from createUser() autocommit mode),
         // we need to verify our specific majors exist in the results
         // The test should pass if our majors are in the list (even if there are others)
+        
+        // Force refresh the model connection to ensure it's using the committed connection
+        $this->refreshModelConnections($this->studentModel);
         $majors = $this->studentModel->getUniqueMajors();
         
         // If direct query found the majors but model query didn't, refresh connection and try again
@@ -367,37 +524,55 @@ class StudentTest extends TestCase
             $majors = $this->studentModel->getUniqueMajors();
         }
         
-        $this->assertContains('Computer Science', $majors, 'Majors should contain Computer Science. Found: ' . implode(', ', $majors) . '. Direct query found: ' . implode(', ', $directMajors));
-        $this->assertContains('Mathematics', $majors, 'Majors should contain Mathematics. Found: ' . implode(', ', $majors) . '. Direct query found: ' . implode(', ', $directMajors));
+        $this->assertContains('Computer Science', $majors, 'Majors should contain Computer Science. Found: ' . implode(', ', $majors) . '. Direct query found: ' . implode(', ', $directMajors) . '. Verify students: ' . json_encode($verifyStudents));
+        $this->assertContains('Mathematics', $majors, 'Majors should contain Mathematics. Found: ' . implode(', ', $majors) . '. Direct query found: ' . implode(', ', $directMajors) . '. Verify students: ' . json_encode($verifyStudents));
     }
 
     public function testGetUniqueYears(): void
     {
         // Create students with specific admission dates
         // These are inserted into the test transaction
-        $student1 = $this->createTestStudent(['admission_date' => '2020-01-01']);
-        $student2 = $this->createTestStudent(['admission_date' => '2021-01-01']);
+        // NOTE: createTestStudent signature is createTestStudent(array $userData = [], array $studentData = [])
+        // So we need to pass student data as the second parameter
+        $student1 = $this->createTestStudent([], ['admission_date' => '2020-01-01']);
+        $student2 = $this->createTestStudent([], ['admission_date' => '2021-01-01']);
 
-        // Commit to make data visible and sync connection
+        // CRITICAL: Commit to make data visible and sync connection
         // This commits the test transaction so the data is visible to queries
-        $this->commitAndSync();
+        // We need to ensure the data is actually committed before querying
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        $this->syncSingletonConnectionOnly();
+        
+        // Start a new transaction for tearDown
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
+        }
+        
+        // Refresh model connections to use the committed connection
         $this->refreshModelConnections($this->studentModel);
         
-        // getUniqueYears() uses $this->db->query() which uses the model's internal $db property
-        // After commitAndSync() and refreshModelConnections(), the model's $db should be the test connection
-        // But we need to ensure the model's connection is actually refreshed
-        
-        // Force refresh the model connection one more time to ensure it's using the committed connection
-        $this->refreshModelConnections($this->studentModel);
-        
-        // Verify data exists directly first (for debugging)
+        // Verify data exists directly first using the test database connection
+        // This helps us understand if the data is actually committed
         $directStmt = $this->db->query("SELECT DISTINCT YEAR(admission_date) as year FROM students WHERE admission_date IN ('2020-01-01', '2021-01-01') AND admission_date IS NOT NULL");
         $directYears = array_map('strval', array_column($directStmt->fetchAll(PDO::FETCH_ASSOC), 'year'));
+        
+        // Verify the students were actually created with the correct admission dates
+        $verifyStmt = $this->db->prepare("SELECT student_id, admission_date, YEAR(admission_date) as year FROM students WHERE student_id IN (?, ?)");
+        $verifyStmt->execute([$student1['student_id'], $student2['student_id']]);
+        $verifyStudents = $verifyStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Ensure both students were created with correct admission dates
+        $this->assertCount(2, $verifyStudents, 'Both students should exist. Found: ' . count($verifyStudents) . '. Students: ' . json_encode($verifyStudents));
         
         // getUniqueYears() queries ALL students in the database using $this->db->query()
         // Since other tests may have committed data (from createUser() autocommit mode),
         // we need to verify our specific years exist in the results
         // The test should pass if our years are in the list (even if there are others)
+        
+        // Force refresh the model connection to ensure it's using the committed connection
+        $this->refreshModelConnections($this->studentModel);
         $years = $this->studentModel->getUniqueYears();
         // YEAR() returns integer, so array_column will return integers
         // Convert to strings for comparison
@@ -410,7 +585,7 @@ class StudentTest extends TestCase
             $yearsAsStrings = array_map('strval', $years);
         }
         
-        $this->assertContains('2020', $yearsAsStrings, 'Years should contain 2020. Found: ' . implode(', ', $yearsAsStrings) . '. Direct query found: ' . implode(', ', $directYears));
-        $this->assertContains('2021', $yearsAsStrings, 'Years should contain 2021. Found: ' . implode(', ', $yearsAsStrings) . '. Direct query found: ' . implode(', ', $directYears));
+        $this->assertContains('2020', $yearsAsStrings, 'Years should contain 2020. Found: ' . implode(', ', $yearsAsStrings) . '. Direct query found: ' . implode(', ', $directYears) . '. Verify students: ' . json_encode($verifyStudents));
+        $this->assertContains('2021', $yearsAsStrings, 'Years should contain 2021. Found: ' . implode(', ', $yearsAsStrings) . '. Direct query found: ' . implode(', ', $directYears) . '. Verify students: ' . json_encode($verifyStudents));
     }
 }

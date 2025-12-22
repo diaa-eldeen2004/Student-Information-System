@@ -3,6 +3,7 @@ namespace Tests\Unit\Models;
 
 use Tests\TestCase;
 use models\Course;
+use PDO;
 
 class CourseTest extends TestCase
 {
@@ -13,7 +14,95 @@ class CourseTest extends TestCase
         parent::setUp();
         $this->createTestDatabase();
         $this->runMigrations();
+        $this->createScheduleTableIfNotExists();
         $this->courseModel = new Course();
+    }
+    
+    /**
+     * Create schedule table if it doesn't exist (needed for some tests)
+     */
+    protected function createScheduleTableIfNotExists(): void
+    {
+        // Commit any active transaction to ensure table creation is visible
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        
+        $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+        if ($checkTable->rowCount() == 0) {
+            // Create schedule table from migration file
+            $migrationFile = dirname(__DIR__, 2) . '/database/migrations/create_schedule_table.sql';
+            if (file_exists($migrationFile)) {
+                $sql = file_get_contents($migrationFile);
+                $sql = str_replace('swe_app', $this->testDbName, $sql);
+                $statements = array_filter(
+                    array_map('trim', explode(';', $sql)),
+                    function($stmt) {
+                        return !empty($stmt) && !preg_match('/^--/', $stmt);
+                    }
+                );
+                foreach ($statements as $statement) {
+                    try {
+                        if (!empty(trim($statement))) {
+                            $this->db->exec($statement);
+                        }
+                    } catch (\PDOException $e) {
+                        // Ignore errors for existing tables
+                        if (strpos($e->getMessage(), 'already exists') === false) {
+                            error_log("Schedule table creation warning: " . $e->getMessage());
+                        }
+                    }
+                }
+            } else {
+                // If migration file doesn't exist, create table directly
+                $createTableSql = "
+                    CREATE TABLE IF NOT EXISTS `schedule` (
+                        `schedule_id` INT(11) NOT NULL AUTO_INCREMENT,
+                        `course_id` INT(11) NOT NULL,
+                        `doctor_id` INT(11) NOT NULL,
+                        `section_number` VARCHAR(10) NOT NULL,
+                        `semester` VARCHAR(20) NOT NULL,
+                        `academic_year` VARCHAR(10) NOT NULL,
+                        `room` VARCHAR(50) DEFAULT NULL,
+                        `time_slot` VARCHAR(100) DEFAULT NULL,
+                        `day_of_week` VARCHAR(20) DEFAULT NULL,
+                        `start_time` TIME DEFAULT NULL,
+                        `end_time` TIME DEFAULT NULL,
+                        `capacity` INT(11) NOT NULL DEFAULT 30,
+                        `current_enrollment` INT(11) DEFAULT 0,
+                        `session_type` VARCHAR(20) DEFAULT 'lecture',
+                        `status` ENUM('scheduled', 'ongoing', 'completed', 'cancelled') DEFAULT 'scheduled',
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (`schedule_id`),
+                        FOREIGN KEY (`course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE,
+                        FOREIGN KEY (`doctor_id`) REFERENCES `doctors`(`doctor_id`) ON DELETE CASCADE,
+                        INDEX `idx_course_id` (`course_id`),
+                        INDEX `idx_doctor_id` (`doctor_id`),
+                        INDEX `idx_semester` (`semester`, `academic_year`),
+                        INDEX `idx_day_time` (`day_of_week`, `start_time`, `end_time`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ";
+                try {
+                    $this->db->exec($createTableSql);
+                } catch (\PDOException $e) {
+                    if (strpos($e->getMessage(), 'already exists') === false) {
+                        error_log("Schedule table creation error: " . $e->getMessage());
+                    }
+                }
+            }
+            
+            // Verify table was created
+            $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+            if ($checkTable->rowCount() == 0) {
+                error_log("Failed to create schedule table in test database");
+            }
+        }
+        
+        // Start a new transaction for tearDown
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
+        }
     }
 
     public function testCreateCourse(): void
@@ -131,11 +220,30 @@ class CourseTest extends TestCase
 
     public function testCheckPrerequisites(): void
     {
-        // Check if schedule table exists, if not skip this test
+        // Ensure schedule table exists (should be created in setUp)
+        // If it doesn't exist, try to create it now
+        // Commit any active transaction first to see if table exists
+        if ($this->db->inTransaction()) {
+            $this->db->commit();
+        }
+        
         $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
         if ($checkTable->rowCount() == 0) {
-            $this->markTestSkipped('Schedule table does not exist in test database');
-            return;
+            $this->createScheduleTableIfNotExists();
+            // Check again after creation
+            if ($this->db->inTransaction()) {
+                $this->db->commit();
+            }
+            $checkTable = $this->db->query("SHOW TABLES LIKE 'schedule'");
+            if ($checkTable->rowCount() == 0) {
+                $this->markTestSkipped('Schedule table does not exist in test database');
+                return;
+            }
+        }
+        
+        // Start a new transaction for the test
+        if (!$this->db->inTransaction()) {
+            $this->db->beginTransaction();
         }
 
         $student = $this->createTestStudent();
@@ -170,16 +278,48 @@ class CourseTest extends TestCase
         }
 
         // Create enrollment with completed grade
-        $this->db->exec("
-            INSERT INTO schedule (course_id, doctor_id, section_number, semester, academic_year, status)
-            VALUES ({$course1['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
-        ");
-        $scheduleId = (int)$this->db->lastInsertId();
-
-        $this->db->exec("
-            INSERT INTO enrollments (student_id, section_id, status, final_grade)
-            VALUES ({$student['student_id']}, {$scheduleId}, 'completed', 'A')
-        ");
+        // Check if sections table exists (test DB uses sections, not schedule)
+        $sectionsCheck = $this->db->query("SHOW TABLES LIKE 'sections'");
+        if ($sectionsCheck->rowCount() > 0) {
+            // Use sections table (test database schema)
+            $this->db->exec("
+                INSERT INTO sections (course_id, doctor_id, section_number, semester, academic_year, status)
+                VALUES ({$course1['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
+            ");
+            $sectionId = (int)$this->db->lastInsertId();
+            
+            $this->db->exec("
+                INSERT INTO enrollments (student_id, section_id, status, final_grade)
+                VALUES ({$student['student_id']}, {$sectionId}, 'completed', 'A')
+            ");
+        } else {
+            // Use schedule table (if sections doesn't exist)
+            $this->db->exec("
+                INSERT INTO schedule (course_id, doctor_id, section_number, semester, academic_year, status)
+                VALUES ({$course1['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
+            ");
+            $scheduleId = (int)$this->db->lastInsertId();
+            
+            // Check if enrollments has schedule_id column
+            $enrollmentsCheck = $this->db->query("SHOW COLUMNS FROM enrollments LIKE 'schedule_id'");
+            if ($enrollmentsCheck->rowCount() > 0) {
+                $this->db->exec("
+                    INSERT INTO enrollments (student_id, schedule_id, status, final_grade)
+                    VALUES ({$student['student_id']}, {$scheduleId}, 'completed', 'A')
+                ");
+            } else {
+                // Fallback: create a sections entry to match
+                $this->db->exec("
+                    INSERT INTO sections (course_id, doctor_id, section_number, semester, academic_year, status)
+                    VALUES ({$course1['course_id']}, {$doctorId}, '001', 'Fall', '2024', 'ongoing')
+                ");
+                $sectionId = (int)$this->db->lastInsertId();
+                $this->db->exec("
+                    INSERT INTO enrollments (student_id, section_id, status, final_grade)
+                    VALUES ({$student['student_id']}, {$sectionId}, 'completed', 'A')
+                ");
+            }
+        }
 
         // Commit enrollment and sync connection
         $this->commitAndSync();
